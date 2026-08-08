@@ -54,17 +54,16 @@ const stats = [
 
 const modulePages: HomeNavigablePage[] = [
   'paper2figure-tech-exp',
-  'paper2ppt-image',
-  'paper2ppt-frontend',
+  'paper2figure-model-drawio',
   'paper2drawio-ai',
-  'pdf2ppt',
-  'paper2rebuttal',
+  'image-playground',
+  'image2drawio',
 ];
 
 const highlightPages: HomeNavigablePage[] = [
-  'paper2ppt-frontend',
+  'image-playground',
+  'paper2figure-model-drawio',
   'paper2figure-tech-exp',
-  'paper2poster',
 ];
 
 const displayFont = {
@@ -247,11 +246,11 @@ export function HomePage({ onNavigate }: HomePageProps) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => onNavigate('paper2ppt-frontend')}
+                    onClick={() => onNavigate('paper2figure-model-drawio')}
                     className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-6 py-3.5 text-sm font-semibold text-white transition duration-200 hover:border-[#d6b15f]/40 hover:bg-white/10"
                   >
-                    <Presentation size={16} className="text-[#d6b15f]" />
-                    <span>{t('app.home.frontendCta')}</span>
+                    <Sparkles size={16} className="text-[#d6b15f]" />
+                    <span>{t('app.home.modelCta', '生成模型结构图')}</span>
                   </button>
                 </div>
 
@@ -291,10 +290,10 @@ export function HomePage({ onNavigate }: HomePageProps) {
               </p>
               <button
                 type="button"
-                onClick={() => onNavigate('paper2ppt-image')}
+                onClick={() => onNavigate('paper2drawio-ai')}
                 className="mt-8 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition duration-200 hover:border-[#d6b15f]/40 hover:bg-white/10"
               >
-                <span>{t('app.home.secondaryCta')}</span>
+                <span>{t('app.home.flowCta', '生成流程/架构图')}</span>
                 <ArrowRight size={15} />
               </button>
             </div>
@@ -373,17 +372,17 @@ export function HomePage({ onNavigate }: HomePageProps) {
             <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
               <button
                 type="button"
-                onClick={() => onNavigate('paper2ppt-image')}
+                onClick={() => onNavigate('image-playground')}
                 className="rounded-lg bg-[#d6b15f] px-6 py-3.5 text-sm font-semibold text-[#14110a] transition duration-200 hover:bg-[#e1bf73]"
               >
-                {t('app.home.secondaryCta')}
+                {t('app.home.playgroundCta', '体验生图模型')}
               </button>
               <button
                 type="button"
-                onClick={() => onNavigate('paper2rebuttal')}
+                onClick={() => onNavigate('mindmap')}
                 className="rounded-lg border border-white/10 bg-white/5 px-6 py-3.5 text-sm font-semibold text-white transition duration-200 hover:border-[#d6b15f]/40 hover:bg-white/10"
               >
-                {t('app.home.rebuttalCta')}
+                {t('app.home.mindmapCta', '创建思维导图')}
               </button>
             </div>
           </div>

@@ -64,6 +64,7 @@ interface Paper2FigurePageProps {
   enableDrawio?: boolean;
   drawioLabel?: string;
   showDrawioEmpty?: boolean;
+  showBanner?: boolean;
   extraSection?: React.ReactNode;
 }
 
@@ -85,6 +86,7 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
   enableDrawio = false,
   drawioLabel,
   showDrawioEmpty = false,
+  showBanner: showBannerProp = true,
   extraSection,
 }) => {
   const { t } = useTranslation('paper2graph');
@@ -118,7 +120,7 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [lastFilename, setLastFilename] = useState('paper2figure.pptx');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [showBanner, setShowBanner] = useState(true);
+  const [showBanner, setShowBanner] = useState(showBannerProp);
   const [isDragOver, setIsDragOver] = useState(false);
 
   const [drawioXml, setDrawioXml] = useState('');
@@ -1003,7 +1005,7 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
 
   return (
     <div className="w-full h-full flex flex-col bg-[var(--bg-dark)]">
-      <Banner show={showBanner} onClose={() => setShowBanner(false)} stars={stars} />
+      {showBannerProp && <Banner show={showBanner} onClose={() => setShowBanner(false)} stars={stars} />}
 
       <div className="flex-1 flex flex-col items-center justify-start px-6 pt-20 pb-10 overflow-auto">
         <div className="w-full max-w-5xl animate-fade-in">

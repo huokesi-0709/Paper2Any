@@ -2,21 +2,12 @@ import { useEffect, useState } from 'react';
 import ParticleBackground from './components/ParticleBackground';
 import Paper2GraphTechExpPage from './components/Paper2GraphTechExpPage';
 import Paper2GraphDrawioPage from './components/Paper2GraphDrawioPage';
-import Paper2PptPage from './components/Paper2PptPage';
-import Pdf2PptPage from './components/Pdf2PptPage';
-import Image2PptPage from './components/Image2PptPage';
 import Image2DrawioPage from './components/Image2DrawioPage';
 import ImagePlaygroundPage from './components/ImagePlaygroundPage';
-import Ppt2PolishPage from './components/Ppt2PolishPage';
-import KnowledgeBasePage from './components/KnowledgeBasePage';
 import { FilesPage } from './components/FilesPage';
 import Paper2DrawioAiPage from './components/Paper2DrawioAiPage';
 import Paper2DrawioPage from './components/paper2drawio';
 import MindMapPage from './components/MindMapPage';
-import Paper2RebuttalPage from './components/Paper2RebuttalPage';
-import Paper2VideoPage from './components/Paper2VideoPage';
-import Paper2PosterPage from './components/Paper2PosterPage';
-import Paper2CitationPage from './components/Paper2CitationPage';
 import { AccountPage } from './components/AccountPage';
 import { useTranslation } from 'react-i18next';
 import { PointsDisplay } from './components/PointsDisplay';
@@ -34,20 +25,9 @@ const pageIds = [
   'paper2drawio-ai',
   'image-playground',
   'mindmap',
-  'paper2ppt',
-  'paper2ppt-image',
-  'paper2ppt-frontend',
-  'paper2video',
-  'paper2poster',
-  'paper2citation',
-  'pdf2ppt',
-  'image2ppt',
   'image2drawio',
-  'ppt2polish',
-  'knowledge',
   'files',
   'paper2drawio',
-  'paper2rebuttal',
 ] as const;
 
 type ActivePage = typeof pageIds[number];
@@ -61,20 +41,9 @@ const pagePaths: Record<ActivePage, string> = {
   'paper2drawio-ai': '/paper2drawio-ai',
   'image-playground': '/image-playground',
   'mindmap': '/mindmap',
-  'paper2ppt': '/paper2ppt',
-  'paper2ppt-image': '/paper2ppt/image',
-  'paper2ppt-frontend': '/paper2ppt/frontend',
-  'paper2video': '/paper2video',
-  'paper2poster': '/paper2poster',
-  'paper2citation': '/paper2citation',
-  'pdf2ppt': '/pdf2ppt',
-  'image2ppt': '/image2ppt',
   'image2drawio': '/image2drawio',
-  'ppt2polish': '/ppt2polish',
-  'knowledge': '/knowledge',
   'files': '/files',
   'paper2drawio': '/paper2drawio',
-  'paper2rebuttal': '/paper2rebuttal',
 };
 
 function normalizePathname(pathname: string): string {
@@ -242,21 +211,9 @@ function App() {
           {activePage === 'paper2drawio-ai' && <Paper2DrawioAiPage />}
           {activePage === 'image-playground' && <ImagePlaygroundPage />}
           {activePage === 'mindmap' && <MindMapPage />}
-          {(activePage === 'paper2ppt' || activePage === 'paper2ppt-image') && (
-            <Paper2PptPage initialMode="image" />
-          )}
-          {activePage === 'paper2ppt-frontend' && <Paper2PptPage initialMode="frontend" />}
-          {activePage === 'paper2video' && <Paper2VideoPage />}
-          {activePage === 'paper2poster' && <Paper2PosterPage />}
-          {activePage === 'paper2citation' && <Paper2CitationPage />}
-          {activePage === 'pdf2ppt' && <Pdf2PptPage />}
-          {activePage === 'image2ppt' && <Image2PptPage />}
           {activePage === 'image2drawio' && <Image2DrawioPage />}
-          {activePage === 'ppt2polish' && <Ppt2PolishPage />}
-          {activePage === 'knowledge' && <KnowledgeBasePage />}
           {activePage === 'files' && <FilesPage />}
-          {activePage === 'paper2drawio' && <Paper2DrawioPage />}
-          {activePage === 'paper2rebuttal' && <Paper2RebuttalPage />}
+          {activePage === 'paper2drawio' && <Paper2DrawioPage showBanner={false} />}
         </div>
       </main>
 

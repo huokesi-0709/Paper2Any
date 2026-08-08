@@ -26,6 +26,7 @@ const Paper2GraphDrawioPage = () => {
         tone: 'emerald',
       }}
       showExamples={false}
+      showBanner={false}
       extraSection={
         <CasesSection
           title={t('cases.title')}

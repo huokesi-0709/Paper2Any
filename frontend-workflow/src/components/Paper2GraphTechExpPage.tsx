@@ -20,6 +20,7 @@ const Paper2GraphTechExpPage = () => {
         tone: 'sky',
       }}
       exampleTypes={['tech_route', 'exp_data']}
+      showBanner={false}
     />
   );
 };
