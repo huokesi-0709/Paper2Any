@@ -1,0 +1,172 @@
+import { useEffect, useState, type MouseEvent } from 'react';
+import { KnowledgeFile, ToolType } from './types';
+import { FileText, Download, ExternalLink, Clock, Headphones, Loader2 } from 'lucide-react';
+import { downloadSecureAsset, getSecureAssetUrl } from '../../services/secureAssetService';
+
+interface OutputViewProps {
+  files: KnowledgeFile[];
+  onGoToTool: (tool: ToolType) => void;
+  onPreview: (file: KnowledgeFile) => void;
+}
+
+export const OutputView = ({ files, onGoToTool, onPreview }: OutputViewProps) => {
+  const [accessUrls, setAccessUrls] = useState<Record<string, string>>({});
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolveAccessUrls = async () => {
+      const nextEntries = await Promise.all(
+        files.map(async (file) => {
+          if (!file.url) {
+            return [file.id, ''] as const;
+          }
+          try {
+            return [file.id, await getSecureAssetUrl(file.url)] as const;
+          } catch (err) {
+            console.warn('[OutputView] Failed to resolve secure asset URL:', err);
+            return [file.id, ''] as const;
+          }
+        }),
+      );
+
+      if (!cancelled) {
+        setAccessUrls(Object.fromEntries(nextEntries));
+      }
+    };
+
+    resolveAccessUrls();
+    return () => {
+      cancelled = true;
+    };
+  }, [files]);
+
+  const handleDownload = async (event: MouseEvent, file: KnowledgeFile) => {
+    event.stopPropagation();
+    if (!file.url) {
+      return;
+    }
+
+    setDownloadingId(file.id);
+    try {
+      await downloadSecureAsset(file.url, file.name || 'download');
+    } catch (err) {
+      console.error('[OutputView] Failed to download file:', err);
+      alert('下载失败');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const getFileIcon = (type: string) => {
+    switch (type) {
+      case 'audio':
+        return <Headphones className="text-green-400" size={24} />;
+      case 'doc':
+      default:
+        return <FileText className="text-purple-400" size={24} />;
+    }
+  };
+
+  const getFileColor = (type: string) => {
+    switch (type) {
+      case 'audio':
+        return 'green';
+      case 'doc':
+      default:
+        return 'purple';
+    }
+  };
+
+  if (files.length === 0) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center text-center">
+        <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
+          <FileText className="text-gray-600" size={32} />
+        </div>
+        <h3 className="text-lg font-medium text-white mb-2">No Outputs Yet</h3>
+        <p className="text-gray-500 text-sm max-w-xs mb-6">
+          Generate content from your knowledge base using the tools in the right panel.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {files.map(file => {
+        const color = getFileColor(file.type);
+        const accessUrl = accessUrls[file.id] || '';
+        return (
+          <div
+            key={file.id}
+            onClick={() => onPreview(file)}
+            className={`bg-white/5 border border-white/10 rounded-xl p-4 hover:border-${color}-500/30 transition-all cursor-pointer`}
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div className={`p-2 bg-${color}-500/10 rounded-lg`}>
+                {getFileIcon(file.type)}
+              </div>
+              <span className={`text-xs text-${color}-300 bg-${color}-500/10 px-2 py-1 rounded-full`}>
+                Generated
+              </span>
+            </div>
+
+            <h3 className="text-white font-medium mb-1">{file.name}</h3>
+            <p className="text-gray-500 text-xs mb-4 line-clamp-2">{file.desc}</p>
+
+            {file.type === 'audio' && file.url && (
+              <div className="mb-4" onClick={(e) => e.stopPropagation()}>
+                {accessUrl ? (
+                  <audio
+                    className="w-full"
+                    controls
+                    preload="metadata"
+                    src={accessUrl}
+                  />
+                ) : (
+                  <div className="text-xs text-gray-500 flex items-center gap-2">
+                    <Loader2 size={12} className="animate-spin" />
+                    正在加载音频...
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-4 border-t border-white/5">
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <Clock size={12} />
+                <span>{file.uploadTime}</span>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={(e) => handleDownload(e, file)}
+                  disabled={!file.url || downloadingId === file.id}
+                  className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                  title="Download"
+                >
+                  {downloadingId === file.id ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Download size={16} />
+                  )}
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPreview(file);
+                  }}
+                  className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                  title="View"
+                >
+                  <ExternalLink size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};

@@ -1,0 +1,26 @@
+-r requirements-base.txt
+
+# Paper2Figure / Drawio / 科研图表的额外依赖。
+# CUDA 运行库仍单独放在 requirements-cu12.txt（仅 Linux + NVIDIA）。
+
+# PDF / MinerU
+mineru-vl-utils
+kornia
+timm
+lmdb>=1.4.1
+
+# 矢量化、分割与图像重建
+vtracer
+ultralytics
+scikit-image
+imgaug>=0.4.0
+
+# 实验数据转图与网页渲染
+imgkit==1.2.3
+
+# 可选 OCR：默认走 SIMPLE_OCR/PAPER2DRAWIO_OCR 远程接口。
+# disabled: pytesseract
+# disabled: paddlepaddle==3.2.0
+# disabled: paddleocr==2.9.1
+
+# 旧功能依赖已移至 requirements-base.txt 的 disabled 区域。

@@ -1,0 +1,145 @@
+{
+  "subtitle": "PPT → BEAUTIFIED PPT",
+  "title": "PptPolish",
+  "desc": "Upload original PPT, AI analyzes structure and beautifies it into professional presentation.",
+  "descHighlight": "Real-time comparison to control beautification effect!",
+  "steps": {
+    "upload": "Upload File",
+    "beautify": "Beautify Pages",
+    "complete": "Complete & Download"
+  },
+  "upload": {
+    "title": "Upload PPT / PDF",
+    "dragText": "Drag PPT/PDF file here",
+    "supportText": "Supports PPT / PPTX / PDF (16:9 slides)",
+    "fileTip": "Upload PPT/PPTX or a PDF where each page is a 16:9 slide. We recommend one slide image per page.",
+    "button": "Select File",
+    "fileInfo": "✓ {{name}}",
+    "modeInfo": "🎨 Beautify Mode: Optimizes original PPT style",
+    "config": {
+      "title": "Configuration",
+      "apiUrl": "Model API URL",
+      "buyLink": "Buy Now",
+      "apiKey": "API Key (starts with sk-)",
+      "apiKeyPlaceholder": "sk-...",
+      "model": "Model Name",
+      "customModelTip": "Manually enter a model name (must match the selected provider's supported models).",
+      "genModel": "Image Gen Model",
+      "language": "Language",
+      "styleTitle": "Style Config",
+      "renderTitle": "Render Resolution",
+      "renderTip": "Higher resolution is clearer but slower and heavier (4K for small decks).",
+      "renderOptions": {
+        "auto": "Auto (default)",
+        "1080p": "1080p",
+        "2k": "2K (recommended)",
+        "4k": "4K (slower)"
+      },
+      "styleMode": {
+        "preset": "Preset Style",
+        "reference": "Reference Image"
+      },
+      "stylePreset": "Select Style",
+      "presets": {
+        "modern": "Modern",
+        "business": "Business",
+        "academic": "Academic",
+        "creative": "Creative"
+      },
+      "promptLabel": "Style Prompt (Required)",
+      "promptPlaceholder": "e.g., Use purple color scheme, keep academic style...",
+      "promptCardsTitle": "Prompt Cards",
+      "promptCardsTip": "Click to autofill",
+      "promptCardsUse": "Click to use this prompt",
+      "referenceLabel": "Upload Reference Image",
+      "referenceUploaded": "Reference image uploaded",
+      "referenceUpload": "Click to upload reference image",
+      "start": "Start Parsing",
+      "parsing": "Parsing...",
+      "tip": "Tip: If no response for a long time or generation fails, the API provider might be unstable. Please try again later or switch model/provider."
+    }
+  },
+  "progress": {
+    "init": "Initializing...",
+    "uploading": "Uploading file...",
+    "analyzing": "Analyzing page structure...",
+    "extracting": "Extracting content...",
+    "identifying": "Identifying images...",
+    "planning": "Generating beautification plan...",
+    "done": "Parsing complete!"
+  },
+  "outline": {
+    "title": "Confirm Outline",
+    "subtitle": "Check and adjust page structure, editable, sortable or deletable",
+    "edit": {
+      "titlePlaceholder": "Page Title",
+      "layoutPlaceholder": "Layout Description",
+      "pointPlaceholder": "Key Point",
+      "addPoint": "+ Add Point",
+      "save": "Save",
+      "cancel": "Cancel"
+    },
+    "back": "Back to Upload",
+    "confirm": "Confirm & Start Beautifying"
+  },
+  "beautify": {
+    "initTitle": "Generating Initial PPT",
+    "initDesc": "Please wait, processing your PPT file...",
+    "loadingTitle": "Generating Initial PPT and Previews",
+    "loadingDesc": "This may take a few minutes, please be patient...",
+    "title": "Beautify Pages",
+    "pageInfo": "Page {{current}} / {{total}}: {{title}}",
+    "modeInfo": "🎨 Beautify Mode - Optimizes original PPT style",
+    "original": "Original PPT Render",
+    "result": "Beautified Result",
+    "processing": "Beautifying...",
+    "waiting": "Waiting to generate",
+    "regeneratePlaceholder": "Enter refinement prompt, then click regenerate...",
+    "regenerate": "Regenerate",
+    "back": "Back to Upload",
+    "prev": "Previous",
+    "next": "Confirm & Continue"
+  },
+  "complete": {
+    "title": "Beautification Complete!",
+    "overview": "Result Overview",
+    "page": "Page {{index}}",
+    "status": "Beautified",
+    "generateFinal": "Generate Final File",
+    "generating": "Generating final file...",
+    "downloadPptx": "Download PPTX",
+    "downloadPdf": "Download PDF",
+    "new": "Process New Document"
+  },
+  "demo": {
+    "more": "More cases: Feishu Doc",
+    "group1": {
+      "title": "PPT Enhancement",
+      "desc": "Intelligently adjust style, color scheme and visual hierarchy based on original PPT content.",
+      "original": "Original PPT",
+      "result": "Enhanced"
+    },
+    "group2": {
+      "title": "PPT Polishing & Expansion",
+      "desc": "Expand pure text or simple blank PPT, automatically generate beautiful layout and visual elements.",
+      "original": "Original PPT",
+      "result": "Polished"
+    }
+  },
+  "errors": {
+    "format": "Supports PPT/PPTX/PDF formats only",
+    "size": "File size exceeds 50MB limit",
+    "selectFile": "Please select a PPT/PPTX/PDF file first",
+    "config": "Please configure Model API URL and API Key first",
+    "prompt": "Please enter style prompt",
+    "reference": "Please upload reference image",
+    "quota": "Insufficient points. Please get a redeem code and redeem it in Account first.",
+    "validating": "Verifying model connection...",
+    "serverBusy": "Server busy, please try again later",
+    "noResultPath": "Missing result_path",
+    "emptyResult": "Parsing result is empty",
+    "noPages": "No pages to beautify",
+    "noOutline": "No outline data",
+    "downloadFail": "Download link does not exist"
+  }
+}

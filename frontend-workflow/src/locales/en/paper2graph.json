@@ -1,0 +1,175 @@
+{
+  "hero": {
+    "badge": "PAPER → EDITABLE PPTX",
+    "title": "One-click scientific figures from your paper content",
+    "subtitle": "Upload paper PDF / images, or paste text directly to generate editable scientific figure PPTX that you can further edit, add/remove content and adjust layout."
+  },
+  "subpages": {
+    "techExp": {
+      "badge": "TECH ROUTE + EXP DATA",
+      "title": "Technical Route & Experimental Charts",
+      "subtitle": "Focus on methods and results: generate editable tech-route and experimental charts in one flow.",
+      "hintTitle": "Usage / 使用说明",
+      "hintZh": "支持 PDF 与文本输入，生成技术路线图或者美观的实验数据图。",
+      "hintEn": "Supports PDF and text. Generate the technical route first, then add experimental charts."
+    },
+    "modelDrawio": {
+      "badge": "MODEL → DRAWIO / PPT",
+      "title": "Model Diagram · DrawIO & PPT",
+      "subtitle": "Generate a model diagram, then convert it to editable DrawIO or PPTX.",
+      "hintTitle": "Usage / 使用说明",
+      "hintZh": "流程：配置模型 → 生成图片 → 提示词微调 → 选择转 DrawIO 或 PPT。",
+      "hintEn": "Flow: configure → generate → prompt refine → convert to DrawIO or PPT.",
+      "drawioButton": "Convert to DrawIO Editor"
+    }
+  },
+  "graphType": {
+    "label": "Figure Type",
+    "model_arch": "Model architecture",
+    "tech_route": "Technical roadmap",
+    "exp_data": "Experimental data chart"
+  },
+  "uploadTabs": {
+    "file": "File",
+    "fileSub": "PDF",
+    "text": "Text",
+    "textSub": "Text Content",
+    "image": "Image",
+    "imageSub": "Image"
+  },
+  "upload": {
+    "fileDragTitleFile": "Drag PDF here or click to select",
+    "fileDragTitleImage": "Drag image here or click to select",
+    "fileHint": "Single file recommended < 20MB.",
+    "selectFile": "Choose file",
+    "textLabel": "Paste abstract, section content or any text you want to turn into PPT",
+    "textPlaceholder": "Paste the paper abstract, chapter content, or any text you want to convert to PPTX here (both Chinese and English are supported)...",
+    "textTip": "Recommended within 5,000 characters. For very long content, please split into multiple runs."
+  },
+  "advanced": {
+    "title": "Model configuration (advanced)",
+    "apiUrlLabel": "Model API URL",
+    "buyLink": "Click to buy",
+    "apiKeyLabel": "API Key (starts with sk-)",
+    "apiKeyPlaceholder": "API Key for calling OpenAI / compatible models",
+    "modelLabel": "Model",
+    "modelOnlyHint": "This endpoint only supports gemini-3-pro",
+    "figureComplexLabel": "Figure complexity",
+    "figureComplex": {
+      "easy": "Simple",
+      "mid": "Medium",
+      "hard": "Complex"
+    },
+    "languageLabel": "Language",
+    "language": {
+      "zh": "Chinese",
+      "en": "English"
+    },
+    "styleLabel": "Style",
+    "style": {
+      "cartoon": "Cartoon",
+      "realistic": "Photorealistic",
+      "lowPoly": "Low poly 3D",
+      "lego": "LEGO-style",
+      "3d": "3D Rendering",
+      "flat_2.5d": "Flat 2.5D",
+      "line_art": "Line Art",
+      "low_poly": "Low Poly",
+      "neon_glow": "Neon Glow"
+    },
+    "resolutionLabel": "Resolution",
+    "resolution": {
+      "2k": "2K",
+      "4k": "4K"
+    }
+  },
+  "submit": {
+    "buttonIdle": "Generate editable PPTX",
+    "buttonLoading": "Generating...",
+    "hintTitle": "Tip",
+    "hintText": "If the request takes long or fails, the API provider may be unstable. Please try again later, or switch model/provider."
+  },
+  "progress": {
+    "stage1": "Analyzing paper content...",
+    "stage2": "Generating scientific figures...",
+    "stage3": "Converting to editable figures...",
+    "stage4": "Composing PPT...",
+    "eta": "Estimated 2–5 minutes, please wait..."
+  },
+  "download": {
+    "reDownload": "Download again: {{filename}}"
+  },
+  "techRoute": {
+    "pptDownload": "Download technical roadmap PPT: {{filename}}",
+    "pptCopyHintTitle": "If download fails, copy the link below into your browser:",
+    "svgDownload": "Download SVG source file: {{filename}}",
+    "svgPreviewTitle": "SVG preview (PNG rendering)",
+    "paletteLabel": "Color palette",
+    "templateLabel": "Template",
+    "templateHint": "The selected template SVG will be used as the layout reference.",
+    "templateAuto": "Auto (default)",
+    "templateSelected": "Selected",
+    "templateZoom": "Zoom",
+    "templateClose": "Close",
+    "templateAutoLabel": "Auto (default)",
+    "template1": "Template 1",
+    "template2": "Template 2",
+    "template3": "Template 3",
+    "template4": "Template 4",
+    "template5": "Template 5"
+  },
+  "validating": {
+    "apiKey": "Validating API Key..."
+  },
+  "errors": {
+    "fileTooLarge": "File size exceeds 20MB limit",
+    "unsupportedFile": "Only PDF and common image formats are supported. Please check the file type.",
+    "noFile": "Please select a file or image to upload first",
+    "noText": "Please enter the text content to be converted to PPTX",
+    "quotaUserExhausted": "Insufficient points. Please get a redeem code from the purchase page, then redeem it in Account.",
+    "quotaGuestExhausted": "Please sign in to continue.",
+    "missingApiConfig": "Please configure model API URL and API Key first",
+    "techRouteNoImage": "Technical roadmap does not support image input",
+    "expDataNoImage": "Experimental data chart only supports PDF input, image is not allowed",
+    "expDataFileOnly": "Experimental data chart only supports PDF file input",
+    "inviteInvalid": "Invite code is incorrect or expired",
+    "tooManyRequests": "Too many requests. Please try again later.",
+    "serverBusy": "Server is busy, please try again later."
+  },
+  "success": {
+    "pptGenerated": "PPTX generated, downloading...",
+    "techRouteGenerated": "Technical roadmap generated. You can download PPT / SVG or directly preview PNG."
+  },
+  "examples": {
+    "sectionTitle": "Examples: from Paper to PPTX",
+    "sectionSubtitle": "The following examples show the效果from PDF / images / text to editable PPTX.",
+    "feishuLink": "More cases (Feishu doc)",
+    "cards": {
+      "paperPdfToFigureTitle": "Paper PDF → Scientific figures (PPT)",
+      "paperPdfToFigureDesc": "Upload an English paper PDF, automatically extract background, methods, experiment design and conclusions, and generate a clear, academic-style PPTX.",
+      "figureScreenshotToPptTitle": "Scientific figure / schematic screenshot → editable PPTX",
+      "figureScreenshotToPptDesc": "Upload scientific figures or schematic screenshots, automatically recognize hierarchy and key points and layout them into an editable English PPTX.",
+      "abstractTextToPptTitle": "Paper abstract text → scientific figure PPTX",
+      "abstractTextToPptDesc": "Paste the paper abstract or chapter content to generate a PPTX outline with headings, key points and figure placeholders for later refinement.",
+      "pdfToTechRouteTitle": "Paper PDF → technical roadmap PPT + SVG",
+      "pdfToTechRouteDesc": "Based on the method section of the paper, automatically organize the technical route and module dependencies and generate clear roadmap PPTX and SVG diagrams.",
+      "textToTechRouteTitle": "Paper abstract text → technical roadmap PPT + SVG",
+      "textToTechRouteDesc": "Extract key steps and timeline from an entire technical proposal PDF and generate a technical timeline PPTX and SVG.",
+      "pdfToExpDataTitle": "Paper PDF → experimental data charts in PPT",
+      "pdfToExpDataDesc": "Extract tables and result descriptions from the experimental section of the paper and automatically generate comparison bar / line charts in PPTX.",
+      "tableTextToExpDataTitle": "Experimental table text → data charts in PPT",
+      "tableTextToExpDataDesc": "Extract metrics and baselines from textual experimental descriptions and generate presentation-ready experimental result PPTX."
+    }
+  },
+  "cases": {
+    "title": "Model Architecture Cases",
+    "subtitle": "Examples can be converted to DrawIO for online editing",
+    "feishu": "View Feishu Doc",
+    "items": {
+      "case1Title": "Model Architecture Case 1",
+      "case1Desc": "Clear hierarchy for easy refinement",
+      "case2Title": "Model Architecture Case 2",
+      "case2Desc": "Module relations and data flow"
+    }
+  }
+}

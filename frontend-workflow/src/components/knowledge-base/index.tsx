@@ -1,0 +1,861 @@
+import { useState, useEffect } from 'react';
+import { MaterialType, KnowledgeBaseEntry, KnowledgeFile, SectionType, ToolType } from './types';
+import { Sidebar } from './Sidebar';
+import { LibraryView } from './LibraryView';
+import { UploadView } from './UploadView';
+import { OutputView } from './OutputView';
+import { SettingsView } from './SettingsView';
+import { RightPanel } from './RightPanel';
+import { MermaidPreview } from './tools/MermaidPreview';
+import { MindMapFlowEditor } from './tools/MindMapFlowEditor';
+import { supabase } from '../../lib/supabase';
+import { useAuthStore } from '../../stores/authStore';
+import { X, Eye, Trash2, FileText, Image, Video, Link as LinkIcon, Headphones } from 'lucide-react';
+import { backendFetch } from '../../services/backendClient';
+import { getSecureAssetUrl, openSecureAsset } from '../../services/secureAssetService';
+import ReactMarkdown from 'react-markdown';
+
+const KnowledgeBase = () => {
+  const { user } = useAuthStore();
+  // State
+  const [activeSection, setActiveSection] = useState<SectionType>('library');
+  const [activeTool, setActiveTool] = useState<ToolType>('chat');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isUploading, setIsUploading] = useState(false);
+  const [previewFile, setPreviewFile] = useState<KnowledgeFile | null>(null);
+  const [previewSource, setPreviewSource] = useState<'library' | 'output' | null>(null);
+
+  // Data
+  const [files, setFiles] = useState<KnowledgeFile[]>([]);
+  const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseEntry[]>([]);
+  const [kbLoading, setKbLoading] = useState(false);
+  const [outputFiles, setOutputFiles] = useState<KnowledgeFile[]>([]);
+  const [outputsLoaded, setOutputsLoaded] = useState(false);
+  const [mindmapDraft, setMindmapDraft] = useState('');
+  const [mindmapPreviewCode, setMindmapPreviewCode] = useState('');
+  const [mindmapLoading, setMindmapLoading] = useState(false);
+  const [mindmapSaving, setMindmapSaving] = useState(false);
+  const [mindmapStatus, setMindmapStatus] = useState<string | null>(null);
+  const [mindmapError, setMindmapError] = useState<string | null>(null);
+  const [mindmapViewMode, setMindmapViewMode] = useState<'visual' | 'code'>('visual');
+  const [markdownContent, setMarkdownContent] = useState('');
+  const [markdownLoading, setMarkdownLoading] = useState(false);
+  const [markdownError, setMarkdownError] = useState<string | null>(null);
+  const [previewAccessUrl, setPreviewAccessUrl] = useState('');
+  const [previewAccessLoading, setPreviewAccessLoading] = useState(false);
+  const [previewAccessError, setPreviewAccessError] = useState<string | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem('kb_sidebar_collapsed') === '1';
+  });
+  const [rightPanelWidth, setRightPanelWidth] = useState(() => {
+    if (typeof window === 'undefined') return 400;
+    const saved = window.localStorage.getItem('kb_right_panel_width');
+    const parsed = saved ? parseInt(saved, 10) : 400;
+    return Number.isNaN(parsed) ? 400 : parsed;
+  });
+
+  // Fetch files from Supabase on load
+  useEffect(() => {
+    if (user) {
+      fetchLibraryFiles();
+      fetchKnowledgeBases();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    setOutputsLoaded(false);
+    const key = getOutputStorageKey();
+    if (!key) {
+      setOutputFiles([]);
+      setOutputsLoaded(true);
+      return;
+    }
+    const raw = localStorage.getItem(key);
+    if (!raw) {
+      setOutputFiles([]);
+      setOutputsLoaded(true);
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        setOutputFiles(parsed);
+      } else {
+        setOutputFiles([]);
+      }
+    } catch {
+      setOutputFiles([]);
+    }
+    setOutputsLoaded(true);
+  }, [user?.id]);
+
+  useEffect(() => {
+    const key = getOutputStorageKey();
+    if (!key || !outputsLoaded) return;
+    localStorage.setItem(key, JSON.stringify(outputFiles));
+  }, [outputFiles, user?.id, outputsLoaded]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('kb_right_panel_width', String(rightPanelWidth));
+  }, [rightPanelWidth]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('kb_sidebar_collapsed', sidebarCollapsed ? '1' : '0');
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    const previewUrl = previewFile?.url;
+    if (!previewUrl) {
+      setPreviewAccessUrl('');
+      setPreviewAccessLoading(false);
+      setPreviewAccessError(null);
+      return;
+    }
+
+    let canceled = false;
+    const resolvePreviewAccess = async () => {
+      try {
+        setPreviewAccessLoading(true);
+        setPreviewAccessError(null);
+        const accessUrl = await getSecureAssetUrl(previewUrl);
+        if (canceled) return;
+        setPreviewAccessUrl(accessUrl);
+      } catch (err: any) {
+        if (canceled) return;
+        setPreviewAccessUrl('');
+        setPreviewAccessError(err?.message || '无法获取文件访问链接。');
+      } finally {
+        if (!canceled) {
+          setPreviewAccessLoading(false);
+        }
+      }
+    };
+
+    resolvePreviewAccess();
+    return () => {
+      canceled = true;
+    };
+  }, [previewFile?.id, previewFile?.url]);
+
+  const fetchLibraryFiles = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('knowledge_base_files')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const mappedFiles: KnowledgeFile[] = (data || []).map(row => ({
+        id: row.id,
+        name: row.file_name,
+        type: mapFileType(row.file_type),
+        size: formatSize(row.file_size),
+        sizeBytes: row.file_size,
+        uploadTime: new Date(row.created_at).toLocaleString(),
+        isEmbedded: row.is_embedded,
+        kbFileId: row.kb_file_id,
+        kbId: row.kb_id ?? null,
+        desc: row.description,
+        url: row.storage_path.includes('/outputs') ? row.storage_path : `/outputs/kb_data/${user?.email}/${row.file_name}`
+      }));
+
+      setFiles(mappedFiles);
+    } catch (err) {
+      console.error('Failed to fetch files:', err);
+    }
+  };
+
+  const fetchKnowledgeBases = async () => {
+    if (!user?.id) return;
+    setKbLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('knowledge_bases')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      const mapped: KnowledgeBaseEntry[] = (data || []).map(row => ({
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      }));
+      setKnowledgeBases(mapped);
+    } catch (err) {
+      console.error('Failed to fetch knowledge bases:', err);
+    } finally {
+      setKbLoading(false);
+    }
+  };
+
+  const mapFileType = (mimeOrExt: string): MaterialType => {
+    if (!mimeOrExt) return 'doc';
+    if (mimeOrExt.includes('image')) return 'image';
+    if (mimeOrExt.includes('video')) return 'video';
+    if (mimeOrExt.includes('pdf')) return 'doc';
+    if (mimeOrExt === 'link') return 'link';
+    return 'doc';
+  };
+
+  const formatSize = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const getOutputStorageKey = () => {
+    if (!user?.id) return null;
+    return `kb_outputs_${user.id}`;
+  };
+
+  const isMindmapFile = (file?: KnowledgeFile | null) => {
+    if (!file) return false;
+    const name = (file.name || '').toLowerCase();
+    const url = (file.url || '').toLowerCase();
+    return name.endsWith('.mmd') || name.endsWith('.mermaid') || url.includes('.mmd') || url.includes('.mermaid');
+  };
+
+  const isMarkdownFile = (file?: KnowledgeFile | null) => {
+    if (!file) return false;
+    const name = (file.name || '').toLowerCase();
+    const url = (file.url || '').toLowerCase();
+    return name.endsWith('.md') || url.includes('.md');
+  };
+
+  const fetchProtectedText = async (pathOrUrl: string) => {
+    const accessUrl = await getSecureAssetUrl(pathOrUrl);
+    const res = await fetch(accessUrl);
+    if (!res.ok) {
+      throw new Error(`读取失败: ${res.status}`);
+    }
+    return res.text();
+  };
+
+  const handleOpenPreviewFile = async () => {
+    if (!previewFile?.url) {
+      return;
+    }
+    try {
+      await openSecureAsset(previewFile.url);
+    } catch (err) {
+      console.error('Failed to open preview file:', err);
+      alert('打开文件失败');
+    }
+  };
+
+  // Handlers
+  const handleToggleSelect = (id: string) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedIds(newSet);
+  };
+
+  const handleUploadSuccess = () => {
+    fetchLibraryFiles();
+    setActiveSection('library');
+  };
+
+  const handleGenerateSuccess = (file: KnowledgeFile) => {
+    setOutputFiles(prev => [file, ...prev]);
+    setActiveSection('output');
+  };
+
+  const handleDeleteFile = async (file: KnowledgeFile) => {
+    if (!confirm(`Delete ${file.name}?`)) return;
+    try {
+      const { error } = await supabase
+        .from('knowledge_base_files')
+        .delete()
+        .eq('id', file.id);
+
+      if (error) throw error;
+      fetchLibraryFiles();
+      setPreviewFile(null);
+    } catch (err) {
+      console.error('Delete error:', err);
+      alert('Delete failed');
+    }
+  };
+
+  const handleRemoveOutput = (file: KnowledgeFile) => {
+    if (!confirm(`从知识产出中移除 ${file.name} 吗？`)) return;
+    setOutputFiles(prev => prev.filter(item => item.id !== file.id));
+    setPreviewFile(null);
+    setPreviewSource(null);
+  };
+
+  const handleSaveMindmap = async () => {
+    if (!previewFile?.url) {
+      setMindmapError('无法获取思维导图文件路径。');
+      return;
+    }
+
+    const fileUrl = previewFile.url;
+
+    try {
+      setMindmapSaving(true);
+      setMindmapStatus(null);
+      setMindmapError(null);
+
+      const res = await backendFetch('/api/v1/kb/save-mindmap', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          file_url: fileUrl,
+          content: mindmapDraft
+        })
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(errorText || '保存失败');
+      }
+
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error('保存失败');
+      }
+
+      if (data.mindmap_path) {
+        setPreviewFile({ ...previewFile, url: data.mindmap_path });
+      }
+      setMindmapStatus('已保存');
+    } catch (err: any) {
+      setMindmapError(err?.message || '保存失败');
+    } finally {
+      setMindmapSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!previewFile || !isMindmapFile(previewFile)) {
+      setMindmapDraft('');
+      setMindmapPreviewCode('');
+      setMindmapError(null);
+      setMindmapStatus(null);
+      setMindmapLoading(false);
+      return;
+    }
+
+    setMindmapViewMode('visual');
+
+    if (!previewFile.url) {
+      setMindmapError('无法获取思维导图文件路径。');
+      return;
+    }
+
+    const currentUrl = previewFile.url;
+    let canceled = false;
+    const loadMindmap = async () => {
+      try {
+        setMindmapLoading(true);
+        setMindmapError(null);
+        setMindmapStatus(null);
+        let text = await fetchProtectedText(currentUrl);
+        const isHtml = text.trim().toLowerCase().startsWith('<!doctype html') || text.trim().toLowerCase().startsWith('<html');
+        if (isHtml) {
+          const baseUrl = currentUrl.replace(/\/$/, '');
+          if (!baseUrl.toLowerCase().endsWith('.mmd') && !baseUrl.toLowerCase().endsWith('.mermaid')) {
+            const fallbackUrl = `${baseUrl}/mindmap.mmd`;
+            text = await fetchProtectedText(fallbackUrl);
+            if (!canceled) {
+              setPreviewFile(prev => prev ? { ...prev, url: fallbackUrl } : prev);
+            }
+          }
+        }
+        if (canceled) return;
+        setMindmapDraft(text);
+        setMindmapPreviewCode(text);
+      } catch (err: any) {
+        if (canceled) return;
+        setMindmapError(err?.message || '读取思维导图失败。');
+      } finally {
+        if (!canceled) {
+          setMindmapLoading(false);
+        }
+      }
+    };
+
+    loadMindmap();
+    return () => {
+      canceled = true;
+    };
+  }, [previewFile?.id, previewFile?.url]);
+
+  useEffect(() => {
+    if (!previewFile || !isMarkdownFile(previewFile) || isMindmapFile(previewFile)) {
+      setMarkdownContent('');
+      setMarkdownError(null);
+      setMarkdownLoading(false);
+      return;
+    }
+
+    const previewUrl = previewFile.url;
+    if (!previewUrl) {
+      setMarkdownError('无法获取文件路径。');
+      return;
+    }
+
+    let canceled = false;
+    const loadMarkdown = async () => {
+      try {
+        setMarkdownLoading(true);
+        setMarkdownError(null);
+        const text = await fetchProtectedText(previewUrl);
+        if (canceled) return;
+        setMarkdownContent(text);
+      } catch (err: any) {
+        if (canceled) return;
+        setMarkdownError(err?.message || '读取 Markdown 失败。');
+      } finally {
+        if (!canceled) {
+          setMarkdownLoading(false);
+        }
+      }
+    };
+    loadMarkdown();
+    return () => {
+      canceled = true;
+    };
+  }, [previewFile?.id, previewFile?.url]);
+
+  const getIcon = (type: string) => {
+    switch (type) {
+      case 'doc': return <FileText size={20} className="text-blue-400" />;
+      case 'image': return <Image size={20} className="text-purple-400" />;
+      case 'video': return <Video size={20} className="text-pink-400" />;
+      case 'link': return <LinkIcon size={20} className="text-green-400" />;
+      case 'audio': return <Headphones size={20} className="text-green-400" />;
+      default: return <FileText size={20} className="text-gray-400" />;
+    }
+  };
+
+  return (
+    <div className="w-full h-full flex bg-[#02020a] text-gray-200 overflow-hidden font-sans relative">
+      
+      {/* 1. Sidebar */}
+      <Sidebar 
+        activeSection={activeSection} 
+        onSectionChange={setActiveSection}
+        filesCount={files.length}
+        outputCount={outputFiles.length}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
+      />
+
+      {/* 2. Main Content */}
+      <div className="flex-1 flex flex-col min-w-0 bg-gradient-to-br from-[#050512] to-[#0a0a1a] relative z-10">
+        {/* Header */}
+        <div className="h-16 border-b border-white/5 flex items-center px-8 justify-between backdrop-blur-sm bg-[#050512]/50 sticky top-0 z-10">
+          <h2 className="text-lg font-medium text-white">
+            {activeSection === 'library' && '我的知识库'}
+            {activeSection === 'upload' && '上传新素材'}
+            {activeSection === 'output' && '知识产出成果'}
+            {activeSection === 'settings' && 'API 设置'}
+          </h2>
+          <div className="flex items-center gap-2">
+            {selectedIds.size > 0 && activeSection === 'library' && (
+               <button onClick={() => setSelectedIds(new Set())} className="text-xs px-3 py-1.5 rounded-lg border border-white/10 hover:bg-white/5 transition-colors">
+                 取消选择 ({selectedIds.size})
+               </button>
+            )}
+          </div>
+        </div>
+
+        {/* Views */}
+        <div className="flex-1 overflow-y-auto p-8">
+          {activeSection === 'library' && (
+            <LibraryView
+              files={files}
+              knowledgeBases={knowledgeBases}
+              kbLoading={kbLoading}
+              selectedIds={selectedIds}
+              onToggleSelect={handleToggleSelect}
+              onGoToUpload={() => setActiveSection('upload')}
+              onRefresh={fetchLibraryFiles}
+              onRefreshKnowledgeBases={fetchKnowledgeBases}
+              onPreview={(file) => {
+                setPreviewFile(file);
+                setPreviewSource('library');
+              }}
+              onDelete={handleDeleteFile}
+              activeTool={activeTool}
+            />
+          )}
+          {activeSection === 'upload' && (
+            <UploadView 
+              onSuccess={handleUploadSuccess}
+              knowledgeBases={knowledgeBases}
+              onRefreshKnowledgeBases={fetchKnowledgeBases}
+              onGoToLibrary={() => setActiveSection('library')}
+            />
+          )}
+          {activeSection === 'output' && (
+            <OutputView 
+              files={outputFiles} 
+              onGoToTool={(tool) => setActiveTool(tool)}
+              onPreview={(file) => {
+                setPreviewFile(file);
+                setPreviewSource('output');
+              }}
+            />
+          )}
+          {activeSection === 'settings' && (
+            <SettingsView />
+          )}
+        </div>
+      </div>
+
+      {/* 3. Right Panel */}
+      <RightPanel 
+        activeTool={activeTool} 
+        onToolChange={setActiveTool}
+        files={files}
+        selectedIds={selectedIds}
+        knowledgeBases={knowledgeBases}
+        onGenerateSuccess={handleGenerateSuccess}
+        width={rightPanelWidth}
+        onWidthChange={setRightPanelWidth}
+      />
+
+      {/* Preview Drawer - Rendered at top level to be on top of RightPanel */}
+      {previewFile && (
+        <div
+          className="fixed inset-0 z-[100] flex justify-end bg-black/40 backdrop-blur-[2px]"
+          onClick={() => {
+            setPreviewFile(null);
+            setPreviewSource(null);
+          }}
+        >
+          <div 
+            className="w-full max-w-md h-full bg-[#0a0a1a] border-l border-white/10 shadow-2xl p-6 flex flex-col animate-in slide-in-from-right duration-300" 
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-lg font-medium text-white">文件详情</h3>
+              <button 
+                onClick={() => {
+                  setPreviewFile(null);
+                  setPreviewSource(null);
+                }}
+                className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              <div className="flex flex-col items-center text-center mb-8">
+                {previewFile.type === 'image' && previewFile.url ? (
+                  <div className="w-full aspect-video rounded-xl overflow-hidden bg-black/40 border border-white/10 mb-4 group relative">
+                    {previewAccessUrl ? (
+                      <img src={previewAccessUrl} alt={previewFile.name} className="w-full h-full object-contain" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-sm text-gray-500">
+                        {previewAccessError || (previewAccessLoading ? '正在加载文件...' : '无法加载文件')}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="w-24 h-24 bg-white/5 rounded-2xl flex items-center justify-center mb-4">
+                    {getIcon(previewFile.type)}
+                  </div>
+                )}
+                <h3 className="text-xl font-medium text-white break-all mb-2">{previewFile.name}</h3>
+                <p className="text-sm text-gray-400 flex items-center gap-2">
+                  <span className="bg-white/10 px-2 py-0.5 rounded text-xs">{previewFile.type.toUpperCase()}</span>
+                  <span>{previewFile.size}</span>
+                </p>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+                    <div className="w-1 h-4 bg-purple-500 rounded-full"></div>
+                    基本信息
+                  </h4>
+                  <div className="bg-white/5 rounded-xl p-4 space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">上传时间</span>
+                      <span className="text-gray-300">{previewFile.uploadTime}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">文件 ID</span>
+                      <span className="text-gray-300 font-mono text-xs">{previewFile.id.slice(0, 12)}...</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">存储路径</span>
+                      <button
+                        onClick={handleOpenPreviewFile}
+                        disabled={!previewFile.url || previewAccessLoading}
+                        className="text-purple-400 hover:text-purple-300 truncate max-w-[200px] hover:underline disabled:text-gray-500 disabled:no-underline"
+                      >
+                        查看源文件
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {previewFile.type === 'image' && previewFile.url && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+                      <div className="w-1 h-4 bg-purple-500 rounded-full"></div>
+                      图片预览
+                    </h4>
+                    <div className="bg-white/5 rounded-xl overflow-hidden border border-white/10">
+                      {previewAccessUrl ? (
+                        <img
+                          src={previewAccessUrl}
+                          alt={previewFile.name}
+                          className="w-full h-auto object-contain max-h-[500px]"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            const parent = target.parentElement;
+                            if (parent) {
+                              parent.innerHTML = '<div class="p-8 text-center"><p class="text-sm text-red-400">图片加载失败</p></div>';
+                            }
+                          }}
+                        />
+                      ) : (
+                        <div className="p-8 text-center">
+                          <p className={`text-sm ${previewAccessError ? 'text-red-400' : 'text-gray-500'}`}>
+                            {previewAccessError || (previewAccessLoading ? '正在加载图片...' : '图片加载失败')}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {previewFile.type === 'audio' && previewFile.url && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+                      <div className="w-1 h-4 bg-green-500 rounded-full"></div>
+                      播放预览
+                    </h4>
+                    <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                      {previewAccessUrl ? (
+                        <audio
+                          className="w-full"
+                          controls
+                          autoPlay
+                          preload="metadata"
+                          src={previewAccessUrl}
+                        />
+                      ) : (
+                        <div className={`text-sm ${previewAccessError ? 'text-red-400' : 'text-gray-500'}`}>
+                          {previewAccessError || (previewAccessLoading ? '正在加载音频...' : '音频加载失败')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {previewFile.type === 'doc' && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+                      <div className="w-1 h-4 bg-purple-500 rounded-full"></div>
+                      {isMindmapFile(previewFile) ? '思维导图预览与编辑' : '文件预览'}
+                    </h4>
+
+                    {isMindmapFile(previewFile) ? (
+                      <div className="bg-white/5 rounded-xl p-4 border border-white/10 space-y-4">
+                        {mindmapLoading ? (
+                          <div className="text-sm text-gray-400">正在加载思维导图内容...</div>
+                        ) : mindmapError ? (
+                          <div className="text-sm text-red-400">{mindmapError}</div>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => setMindmapPreviewCode(mindmapDraft)}
+                                className="px-3 py-1.5 text-xs rounded-lg bg-white/10 hover:bg-white/20 text-gray-200 transition-colors"
+                              >
+                                刷新预览
+                              </button>
+                              <button
+                                onClick={handleSaveMindmap}
+                                disabled={mindmapSaving}
+                                className="px-3 py-1.5 text-xs rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              >
+                                {mindmapSaving ? '保存中...' : '保存修改'}
+                              </button>
+                              {mindmapStatus && (
+                                <span className="text-xs text-green-400">{mindmapStatus}</span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => setMindmapViewMode('visual')}
+                                className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                                  mindmapViewMode === 'visual'
+                                    ? 'bg-cyan-500/20 border-cyan-500/30 text-cyan-300'
+                                    : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                                }`}
+                              >
+                                可视化编辑
+                              </button>
+                              <button
+                                onClick={() => setMindmapViewMode('code')}
+                                className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                                  mindmapViewMode === 'code'
+                                    ? 'bg-cyan-500/20 border-cyan-500/30 text-cyan-300'
+                                    : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                                }`}
+                              >
+                                Mermaid 代码
+                              </button>
+                            </div>
+
+                            {mindmapViewMode === 'visual' ? (
+                              <MindMapFlowEditor
+                                mermaidCode={mindmapDraft}
+                                onApply={(code) => {
+                                  setMindmapDraft(code);
+                                  setMindmapPreviewCode(code);
+                                }}
+                              />
+                            ) : (
+                              <textarea
+                                value={mindmapDraft}
+                                onChange={(e) => setMindmapDraft(e.target.value)}
+                                className="w-full min-h-[180px] bg-black/40 border border-white/10 rounded-lg p-3 text-xs text-gray-200 font-mono outline-none focus:border-cyan-500"
+                              />
+                            )}
+
+                            {mindmapPreviewCode ? (
+                              <MermaidPreview mermaidCode={mindmapPreviewCode} title="思维导图预览" />
+                            ) : (
+                              <div className="text-xs text-gray-500">暂无可预览内容</div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        {isMarkdownFile(previewFile) ? (
+                          <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                            {markdownLoading ? (
+                              <div className="text-sm text-gray-400">正在加载 Markdown...</div>
+                            ) : markdownError ? (
+                              <div className="text-sm text-red-400">{markdownError}</div>
+                            ) : (
+                              <div className="text-sm text-gray-200 leading-relaxed">
+                                <ReactMarkdown>{markdownContent || ''}</ReactMarkdown>
+                              </div>
+                            )}
+                          </div>
+                        ) : previewFile.name.toLowerCase().endsWith('.pdf') && previewFile.url ? (
+                          <div className="bg-white/5 rounded-xl overflow-hidden border border-white/10">
+                            {previewAccessUrl ? (
+                              <iframe
+                                src={previewAccessUrl}
+                                className="w-full h-[600px]"
+                                title="PDF Preview"
+                              />
+                            ) : (
+                              <div className="p-8 text-center">
+                                <p className={`text-sm ${previewAccessError ? 'text-red-400' : 'text-gray-500'}`}>
+                                  {previewAccessError || (previewAccessLoading ? '正在加载 PDF...' : 'PDF 加载失败')}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="bg-white/5 rounded-xl p-8 text-center border border-dashed border-white/10">
+                            <FileText size={40} className="text-gray-600 mx-auto mb-3" />
+                            <p className="text-sm text-gray-500">
+                              {previewFile.name.toLowerCase().match(/\.(docx?|pptx?)$/)
+                                ? 'Office文档预览暂不支持，请点击下方"打开文件"按钮查看'
+                                : '文档预览暂不支持，请下载后查看'}
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {previewFile.type === 'video' && previewFile.url && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+                      <div className="w-1 h-4 bg-pink-500 rounded-full"></div>
+                      视频预览
+                    </h4>
+                    <div className="bg-white/5 rounded-xl overflow-hidden border border-white/10">
+                      {previewAccessUrl ? (
+                        <video
+                          className="w-full"
+                          controls
+                          preload="metadata"
+                          src={previewAccessUrl}
+                        >
+                          您的浏览器不支持视频播放
+                        </video>
+                      ) : (
+                        <div className="p-8 text-center">
+                          <p className={`text-sm ${previewAccessError ? 'text-red-400' : 'text-gray-500'}`}>
+                            {previewAccessError || (previewAccessLoading ? '正在加载视频...' : '视频加载失败')}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="pt-6 mt-6 border-t border-white/10 flex gap-3">
+              <button
+                onClick={handleOpenPreviewFile}
+                disabled={!previewFile.url || previewAccessLoading}
+                className="flex-1 py-3 bg-white text-black hover:bg-gray-200 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-white/10"
+              >
+                <Eye size={18} />
+                {previewAccessLoading ? '加载中...' : '打开文件'}
+              </button>
+              {previewSource === 'library' && (
+                <button 
+                  onClick={() => handleDeleteFile(previewFile)}
+                  className="flex-1 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Trash2 size={18} />
+                  删除
+                </button>
+              )}
+              {previewSource === 'output' && (
+                <button 
+                  onClick={() => handleRemoveOutput(previewFile)}
+                  className="flex-1 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Trash2 size={18} />
+                  移除
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default KnowledgeBase;

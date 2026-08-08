@@ -1,0 +1,14 @@
+# Windows 一站式依赖入口（Python 3.12 + NVIDIA CUDA 12.6）
+# 使用：python -m pip install -r requirements-win-base.txt
+#
+# requirements-paper.txt 会继续包含 requirements-base.txt；其中的 Linux
+# PyTorch 带有 platform marker，不会覆盖下面的 Windows CUDA wheel。
+
+-r requirements-paper.txt
+
+--extra-index-url https://download.pytorch.org/whl/cu126
+torch==2.7.1+cu126
+torchvision==0.22.1+cu126
+
+# Paper2Video/语音功能已停用，不安装 torchaudio。
+# disabled: torchaudio==2.7.1+cu126

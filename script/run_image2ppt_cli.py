@@ -1,0 +1,287 @@
+#!/usr/bin/env python3
+"""
+Image2PPT CLI - Convert images to editable PPT
+
+Usage:
+    # Basic conversion
+    python script/run_image2ppt_cli.py --input screenshot.png
+
+    # With AI enhancement
+    python script/run_image2ppt_cli.py --input diagram.jpg --use-ai-edit --api-key sk-xxx
+"""
+
+import argparse
+import asyncio
+import os
+import sys
+import time
+from pathlib import Path
+
+# Add project root to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from script.cli_env import (
+    find_output_artifacts,
+    load_project_env,
+    resolve_cli_image_credentials,
+    resolve_cli_text_credentials,
+)
+from dataflow_agent.logger import get_logger
+from dataflow_agent.utils import get_project_root
+from fastapi_app.config import settings
+from fastapi_app.schemas import Paper2PPTRequest, Paper2PPTResponse
+from fastapi_app.workflow_adapters.wa_pdf2ppt import run_pdf2ppt_wf_api
+
+load_project_env()
+
+log = get_logger(__name__)
+
+
+def _state_get(state, key: str, default=None):
+    if isinstance(state, dict):
+        return state.get(key, default)
+    return getattr(state, key, default)
+
+
+def parse_args():
+    """Parse command-line arguments"""
+    parser = argparse.ArgumentParser(
+        description="Image2PPT CLI - Convert images to editable PPT",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Basic conversion
+  python script/run_image2ppt_cli.py --input screenshot.png
+
+  # With AI enhancement
+  python script/run_image2ppt_cli.py --input diagram.jpg --use-ai-edit --api-key sk-xxx
+
+  # Custom style
+  python script/run_image2ppt_cli.py --input slide.png --use-ai-edit --style "现代简约风格"
+
+Environment Variables:
+  DF_API_URL    - Default LLM API URL
+  DF_API_KEY    - Default API key
+  DF_MODEL      - Default text model name
+"""
+    )
+
+    # Required arguments
+    parser.add_argument(
+        "--input",
+        required=True,
+        help="Input image file path (PNG/JPG/JPEG)"
+    )
+
+    # Optional arguments
+    parser.add_argument(
+        "--use-ai-edit",
+        action="store_true",
+        help="Enable AI enhancement (default: False)"
+    )
+
+    parser.add_argument(
+        "--api-url",
+        help="LLM API URL (default: from env DF_API_URL)"
+    )
+
+    parser.add_argument(
+        "--api-key",
+        help="LLM API key (default: from env DF_API_KEY)"
+    )
+
+    parser.add_argument(
+        "--image-api-url",
+        help="Image generation API URL (default: from env DF_IMAGE_API_URL)"
+    )
+
+    parser.add_argument(
+        "--image-api-key",
+        help="Image generation API key (default: from env DF_IMAGE_API_KEY)"
+    )
+
+    parser.add_argument(
+        "--model",
+        default=settings.PDF2PPT_DEFAULT_MODEL,
+        help=f"Text model name (default: {settings.PDF2PPT_DEFAULT_MODEL})"
+    )
+
+    parser.add_argument(
+        "--gen-fig-model",
+        default=settings.PDF2PPT_DEFAULT_IMAGE_MODEL,
+        help=f"Image generation model (default: {settings.PDF2PPT_DEFAULT_IMAGE_MODEL})"
+    )
+
+    parser.add_argument(
+        "--language",
+        default="zh",
+        choices=["zh", "en"],
+        help="Output language (default: zh)"
+    )
+
+    parser.add_argument(
+        "--style",
+        default="现代简约风格",
+        help="Style description (default: 现代简约风格)"
+    )
+
+    parser.add_argument(
+        "--page-count",
+        type=int,
+        default=1,
+        help="Target page count (default: 1)"
+    )
+
+    parser.add_argument(
+        "--output-dir",
+        help="Output directory (default: outputs/cli/image2ppt/{timestamp})"
+    )
+
+    return parser.parse_args()
+
+
+def validate_input_file(file_path: str) -> Path:
+    """Validate input file exists and has correct extension"""
+    path = Path(file_path)
+
+    if not path.exists():
+        raise FileNotFoundError(f"Input file not found: {file_path}")
+
+    valid_extensions = [".png", ".jpg", ".jpeg", ".webp"]
+    if path.suffix.lower() not in valid_extensions:
+        raise ValueError(f"Invalid file type. Expected {valid_extensions}, got {path.suffix}")
+
+    return path.resolve()
+
+
+def create_output_dir(args) -> Path:
+    """Create timestamped output directory"""
+    if args.output_dir:
+        output_dir = Path(args.output_dir)
+    else:
+        project_root = get_project_root()
+        timestamp = int(time.time())
+        output_dir = project_root / "outputs" / "cli" / "image2ppt" / str(timestamp)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return output_dir
+
+
+async def run_image2ppt_workflow(args, input_path: Path, output_dir: Path) -> Paper2PPTResponse:
+    """Execute Image2PPT workflow via the same adapter used by the backend service."""
+
+    api_url, api_key = resolve_cli_text_credentials(args.api_url, args.api_key)
+    image_api_url, image_api_key = resolve_cli_image_credentials(
+        args.image_api_url,
+        args.image_api_key,
+        fallback_url=api_url,
+        fallback_key=api_key,
+    )
+
+    # Validate API key if AI edit is enabled
+    if args.use_ai_edit and not api_key:
+        raise ValueError("API key is required when --use-ai-edit is enabled. "
+                        "Provide via --api-key or DF_API_KEY environment variable.")
+
+    req = Paper2PPTRequest(
+        chat_api_url=api_url,
+        api_key=api_key,
+        chat_api_key=api_key,
+        image_api_url=image_api_url,
+        image_api_key=image_api_key,
+        model=args.model,
+        gen_fig_model=args.gen_fig_model,
+        language=args.language,
+        style=args.style,
+        page_count=args.page_count,
+        credential_scope="image2ppt",
+        use_ai_edit=args.use_ai_edit,
+        input_type="FIGURE",
+        input_content=str(input_path),
+        email="cli_image2ppt@paper2any.local",
+    )
+
+    log.info("%s", "=" * 60)
+    log.info("Image2PPT Workflow Starting")
+    log.info("%s", "=" * 60)
+    log.info("Input Image: %s", input_path)
+    log.info("Output Directory: %s", output_dir)
+    log.info("Workflow: pdf2ppt_qwenvl via workflow adapter")
+    log.info("AI Enhancement: %s", "Enabled" if args.use_ai_edit else "Disabled")
+    log.info("Style: %s", args.style)
+    log.info("Language: %s", args.language)
+    log.info("%s", "=" * 60)
+
+    final_resp = await run_pdf2ppt_wf_api(req, result_path=output_dir)
+    if not final_resp.success:
+        raise RuntimeError("Image2PPT workflow failed")
+
+    artifact_root = Path(final_resp.result_path or output_dir)
+    artifact_candidates = []
+    if final_resp.ppt_pptx_path:
+        p = Path(final_resp.ppt_pptx_path)
+        if p.exists():
+            artifact_candidates.append(p.resolve())
+    artifact_candidates.extend(find_output_artifacts(artifact_root, ("*.pptx", "*.pdf")))
+    if not artifact_candidates:
+        raise RuntimeError(
+            f"Image2PPT finished without final PPT/PDF artifacts under {artifact_root}"
+        )
+    return final_resp
+
+
+def print_results(final_state: Paper2PPTResponse, output_dir: Path):
+    """Print workflow results"""
+    log.info("%s", "=" * 60)
+    log.info("Image2PPT Workflow Completed Successfully")
+    log.info("%s", "=" * 60)
+    log.info("Output Directory: %s", output_dir)
+
+    ppt_path = final_state.ppt_pptx_path
+    if ppt_path and os.path.exists(ppt_path):
+        log.info("PPT File: %s", ppt_path)
+    else:
+        ppt_candidates = sorted(output_dir.rglob("*.pptx")) + sorted(output_dir.rglob("*.ppt"))
+        if ppt_candidates:
+            log.info("PPT File: %s", ppt_candidates[0])
+        else:
+            log.warning("PPT file not found in output")
+
+    log.info("%s", "=" * 60)
+
+
+def main():
+    """Main entry point"""
+    try:
+        # Parse arguments
+        args = parse_args()
+
+        # Validate input file
+        input_path = validate_input_file(args.input)
+
+        # Create output directory
+        output_dir = create_output_dir(args)
+
+        # Run workflow
+        final_state = asyncio.run(run_image2ppt_workflow(args, input_path, output_dir))
+
+        # Print results
+        print_results(final_state, output_dir)
+
+        return 0
+
+    except FileNotFoundError as e:
+        log.error("%s", e)
+        return 1
+    except ValueError as e:
+        log.error("%s", e)
+        return 1
+    except Exception as e:
+        log.exception("Workflow execution failed: %s", e)
+        import traceback
+        traceback.print_exc()
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

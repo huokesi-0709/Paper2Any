@@ -1,0 +1,1214 @@
+import React, { useState, useEffect, ChangeEvent, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useAuthStore } from '../../stores/authStore';
+import { uploadAndSaveFile } from '../../services/fileService';
+import { DEFAULT_LLM_API_URL } from '../../config/api';
+import {
+  DEFAULT_PAPER2FIGURE_MODELS,
+  DEFAULT_IMAGE2DRAWIO_GEN_FIG_MODEL,
+  DEFAULT_IMAGE2DRAWIO_VLM_MODEL,
+  PAPER2FIGURE_EXP_DATA_MODELS,
+  PAPER2FIGURE_MODEL_ARCH_MODELS,
+  PAPER2FIGURE_TECH_ROUTE_MODELS,
+} from '../../config/models';
+import { checkQuota, recordUsage } from '../../services/quotaService';
+import { verifyLlmConnection } from '../../services/llmService';
+import { getApiSettings, saveApiSettings } from '../../services/apiSettingsService';
+import { backendFetch, normalizeBackendAssetUrl } from '../../services/backendClient';
+import { useRuntimeBilling } from '../../hooks/useRuntimeBilling';
+
+import {
+  UploadMode,
+  FileKind,
+  GraphType,
+  Language,
+  StyleType,
+  FigureComplex,
+} from './types';
+import {
+  BACKEND_API,
+  JSON_API,
+  IMAGE_EXTENSIONS,
+  GENERATION_STAGES,
+  MAX_FILE_SIZE,
+  STORAGE_KEY,
+} from './constants';
+
+import Banner from './Banner';
+import Header from './Header';
+import UploadCard from './UploadCard';
+import SettingsCard from './SettingsCard';
+import PreviewSection from './PreviewSection';
+import TechRoutePreviewSection from './TechRoutePreviewSection';
+import ExamplesSection from './ExamplesSection';
+import BilingualHint from '../BilingualHint';
+import DrawioInlineEditor from '../DrawioInlineEditor';
+
+interface Paper2FigurePageProps {
+  allowedGraphTypes?: GraphType[];
+  defaultGraphType?: GraphType;
+  header?: {
+    badge?: string;
+    title?: string;
+    subtitle?: string;
+    align?: 'center' | 'left';
+  };
+  hint?: {
+    title: string;
+    zh: string;
+    en: string;
+    tone?: 'sky' | 'violet' | 'emerald';
+  };
+  showExamples?: boolean;
+  exampleTypes?: GraphType[];
+  enableDrawio?: boolean;
+  drawioLabel?: string;
+  showDrawioEmpty?: boolean;
+  extraSection?: React.ReactNode;
+}
+
+function detectFileKind(file: File): FileKind {
+  const ext = file.name.split('.').pop()?.toLowerCase();
+  if (!ext) return null;
+  if (ext === 'pdf') return 'pdf';
+  if (IMAGE_EXTENSIONS.includes(ext)) return 'image';
+  return null;
+}
+
+const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
+  allowedGraphTypes,
+  defaultGraphType = 'model_arch',
+  header,
+  hint,
+  showExamples = true,
+  exampleTypes,
+  enableDrawio = false,
+  drawioLabel,
+  showDrawioEmpty = false,
+  extraSection,
+}) => {
+  const { t } = useTranslation('paper2graph');
+  const { user, refreshQuota } = useAuthStore();
+  const { userApiConfigRequired } = useRuntimeBilling();
+  
+  // State from original file
+  const [uploadMode, setUploadMode] = useState<UploadMode>('file');
+  const [graphStep, setGraphStep] = useState<'input' | 'preview' | 'done'>('input');
+  const [previewImgUrl, setPreviewImgUrl] = useState<string | null>(null);
+  const [pptUrl, setPptUrl] = useState<string | null>(null);
+  const [editPrompt, setEditPrompt] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileKind, setFileKind] = useState<FileKind>(null);
+  const [textContent, setTextContent] = useState('');
+  const [graphType, setGraphType] = useState<GraphType>(defaultGraphType);
+  const [language, setLanguage] = useState<Language>('zh');
+  const [style, setStyle] = useState<StyleType>('cartoon');
+  const [figureComplex, setFigureComplex] = useState<FigureComplex>('easy');
+  const [resolution, setResolution] = useState<'2K' | '4K'>('2K');
+
+  const [llmApiUrl, setLlmApiUrl] = useState(DEFAULT_LLM_API_URL);
+  const [apiKey, setApiKey] = useState('');
+  const [model, setModel] = useState(DEFAULT_PAPER2FIGURE_MODELS.model_arch);
+  // const [model, setModel] = useState('gpt-5.1');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [lastFilename, setLastFilename] = useState('paper2figure.pptx');
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [showBanner, setShowBanner] = useState(true);
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const [drawioXml, setDrawioXml] = useState('');
+  const [drawioError, setDrawioError] = useState<string | null>(null);
+  const [drawioLoading, setDrawioLoading] = useState(false);
+  const [isDrawioLocked, setIsDrawioLocked] = useState(false);
+  const emptyDrawioXml =
+    '<mxfile host="app.diagrams.net"><diagram id="blank" name="Page-1"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel></diagram></mxfile>';
+
+  // 技术路线图 JSON 返回的资源路径
+  const [pptPath, setPptPath] = useState<string | null>(null);
+  const [svgPath, setSvgPath] = useState<string | null>(null);
+  const [svgPreviewPath, setSvgPreviewPath] = useState<string | null>(null);
+  const [svgBwPath, setSvgBwPath] = useState<string | null>(null);
+  const [svgColorPath, setSvgColorPath] = useState<string | null>(null);
+  const [techRoutePalette, setTechRoutePalette] = useState<string>('');
+  const [techRouteTemplate, setTechRouteTemplate] = useState<string>('');
+
+  // 技术路线图参考图
+  const [referenceImage, setReferenceImage] = useState<File | null>(null);
+  const [referenceImagePreview, setReferenceImagePreview] = useState<string | null>(null);
+
+  // 技术路线图预览和编辑
+  const [techRouteStep, setTechRouteStep] = useState<'input' | 'preview' | 'done'>('input');
+  const [techRouteEditPrompt, setTechRouteEditPrompt] = useState('');
+  const [techRouteSvgPreview, setTechRouteSvgPreview] = useState<string | null>(null);
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [allOutputFiles, setAllOutputFiles] = useState<string[]>([]);
+  // const [showOutputPanel, setShowOutputPanel] = useState(false);
+
+  // GitHub Stars
+  const [stars, setStars] = useState<{dataflow: number | null, agent: number | null, dataflex: number | null}>({
+    dataflow: null,
+    agent: null,
+    dataflex: null,
+  });
+
+  // 新增：生成阶段状态
+  const [currentStage, setCurrentStage] = useState(0);
+  const [stageProgress, setStageProgress] = useState(0);
+  const submitGuardRef = useRef(false);
+  const submitGuardTimerRef = useRef<number | null>(null);
+  const [isSubmitLocked, setIsSubmitLocked] = useState(false);
+  const drawioGuardRef = useRef(false);
+
+  // 当图类型变化时，自动切换为对应的默认模型
+  useEffect(() => {
+    const nextModel = DEFAULT_PAPER2FIGURE_MODELS[graphType] || DEFAULT_PAPER2FIGURE_MODELS.model_arch;
+    setModel(nextModel);
+  }, [graphType]);
+
+  useEffect(() => {
+    if (graphType !== 'model_arch') {
+      setDrawioXml('');
+      setDrawioError(null);
+      return;
+    }
+    if (enableDrawio && showDrawioEmpty && !drawioXml) {
+      setDrawioXml(emptyDrawioXml);
+    }
+  }, [drawioXml, emptyDrawioXml, enableDrawio, graphType, showDrawioEmpty]);
+
+  useEffect(() => {
+    if (!enableDrawio) return;
+    setDrawioError(null);
+    if (showDrawioEmpty) {
+      setDrawioXml(emptyDrawioXml);
+    } else {
+      setDrawioXml('');
+    }
+  }, [enableDrawio, emptyDrawioXml, previewImgUrl, showDrawioEmpty]);
+
+  useEffect(() => {
+    if (!allowedGraphTypes?.length) return;
+    if (!allowedGraphTypes.includes(graphType)) {
+      setGraphType(allowedGraphTypes[0]);
+    }
+  }, [allowedGraphTypes, graphType]);
+
+  useEffect(() => {
+    const fetchStars = async () => {
+      try {
+        const [res1, res2, res3] = await Promise.all([
+          fetch('https://api.github.com/repos/OpenDCAI/DataFlow'),
+          fetch('https://api.github.com/repos/OpenDCAI/Paper2Any'),
+          fetch('https://api.github.com/repos/OpenDCAI/DataFlex')
+        ]);
+        const data1 = await res1.json();
+        const data2 = await res2.json();
+        const data3 = await res3.json();
+        setStars({
+          dataflow: data1.stargazers_count,
+          agent: data2.stargazers_count,
+          dataflex: data3.stargazers_count,
+        });
+      } catch (e) {
+        console.error('Failed to fetch stars', e);
+      }
+    };
+    fetchStars();
+  }, []);
+
+  // 根据邀请码拉取历史文件列表（所有 graph_type）
+  // const fetchHistoryFiles = async (code: string) => {
+  //   const invite = code.trim();
+  //   if (!invite) return;
+  //   try {
+  //     const res = await fetch(
+  //       `${HISTORY_API}?invite_code=${encodeURIComponent(invite)}`
+  //     );
+  //     if (!res.ok) return;
+  //     const data = await res.json();
+  //     const urls: string[] = (data.files || []).map((f: any) =>
+  //       typeof f === 'string' ? f : f.url,
+  //     );
+  //     setAllOutputFiles(urls);
+  //   } catch (e) {
+  //     console.error('fetch history files error', e);
+  //   }
+  // };
+
+  useEffect(() => {
+    return () => {
+      if (downloadUrl) {
+        URL.revokeObjectURL(downloadUrl);
+      }
+    };
+  }, [downloadUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (submitGuardTimerRef.current !== null) {
+        window.clearTimeout(submitGuardTimerRef.current);
+      }
+    };
+  }, []);
+
+  const releaseSubmitGuard = useCallback((cooldownMs: number = 1500) => {
+    if (submitGuardTimerRef.current !== null) {
+      window.clearTimeout(submitGuardTimerRef.current);
+    }
+    submitGuardTimerRef.current = window.setTimeout(() => {
+      submitGuardRef.current = false;
+      setIsSubmitLocked(false);
+      submitGuardTimerRef.current = null;
+    }, cooldownMs);
+  }, []);
+
+  const normalizePaper2FigureAsset = useCallback((value: string | null | undefined) => {
+    return value ? normalizeBackendAssetUrl(value) : value ?? '';
+  }, []);
+
+  const normalizeModelForGraphType = useCallback((candidate: string | undefined, nextGraphType: GraphType) => {
+    const allowed =
+      nextGraphType === 'tech_route'
+        ? PAPER2FIGURE_TECH_ROUTE_MODELS
+        : nextGraphType === 'exp_data'
+          ? PAPER2FIGURE_EXP_DATA_MODELS
+          : PAPER2FIGURE_MODEL_ARCH_MODELS;
+    if (candidate && allowed.includes(candidate)) {
+      return candidate;
+    }
+    return DEFAULT_PAPER2FIGURE_MODELS[nextGraphType] || DEFAULT_PAPER2FIGURE_MODELS.model_arch;
+  }, []);
+
+  // 从 localStorage 恢复配置
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as {
+          uploadMode?: UploadMode;
+          textContent?: string;
+          graphType?: GraphType;
+          language?: Language;
+          style?: StyleType;
+          figureComplex?: FigureComplex;
+          resolution?: '2K' | '4K';
+          llmApiUrl?: string;
+          apiKey?: string;
+          model?: string;
+        techRoutePalette?: string;
+        techRouteTemplate?: string;
+        };
+
+        if (saved.uploadMode) setUploadMode(saved.uploadMode);
+        if (saved.textContent) setTextContent(saved.textContent);
+        if (saved.graphType && (!allowedGraphTypes?.length || allowedGraphTypes.includes(saved.graphType))) {
+          setGraphType(saved.graphType);
+        } else if (allowedGraphTypes?.length) {
+          setGraphType(allowedGraphTypes[0]);
+        } else {
+          setGraphType(defaultGraphType);
+        }
+        if (saved.language) setLanguage(saved.language);
+        if (saved.style) setStyle(saved.style);
+        if (saved.figureComplex) setFigureComplex(saved.figureComplex);
+        if (saved.resolution) setResolution(saved.resolution);
+        if (saved.model) setModel(normalizeModelForGraphType(saved.model, saved.graphType && (!allowedGraphTypes?.length || allowedGraphTypes.includes(saved.graphType)) ? saved.graphType : graphType));
+
+        // API settings: prioritize user-specific settings from apiSettingsService
+        const userApiSettings = getApiSettings(user?.id || null);
+        if (userApiSettings) {
+          if (userApiSettings.apiUrl) setLlmApiUrl(userApiSettings.apiUrl);
+          if (userApiSettings.apiKey) setApiKey(userApiSettings.apiKey);
+        } else {
+          // Fallback to legacy localStorage
+          if (saved.llmApiUrl) setLlmApiUrl(saved.llmApiUrl);
+          if (saved.apiKey) setApiKey(saved.apiKey);
+        }
+        if (saved.techRoutePalette !== undefined) setTechRoutePalette(saved.techRoutePalette);
+        if (saved.techRouteTemplate !== undefined) setTechRouteTemplate(saved.techRouteTemplate);
+      }
+    } catch (e) {
+      console.error('Failed to restore paper2figure config', e);
+    }
+  }, [allowedGraphTypes, defaultGraphType, user?.id, userApiConfigRequired]);
+
+  // 将配置写入 localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const data = {
+      uploadMode,
+      textContent,
+      graphType,
+      language,
+      style,
+      figureComplex,
+      resolution,
+      llmApiUrl,
+      apiKey,
+      model,
+      techRoutePalette,
+      techRouteTemplate,
+    };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      // Also save API settings to user-specific storage
+      if (user?.id && llmApiUrl && apiKey) {
+        saveApiSettings(user.id, { apiUrl: llmApiUrl, apiKey });
+      }
+    } catch (e) {
+      console.error('Failed to persist paper2figure config', e);
+    }
+  }, [uploadMode, textContent, graphType, language, style, figureComplex, resolution, llmApiUrl, apiKey, model, techRoutePalette, techRouteTemplate, user?.id]);
+
+  const handleConvertToDrawio = useCallback(async () => {
+    if (drawioGuardRef.current || !previewImgUrl || drawioLoading) return;
+    drawioGuardRef.current = true;
+    setIsDrawioLocked(true);
+
+    try {
+      if (userApiConfigRequired && (!llmApiUrl.trim() || !apiKey.trim())) {
+        setDrawioError(t('errors.missingApiConfig'));
+        return;
+      }
+
+      const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
+      if (quota.remaining <= 0) {
+        setDrawioError(user?.is_anonymous ? t('errors.quotaGuestExhausted') : t('errors.quotaUserExhausted'));
+        return;
+      }
+
+      setDrawioLoading(true);
+      setDrawioError(null);
+
+      let fetchUrl = normalizePaper2FigureAsset(previewImgUrl) || previewImgUrl;
+      fetchUrl = fetchUrl.split('?')[0];
+      if (typeof window !== 'undefined' && window.location.protocol === 'https:' && fetchUrl.startsWith('http:')) {
+        fetchUrl = fetchUrl.replace(/^http:/, 'https:');
+      }
+
+      const imgRes = await fetch(fetchUrl);
+      if (!imgRes.ok) {
+        throw new Error('图片获取失败');
+      }
+      const blob = await imgRes.blob();
+      const file = new File([blob], 'model_arch.png', { type: blob.type || 'image/png' });
+
+      const formData = new FormData();
+      formData.append('image_file', file);
+      if (userApiConfigRequired) {
+        formData.append('chat_api_url', llmApiUrl.trim());
+        formData.append('api_key', apiKey.trim());
+        formData.append('gen_fig_model', DEFAULT_IMAGE2DRAWIO_GEN_FIG_MODEL);
+        formData.append('vlm_model', DEFAULT_IMAGE2DRAWIO_VLM_MODEL);
+      }
+      formData.append('email', user?.id || user?.email || '');
+
+      const res = await backendFetch('/api/v1/image2drawio/generate', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (!data?.success || !data?.xml_content) {
+        throw new Error(data?.error || 'DrawIO 生成失败');
+      }
+
+      setDrawioXml(data.xml_content);
+      await recordUsage(user?.id || null, 'image2drawio', { isAnonymous: user?.is_anonymous || false });
+      refreshQuota();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'DrawIO 生成失败';
+      setDrawioError(message);
+    } finally {
+      setDrawioLoading(false);
+      setIsDrawioLocked(false);
+      drawioGuardRef.current = false;
+    }
+  }, [
+    apiKey,
+    drawioLoading,
+    llmApiUrl,
+    normalizePaper2FigureAsset,
+    previewImgUrl,
+    refreshQuota,
+    t,
+    user?.email,
+    user?.id,
+    user?.is_anonymous,
+  ]);
+
+  // 新增：管理生成阶段的定时器
+  useEffect(() => {
+    if (!isLoading) {
+      setCurrentStage(0);
+      setStageProgress(0);
+      return;
+    }
+
+    let stageTimer: ReturnType<typeof setTimeout>;
+    let progressTimer: ReturnType<typeof setInterval>;
+    let currentStageIndex = 0;
+    let elapsedTime = 0;
+
+    const updateProgress = () => {
+      elapsedTime += 0.5;
+      const currentStageDuration = GENERATION_STAGES[currentStageIndex].duration;
+      const progress = Math.min((elapsedTime % currentStageDuration) / currentStageDuration * 100, 100);
+      setStageProgress(progress);
+    };
+
+    const advanceStage = () => {
+      if (currentStageIndex < GENERATION_STAGES.length - 1) {
+        currentStageIndex++;
+        setCurrentStage(currentStageIndex);
+        elapsedTime = 0;
+        setStageProgress(0);
+      }
+    };
+
+    // 每0.5秒更新进度条
+    progressTimer = setInterval(updateProgress, 500);
+
+    // 根据阶段时长切换阶段
+    const scheduleNextStage = () => {
+      const duration = GENERATION_STAGES[currentStageIndex].duration * 1000;
+      stageTimer = setTimeout(() => {
+        advanceStage();
+        if (currentStageIndex < GENERATION_STAGES.length - 1) {
+          scheduleNextStage();
+        }
+      }, duration);
+    };
+
+    scheduleNextStage();
+
+    return () => {
+      clearTimeout(stageTimer);
+      clearInterval(progressTimer);
+    };
+  }, [isLoading]);
+
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      setSelectedFile(null);
+      setFileKind(null);
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      setError('文件大小超过 20MB 限制');
+      return;
+    }
+    const kind = detectFileKind(file);
+    if (!kind) {
+      setError('不支持的文件类型');
+      setSelectedFile(null);
+      setFileKind(null);
+      return;
+    }
+
+    // 验证逻辑：只有 exp_data 支持图片，其他仅支持 PDF
+    if (kind === 'image' && graphType !== 'exp_data') {
+      setError('此模式仅支持 PDF 文件');
+      setSelectedFile(null);
+      setFileKind(null);
+      return;
+    }
+
+    setSelectedFile(file);
+    setFileKind(kind);
+    setError(null);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (!file) {
+      setSelectedFile(null);
+      setFileKind(null);
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      setError('文件大小超过 20MB 限制');
+      return;
+    }
+
+    const kind = detectFileKind(file);
+    if (!kind) {
+      setError('不支持的文件类型');
+      setSelectedFile(null);
+      setFileKind(null);
+      return;
+    }
+
+    // 验证逻辑：只有 exp_data 支持图片，其他仅支持 PDF
+    if (kind === 'image' && graphType !== 'exp_data') {
+      setError('此模式仅支持 PDF 文件');
+      setSelectedFile(null);
+      setFileKind(null);
+      return;
+    }
+
+    setSelectedFile(file);
+    setFileKind(kind);
+    setError(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragOver(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleSubmit = async () => {
+    if (submitGuardRef.current) {
+      return;
+    }
+    submitGuardRef.current = true;
+    setIsSubmitLocked(true);
+
+    try {
+    // 当前 UploadMode 仅支持 'file' | 'text'，此分支保留作为防御性检查
+
+    if (graphType === 'model_arch') {
+      // model_arch 统一走 JSON API，先生成图和 PPT，再由前端决定交互
+      if (isLoading) return;
+      setError(null);
+      setSuccessMessage(null);
+      setDownloadUrl(null);
+      setPptPath(null);
+      setSvgPath(null);
+      setSvgPreviewPath(null);
+      setSvgBwPath(null);
+      setSvgColorPath(null);
+      setCurrentStage(0);
+      setStageProgress(0);
+      // setShowOutputPanel(true);
+
+      const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
+      if (quota.remaining <= 0) {
+        setError(quota.isAuthenticated
+          ? t('errors.quotaUserExhausted')
+          : t('errors.quotaGuestExhausted'));
+        return;
+      }
+
+      if (userApiConfigRequired && (!llmApiUrl.trim() || !apiKey.trim())) {
+        setError(t('errors.missingApiConfig'));
+        return;
+      }
+
+      const formData = new FormData();
+      if (userApiConfigRequired) {
+        formData.append('img_gen_model_name', model);
+      }
+      if (userApiConfigRequired) {
+        formData.append('chat_api_url', llmApiUrl.trim());
+        formData.append('api_key', apiKey.trim());
+      }
+      formData.append('input_type', uploadMode);
+      formData.append('email', user?.id || user?.email || '');
+      formData.append('graph_type', graphType);
+      formData.append('style', style);
+      formData.append('figure_complex', figureComplex);
+      formData.append('language', language);
+      formData.append('resolution', resolution);
+
+      if (uploadMode === 'file') {
+        if (!selectedFile) {
+          setError(t('errors.noFile'));
+          return;
+        }
+        const kind: FileKind = 'pdf';
+        formData.append('file', selectedFile);
+        formData.append('file_kind', kind);
+      } else if (uploadMode === 'text') {
+        if (!textContent.trim()) {
+          setError(t('errors.noText'));
+          return;
+        }
+        formData.append('text', textContent.trim());
+      }
+
+      try {
+        setIsValidating(true);
+        setError(null);
+        if (userApiConfigRequired) {
+          await verifyLlmConnection(llmApiUrl, apiKey, import.meta.env.VITE_DEFAULT_LLM_MODEL || "deepseek-v3.2");
+        }
+        setIsValidating(false);
+
+        setIsLoading(true);
+        const res = await backendFetch(JSON_API, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!res.ok) {
+          let msg = t('errors.serverBusy');
+          if (res.status === 403) msg = t('errors.inviteInvalid');
+          else if (res.status === 429) msg = t('errors.tooManyRequests');
+          else {
+            try {
+              const errBody = await res.json();
+              if (errBody?.error) msg = errBody.error;
+            } catch { /* ignore parse error */ }
+          }
+          throw new Error(msg);
+        }
+
+        type Paper2FigureJsonResp = {
+          success: boolean;
+          error?: string;
+          ppt_filename: string;
+          svg_filename: string;
+          svg_image_filename: string;
+          svg_bw_filename?: string;
+          svg_bw_image_filename?: string;
+          svg_color_filename?: string;
+          svg_color_image_filename?: string;
+          all_output_files?: string[];
+        };
+
+        const data: Paper2FigureJsonResp = await res.json();
+        if (!data.success) {
+          throw new Error(data.error || t('errors.serverBusy'));
+        }
+
+        const normalizedAllOutputFiles = (data.all_output_files ?? []).map((item) => normalizePaper2FigureAsset(item));
+        const normalizedPptFilename = normalizePaper2FigureAsset(data.ppt_filename);
+        setAllOutputFiles(normalizedAllOutputFiles);
+        
+        console.log('[Paper2Figure] All output files:', normalizedAllOutputFiles);
+
+        // 选一张主图做预览：优先 fig_*.png，其次最大 png
+        let mainImg: string | null = null;
+        const files = normalizedAllOutputFiles;
+        const pngs = files.filter(f => /\.(png|jpg|jpeg|webp)$/i.test(f));
+        const figPngs = pngs.filter(f => /fig_/i.test(f));
+        if (figPngs.length > 0) {
+          mainImg = figPngs[0];
+        } else if (pngs.length > 0) {
+          mainImg = pngs[0];
+        }
+
+        if (!mainImg) {
+          console.warn('[Paper2Figure] No preview image found in outputs');
+          setError('生成成功，但未能在返回结果中找到预览图片。');
+          setIsLoading(false);
+          return;
+        }
+
+        // 协议自动升级：若当前是 https 但图片是 http，则替换为 https
+        if (typeof window !== 'undefined' && window.location.protocol === 'https:' && mainImg.startsWith('http:')) {
+          mainImg = mainImg.replace(/^http:/, 'https:');
+        }
+
+        setSuccessMessage(t('success.previewGenerated', '模型结构图预览已生成，请确认并转为 PPT'));
+        await recordUsage(user?.id || null, 'paper2figure', { isAnonymous: user?.is_anonymous || false });
+        refreshQuota();
+
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        let pptUrlCandidate: string | null = null;
+        if (normalizedPptFilename) {
+          pptUrlCandidate = normalizedPptFilename;
+        } else {
+          const pptx = files.find(f => /\.pptx$/i.test(f));
+          if (pptx) pptUrlCandidate = pptx;
+        }
+
+        setPreviewImgUrl(mainImg);
+        // Step 1 结束，暂不设置 pptUrl，因为 PPT 还没生成
+        setPptUrl(null);
+        setGraphStep('preview');
+      } catch (err) {
+        const message = err instanceof Error ? err.message : t('errors.serverBusy');
+        setError(message);
+      } finally {
+        setIsLoading(false);
+        setIsValidating(false);
+      }
+      return;
+    }
+
+    if (isLoading) return;
+    setError(null);
+    setSuccessMessage(null);
+    setDownloadUrl(null);
+    setPptPath(null);
+    setSvgPath(null);
+    setSvgPreviewPath(null);
+    setSvgBwPath(null);
+    setSvgColorPath(null);
+    setCurrentStage(0);
+    setStageProgress(0);
+    // setShowOutputPanel(true);
+
+    // Check quota before proceeding
+    const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
+    if (quota.remaining <= 0) {
+      setError(quota.isAuthenticated
+        ? t('errors.quotaUserExhausted')
+        : t('errors.quotaGuestExhausted'));
+      return;
+    }
+
+    if (userApiConfigRequired && (!llmApiUrl.trim() || !apiKey.trim())) {
+      setError(t('errors.missingApiConfig'));
+      return;
+    }
+
+    // 当前 UploadMode 仅支持 'file' | 'text'，无需图片输入
+    
+    const formData = new FormData();
+    if (userApiConfigRequired) {
+      formData.append('img_gen_model_name', model);
+    }
+    if (userApiConfigRequired) {
+      formData.append('chat_api_url', llmApiUrl.trim());
+      formData.append('api_key', apiKey.trim());
+    }
+    formData.append('input_type', uploadMode);
+    formData.append('email', user?.email || '');
+    formData.append('graph_type', graphType);
+    formData.append('style', style);
+
+    // 其他图（tech_route / exp_data）：使用用户选择的语言配置
+    formData.append('language', language);
+    formData.append('resolution', resolution);
+
+    // 技术路线图：传递配色方案
+    if (graphType === 'tech_route') {
+      formData.append('tech_route_palette', techRoutePalette);
+      formData.append('tech_route_template', techRouteTemplate);
+      // 添加参考图（如果有）
+      if (referenceImage) {
+        formData.append('reference_image', referenceImage);
+      }
+    }
+
+    if (uploadMode === 'file') {
+      if (!selectedFile) {
+        setError(t('errors.noFile'));
+        return;
+      }
+      const kind = fileKind ?? detectFileKind(selectedFile);
+      if (!kind) {
+        setError(t('errors.unsupportedFile'));
+        return;
+      }
+      formData.append('file', selectedFile);
+      formData.append('file_kind', kind);
+    } else if (uploadMode === 'text') {
+      if (!textContent.trim()) {
+        setError(t('errors.noText'));
+        return;
+      }
+      formData.append('text', textContent.trim());
+    }
+
+    try {
+      // Step 0: Verify LLM Connection first
+      setIsValidating(true);
+      setError(null);
+      if (userApiConfigRequired) {
+        await verifyLlmConnection(llmApiUrl, apiKey, model);
+      }
+      setIsValidating(false);
+
+      setIsLoading(true);
+
+      if (graphType === 'tech_route') {
+        // 技术路线图：调用 JSON 接口，返回 PPT + SVG
+        const res = await backendFetch(JSON_API, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!res.ok) {
+          let msg = t('errors.serverBusy');
+          if (res.status === 403) {
+            msg = t('errors.inviteInvalid');
+          } else if (res.status === 429) {
+            msg = t('errors.tooManyRequests');
+          } else {
+            try {
+              const errBody = await res.json();
+              if (errBody?.error) msg = errBody.error;
+            } catch { /* ignore parse error */ }
+          }
+          throw new Error(msg);
+        }
+
+        type Paper2FigureJsonResp = {
+          success: boolean;
+          error?: string;
+          ppt_filename: string;
+          svg_filename: string;
+          svg_image_filename: string;
+          svg_bw_filename?: string;
+          svg_bw_image_filename?: string;
+          svg_color_filename?: string;
+          svg_color_image_filename?: string;
+          all_output_files?: string[];
+        };
+
+        const data: Paper2FigureJsonResp = await res.json();
+
+        if (!data.success) {
+          throw new Error(data.error || t('errors.serverBusy'));
+        }
+
+        const normalizedPptFilename = normalizePaper2FigureAsset(data.ppt_filename);
+        const normalizedSvgFilename = normalizePaper2FigureAsset(data.svg_filename);
+        const normalizedSvgImageFilename = normalizePaper2FigureAsset(data.svg_image_filename);
+        const normalizedSvgBwFilename = normalizePaper2FigureAsset(data.svg_bw_filename ?? data.svg_filename);
+        const normalizedSvgBwImageFilename = normalizePaper2FigureAsset(data.svg_bw_image_filename);
+        const normalizedSvgColorFilename = normalizePaper2FigureAsset(data.svg_color_filename);
+        const normalizedSvgColorImageFilename = normalizePaper2FigureAsset(data.svg_color_image_filename);
+        const normalizedAllOutputFiles = (data.all_output_files ?? []).map((item) => normalizePaper2FigureAsset(item));
+
+        // 校验关键文件路径是否有效，防止后端返回 success 但实际未生成文件
+        const hasSvg = !!(normalizedSvgImageFilename || normalizedSvgBwImageFilename || normalizedSvgColorImageFilename);
+        if (!hasSvg && !normalizedPptFilename) {
+          throw new Error(data.error || '生成失败：后端未返回有效文件，请查看后端日志后重试');
+        }
+
+        setPptPath(normalizedPptFilename || null);
+        setSvgPath(normalizedSvgFilename || null);
+        setSvgPreviewPath(normalizedSvgImageFilename || null);
+        setSvgBwPath(normalizedSvgBwFilename || null);
+        setSvgColorPath(normalizedSvgColorFilename || null);
+        setAllOutputFiles(normalizedAllOutputFiles);
+
+        // 设置技术路线图预览
+        const svgPreview = normalizedSvgColorImageFilename || normalizedSvgBwImageFilename || normalizedSvgImageFilename;
+        if (svgPreview) {
+          setTechRouteSvgPreview(svgPreview);
+          setTechRouteStep('preview');
+        }
+
+        setSuccessMessage(t('success.techRouteGenerated'));
+
+        // 校验通过后才扣积分
+        await recordUsage(user?.id || null, 'paper2figure', { isAnonymous: user?.is_anonymous || false });
+        refreshQuota();
+
+        // Fetch PPT file and upload to Supabase Storage
+        if (normalizedPptFilename) {
+          try {
+            console.log('[Paper2GraphPage] Fetching tech_route file from:', normalizedPptFilename);
+            const pptRes = await fetch(normalizedPptFilename);
+            if (!pptRes.ok) {
+              throw new Error(`HTTP ${pptRes.status}: ${pptRes.statusText}`);
+            }
+            const pptBlob = await pptRes.blob();
+            const pptName = normalizedPptFilename.split('/').pop() || 'tech_route.pptx';
+            console.log('[Paper2GraphPage] Uploading tech_route file to storage:', pptName);
+            const uploadResult = await uploadAndSaveFile(pptBlob, pptName, 'paper2figure');
+            if (uploadResult) {
+              console.log('[Paper2GraphPage] Tech_route file uploaded successfully:', uploadResult.file_name);
+            } else {
+              console.warn('[Paper2GraphPage] Tech_route file upload skipped or failed');
+            }
+          } catch (e) {
+            console.error('[Paper2GraphPage] Failed to upload tech_route file:', e);
+          }
+        }
+      } else {
+        // 其他类型：保持原来的 PPTX blob 下载逻辑
+        const res = await backendFetch(BACKEND_API, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!res.ok) {
+          let msg = t('errors.serverBusy');
+          if (res.status === 403) {
+            msg = t('errors.inviteInvalid');
+          } else if (res.status === 429) {
+            msg = t('errors.tooManyRequests');
+          } else {
+            try {
+              const errBody = await res.json();
+              if (errBody?.error) msg = errBody.error;
+            } catch { /* ignore parse error */ }
+          }
+          throw new Error(msg);
+        }
+
+        const disposition = res.headers.get('content-disposition') || '';
+        let filename = 'paper2figure.pptx';
+        const match = disposition.match(/filename="?([^";]+)"?/i);
+        if (match?.[1]) {
+          filename = decodeURIComponent(match[1]);
+        }
+
+        const blob = await res.blob();
+        if (!blob || blob.size === 0) {
+          throw new Error('生成失败：后端未返回有效文件，请查看后端日志后重试');
+        }
+        const url = URL.createObjectURL(blob);
+        setDownloadUrl(url);
+        setLastFilename(filename);
+        setSuccessMessage(t('success.pptGenerated'));
+
+        // 校验通过后才扣积分
+        await recordUsage(user?.id || null, 'paper2figure', { isAnonymous: user?.is_anonymous || false });
+        refreshQuota();
+
+        console.log('[Paper2GraphPage] Uploading file to storage:', filename);
+        const uploadResult = await uploadAndSaveFile(blob, filename, 'paper2figure');
+        if (uploadResult) {
+          console.log('[Paper2GraphPage] File uploaded successfully:', uploadResult.file_name);
+        } else {
+          console.warn('[Paper2GraphPage] File upload skipped or failed');
+        }
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : t('errors.serverBusy');
+      setError(message);
+    } finally {
+      setIsLoading(false);
+      setIsValidating(false);
+    }
+    } finally {
+      releaseSubmitGuard();
+    }
+  };
+
+  return (
+    <div className="w-full h-full flex flex-col bg-[var(--bg-dark)]">
+      <Banner show={showBanner} onClose={() => setShowBanner(false)} stars={stars} />
+
+      <div className="flex-1 flex flex-col items-center justify-start px-6 pt-20 pb-10 overflow-auto">
+        <div className="w-full max-w-5xl animate-fade-in">
+          <Header
+            badge={header?.badge}
+            title={header?.title}
+            subtitle={header?.subtitle}
+            align={header?.align}
+          />
+
+          {hint && (
+            <div className="mb-8">
+              <BilingualHint title={hint.title} zh={hint.zh} en={hint.en} tone={hint.tone} />
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-[2fr,minmax(260px,1fr)] gap-6 mb-10">
+            <UploadCard
+              graphType={graphType}
+              setGraphType={setGraphType}
+              allowedGraphTypes={allowedGraphTypes}
+              uploadMode={uploadMode}
+              setUploadMode={setUploadMode}
+              selectedFile={selectedFile}
+              fileKind={fileKind}
+              isDragOver={isDragOver}
+              handleDragOver={handleDragOver}
+              handleDragLeave={handleDragLeave}
+              handleDrop={handleDrop}
+              handleFileChange={handleFileChange}
+              textContent={textContent}
+              setTextContent={setTextContent}
+            />
+
+            <SettingsCard
+              showAdvanced={showAdvanced}
+              setShowAdvanced={setShowAdvanced}
+              llmApiUrl={llmApiUrl}
+              setLlmApiUrl={setLlmApiUrl}
+              setModel={setModel}
+              apiKey={apiKey}
+              setApiKey={setApiKey}
+              model={model}
+              graphType={graphType}
+              figureComplex={figureComplex}
+              setFigureComplex={setFigureComplex}
+              language={language}
+              setLanguage={setLanguage}
+              style={style}
+              setStyle={setStyle}
+              resolution={resolution}
+              setResolution={setResolution}
+              isLoading={isLoading}
+              isSubmitLocked={isSubmitLocked}
+              handleSubmit={handleSubmit}
+              currentStage={currentStage}
+              stageProgress={stageProgress}
+              downloadUrl={downloadUrl}
+              lastFilename={lastFilename}
+              pptPath={pptPath}
+              svgPath={svgPath}
+              svgPreviewPath={svgPreviewPath}
+              svgBwPath={svgBwPath}
+              svgColorPath={svgColorPath}
+              techRoutePalette={techRoutePalette}
+              setTechRoutePalette={setTechRoutePalette}
+              techRouteTemplate={techRouteTemplate}
+              setTechRouteTemplate={setTechRouteTemplate}
+              referenceImage={referenceImage}
+              setReferenceImage={setReferenceImage}
+              referenceImagePreview={referenceImagePreview}
+              setReferenceImagePreview={setReferenceImagePreview}
+              isValidating={isValidating}
+              error={error}
+              successMessage={successMessage}
+              showApiConfig={userApiConfigRequired}
+            />
+          </div>
+
+          <PreviewSection
+            graphType={graphType}
+            graphStep={graphStep}
+            previewImgUrl={previewImgUrl}
+            setPreviewImgUrl={setPreviewImgUrl}
+            pptUrl={pptUrl}
+            setPptUrl={setPptUrl}
+            setGraphStep={setGraphStep}
+            editPrompt={editPrompt}
+            setEditPrompt={setEditPrompt}
+            isLoading={isLoading}
+            setIsLoading={setIsLoading}
+            setError={setError}
+            model={model}
+            llmApiUrl={llmApiUrl}
+            apiKey={apiKey}
+            email={user?.id || user?.email || ''}
+            figureComplex={figureComplex}
+            language={language}
+            showDrawioButton={enableDrawio && graphType === 'model_arch'}
+            drawioLoading={drawioLoading || isDrawioLocked}
+            onConvertToDrawio={handleConvertToDrawio}
+            drawioLabel={drawioLabel}
+            onReset={() => {
+              setDrawioXml('');
+              setDrawioError(null);
+            }}
+            userApiConfigRequired={userApiConfigRequired}
+          />
+
+          {enableDrawio && drawioError && (
+            <div className="mb-6 rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
+              {drawioError}
+            </div>
+          )}
+
+          {enableDrawio && drawioXml && (
+            <div className="mb-10">
+              {drawioXml === emptyDrawioXml ? (
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.25)]">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold text-white">DrawIO 在线编辑 / Editor</h3>
+                      <p className="text-xs text-slate-400">可直接在下方编辑图形，支持复制或下载 .drawio / Edit below and download .drawio</p>
+                    </div>
+                    <span className="text-[11px] text-slate-500">等待生成 / Pending</span>
+                  </div>
+                  <div
+                    className="mt-4 flex flex-col items-center justify-center rounded-2xl border border-white/10 bg-[#0b0f17]"
+                    style={{ height: '560px' }}
+                  >
+                    <svg className="w-16 h-16 text-slate-600 mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="7" height="7" rx="1" />
+                      <rect x="14" y="3" width="7" height="7" rx="1" />
+                      <rect x="3" y="14" width="7" height="7" rx="1" />
+                      <rect x="14" y="14" width="7" height="7" rx="1" />
+                      <line x1="10" y1="6.5" x2="14" y2="6.5" />
+                      <line x1="6.5" y1="10" x2="6.5" y2="14" />
+                    </svg>
+                    <p className="text-sm text-slate-500">请先上传论文并生成模型架构图</p>
+                    <p className="text-xs text-slate-600 mt-1">Upload a paper and generate the model architecture first</p>
+                  </div>
+                </div>
+              ) : (
+                <DrawioInlineEditor
+                  title="DrawIO 在线编辑 / Editor"
+                  subtitle="可直接在下方编辑图形，支持复制或下载 .drawio / Edit below and download .drawio"
+                  xmlContent={drawioXml}
+                  onXmlChange={setDrawioXml}
+                />
+              )}
+            </div>
+          )}
+
+          <TechRoutePreviewSection
+            graphType={graphType}
+            techRouteStep={techRouteStep}
+            svgPreviewUrl={techRouteSvgPreview}
+            svgBwPath={svgBwPath}
+            svgColorPath={svgColorPath}
+          />
+
+          {extraSection && <div className="mb-2">{extraSection}</div>}
+          {showExamples && <ExamplesSection visibleTypes={exampleTypes ?? allowedGraphTypes} />}
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+        .animate-shimmer {
+          animation: shimmer 3s infinite;
+        }
+        .animate-shimmer-fast {
+          animation: shimmer 1.5s infinite;
+        }
+        @keyframes fade-in {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+          animation: fade-in 0.5s ease-out;
+        }
+        .gradient-border {
+          background: linear-gradient(135deg, rgba(0, 112, 243, 0.4) 0%, rgba(0, 200, 255, 0.4) 100%);
+          padding: 2px;
+          border-radius: 0.75rem;
+        }
+        .glass {
+          background: rgba(255, 255, 255, 0.03);
+          backdrop-filter: blur(10px);
+        }
+        .glow {
+          box-shadow: 0 0 20px rgba(0, 112, 243, 0.3);
+        }
+        .demo-input-placeholder {
+          min-height: 80px;
+        }
+        .demo-output-placeholder {
+          min-height: 80px;
+        }
+      `}</style>
+    </div>
+  );
+};
+
+export default Paper2FigurePage;

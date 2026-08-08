@@ -1,0 +1,352 @@
+import { useEffect, useState } from 'react';
+import { Search, Loader2, FileText, Image as ImageIcon, Video as VideoIcon, ExternalLink, Folder } from 'lucide-react';
+import { API_URL_OPTIONS } from '../../../config/api';
+import { useAuthStore } from '../../../stores/authStore';
+import { getApiSettings } from '../../../services/apiSettingsService';
+import { backendFetch } from '../../../services/backendClient';
+import { getSecureAssetUrl, openSecureAsset } from '../../../services/secureAssetService';
+import { KnowledgeBaseEntry } from '../types';
+import { useRuntimeBilling } from '../../../hooks/useRuntimeBilling';
+
+interface SearchResult {
+  score: number;
+  content: string;
+  type: string;
+  source_file: {
+    id?: string;
+    file_type?: string;
+    original_path?: string;
+    url?: string;
+  };
+  media?: {
+    path?: string;
+    url?: string;
+  } | null;
+  metadata?: Record<string, any>;
+}
+
+interface SearchToolProps {
+  files?: any[];
+  selectedIds?: Set<string>;
+  knowledgeBases?: KnowledgeBaseEntry[];
+}
+
+export const SearchTool = ({ files = [], selectedIds = new Set(), knowledgeBases = [] }: SearchToolProps) => {
+  const { user } = useAuthStore();
+  const { userApiConfigRequired } = useRuntimeBilling();
+  const [query, setQuery] = useState('');
+  const [topK, setTopK] = useState(5);
+  const [apiKey, setApiKey] = useState('');
+  const [apiUrl, setApiUrl] = useState('https://api.apiyi.com/v1/embeddings');
+  const [modelName, setModelName] = useState('text-embedding-3-small');
+  const [kbFilter, setKbFilter] = useState<string>('all');
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [secureUrls, setSecureUrls] = useState<Record<string, string>>({});
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const settings = getApiSettings(user?.id || null);
+    if (settings) {
+      setApiUrl(settings.apiUrl || apiUrl);
+      setApiKey(settings.apiKey || apiKey);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolveSecureUrls = async () => {
+      const candidates = Array.from(
+        new Set(
+          results.flatMap((item) => [item.media?.url || '', item.source_file?.url || '']).filter(Boolean),
+        ),
+      );
+
+      const pairs = await Promise.all(
+        candidates.map(async (rawUrl) => {
+          if (!rawUrl.includes('/outputs/')) {
+            return [rawUrl, rawUrl] as const;
+          }
+          try {
+            return [rawUrl, await getSecureAssetUrl(rawUrl)] as const;
+          } catch (err) {
+            console.warn('[SearchTool] Failed to resolve secure asset URL:', err);
+            return [rawUrl, ''] as const;
+          }
+        }),
+      );
+
+      if (!cancelled) {
+        setSecureUrls(Object.fromEntries(pairs));
+      }
+    };
+
+    resolveSecureUrls();
+    return () => {
+      cancelled = true;
+    };
+  }, [results]);
+
+  const getMediaKind = (url?: string) => {
+    if (!url) return null;
+    const lower = url.toLowerCase();
+    if (lower.endsWith('.mp4')) return 'video';
+    if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image';
+    return 'file';
+  };
+
+  const getResolvedUrl = (url?: string) => {
+    if (!url) return '';
+    return secureUrls[url] || '';
+  };
+
+  const handleOpenMaterial = async (url?: string) => {
+    if (!url) return;
+    if (!url.includes('/outputs/')) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    try {
+      await openSecureAsset(url);
+    } catch (err) {
+      console.error('[SearchTool] Failed to open material:', err);
+      alert('打开素材失败');
+    }
+  };
+
+  const handleSearch = async () => {
+    if (!query.trim()) return;
+    setLoading(true);
+    setError('');
+    setResults([]);
+    try {
+      let candidates = files;
+      if (kbFilter === 'uncategorized') {
+        candidates = candidates.filter((f: any) => !f.kbId);
+      } else if (kbFilter !== 'all') {
+        candidates = candidates.filter((f: any) => f.kbId === kbFilter);
+      }
+
+      if (selectedIds.size > 0) {
+        candidates = candidates.filter((f: any) => selectedIds.has(f.id));
+      }
+
+      const selectedFileIds = candidates
+        .map((f: any) => f.kbFileId)
+        .filter(Boolean);
+
+      if ((selectedIds.size > 0 || kbFilter !== 'all') && selectedFileIds.length === 0) {
+        if (selectedIds.size > 0) {
+          setError('所选文件尚未入库（kb_file_id 为空），请先向量入库后再检索。');
+        } else {
+          setError('该知识库暂无已入库文件，请先向量入库后再检索。');
+        }
+        setLoading(false);
+        return;
+      }
+
+      const res = await backendFetch('/api/v1/kb/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: query.trim(),
+          top_k: topK,
+          email: user?.email || null,
+          file_ids: selectedFileIds.length > 0 ? selectedFileIds : null,
+          ...(userApiConfigRequired
+            ? {
+                api_url: apiUrl,
+                api_key: apiKey,
+                model_name: modelName,
+              }
+            : {})
+        })
+      });
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+      const data = await res.json();
+      setResults(data.results || []);
+    } catch (err: any) {
+      setError(err?.message || '检索失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6 bg-[#0a0a1a] h-full">
+      <div className="mb-6 bg-gradient-to-br from-blue-900/20 to-purple-900/20 border border-blue-500/20 rounded-xl p-4 flex items-start gap-3">
+        <Search className="text-blue-400 mt-1 flex-shrink-0" size={18} />
+        <div>
+          <h4 className="text-sm font-medium text-blue-300 mb-1">语义检索</h4>
+          <p className="text-xs text-blue-200/70">
+            输入 query 与 topK，返回知识库中的相关文本或多模态描述。
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-300">查询内容</label>
+          <input
+            type="text"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="例如：模型架构的关键贡献"
+            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-blue-500"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-300">TopK</label>
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={topK}
+              onChange={e => setTopK(Math.max(1, Math.min(50, Number(e.target.value))))}
+              className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-blue-500"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-300">Embedding Model</label>
+            <input
+              type="text"
+              value={modelName}
+              onChange={e => setModelName(e.target.value)}
+              disabled={!userApiConfigRequired}
+              className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-blue-500 disabled:opacity-50"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+            <Folder size={14} className="text-blue-300" />
+            知识库过滤
+          </label>
+          <select
+            value={kbFilter}
+            onChange={e => setKbFilter(e.target.value)}
+            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-blue-500"
+          >
+            <option value="all">全部知识库</option>
+            <option value="uncategorized">未分类</option>
+            {knowledgeBases.map(kb => (
+              <option key={kb.id} value={kb.id}>{kb.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {userApiConfigRequired ? (
+          <>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">API URL</label>
+              <select
+                value={apiUrl}
+                onChange={e => setApiUrl(e.target.value)}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-blue-500"
+              >
+                {[apiUrl, ...API_URL_OPTIONS].filter((v, i, a) => a.indexOf(v) === i).map((url: string) => (
+                  <option key={url} value={url}>{url}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">API Key</label>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={e => setApiKey(e.target.value)}
+                placeholder="sk-..."
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-blue-500 font-mono"
+              />
+            </div>
+          </>
+        ) : (
+          <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-xs text-blue-200/80">
+            Free 模式下由后端统一选择向量检索使用的嵌入模型与接口配置。
+          </div>
+        )}
+      </div>
+
+      <div className="mt-6">
+        <button
+          onClick={handleSearch}
+          disabled={loading || !query.trim()}
+          className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white py-3 rounded-xl font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-500/20"
+        >
+          {loading ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
+          {loading ? '检索中...' : '开始检索'}
+        </button>
+      </div>
+
+      {error && (
+        <div className="mt-4 text-sm text-red-400">{error}</div>
+      )}
+
+      {results.length > 0 && (
+        <div className="mt-6 space-y-4">
+          {results.map((item, idx) => {
+            const mediaKind = getMediaKind(item.media?.url || item.source_file?.url);
+            const displayUrl = item.media?.url || item.source_file?.url;
+            const resolvedMediaUrl = getResolvedUrl(item.media?.url);
+            return (
+              <div key={`${item.source_file?.id || idx}-${idx}`} className="bg-white/5 border border-white/10 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-xs text-gray-400">Score: {item.score?.toFixed(4)}</div>
+                  {displayUrl && (
+                    <button
+                      onClick={() => handleOpenMaterial(displayUrl)}
+                      className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                    >
+                      <ExternalLink size={12} /> 打开素材
+                    </button>
+                  )}
+                </div>
+
+                <div className="text-sm text-gray-200 whitespace-pre-wrap mb-3">
+                  {item.content}
+                </div>
+
+                <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
+                  <FileText size={12} />
+                  <span>{item.source_file?.original_path?.split('/').pop() || item.source_file?.id || 'unknown'}</span>
+                </div>
+
+                {mediaKind === 'image' && resolvedMediaUrl && (
+                  <div className="w-full bg-black/30 rounded-lg overflow-hidden border border-white/10">
+                    <img src={resolvedMediaUrl} alt="media" className="w-full h-48 object-contain" />
+                  </div>
+                )}
+
+                {mediaKind === 'video' && resolvedMediaUrl && (
+                  <div className="w-full bg-black/30 rounded-lg overflow-hidden border border-white/10">
+                    <video src={resolvedMediaUrl} controls className="w-full h-48 object-contain" />
+                  </div>
+                )}
+
+                {mediaKind && item.media?.url && !resolvedMediaUrl && (
+                  <div className="text-xs text-gray-500">素材访问链接加载中...</div>
+                )}
+
+                {!item.media?.url && mediaKind && (
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    {mediaKind === 'image' ? <ImageIcon size={14} /> : <VideoIcon size={14} />}
+                    <span>多模态描述结果</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};

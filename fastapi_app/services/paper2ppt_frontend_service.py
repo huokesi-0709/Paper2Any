@@ -1,0 +1,5332 @@
+from __future__ import annotations
+
+import asyncio
+import base64
+import hashlib
+import html
+import json
+import re
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Sequence
+from uuid import uuid4
+
+import httpx
+from fastapi import HTTPException, Request, UploadFile
+from PIL import Image, ImageOps, UnidentifiedImageError
+
+from dataflow_agent.agentroles import create_react_agent
+from dataflow_agent.logger import get_logger
+from dataflow_agent.state import Paper2FigureRequest, Paper2FigureState
+from dataflow_agent.toolkits.multimodaltool.req_img import generate_or_edit_and_save_image_async
+from dataflow_agent.toolkits.multimodaltool.ppt_tool import (
+    convert_images_dir_to_pdf_and_full_slide_ppt,
+)
+from fastapi_app.config import settings
+from fastapi_app.schemas import (
+    FrontendPPTExportRequest,
+    FrontendPPTGenerationRequest,
+    FrontendPPTReviewRequest,
+)
+from fastapi_app.services.managed_api_service import (
+    resolve_image_generation_credentials,
+    resolve_llm_credentials,
+    resolve_model_name,
+)
+from fastapi_app.utils import _from_outputs_url, _to_outputs_url, resolve_outputs_path
+
+log = get_logger(__name__)
+
+_JSON_BLOCK_RE = re.compile(r"\{.*\}", re.DOTALL)
+_FIELD_PLACEHOLDER_RE = re.compile(r"\{\{(?:field|list):([a-zA-Z0-9_]+)\}\}")
+_IMAGE_PLACEHOLDER_RE = re.compile(r"\{\{image:([a-zA-Z0-9_]+)\}\}")
+_ATTRIBUTE_RE = re.compile(r'([^\s"\'<>/=]+)\s*=\s*(["\'])(.*?)\2', re.DOTALL)
+_FORBIDDEN_HTML_RE = re.compile(
+    r"<\s*(script|iframe|img|video|audio|canvas|svg)\b|on[a-z]+\s*=",
+    re.IGNORECASE,
+)
+_FORBIDDEN_CSS_RE = re.compile(
+    r"@import|url\s*\(|(?:^|[,{])\s*(?:body|html|:root|#root)\b|position\s*:\s*fixed",
+    re.IGNORECASE,
+)
+_SLIDE_GEN_SEMAPHORE = asyncio.Semaphore(4)
+_IMAGE_GEN_SEMAPHORE = asyncio.Semaphore(2)
+_THEME_FILENAME = "deck_theme.json"
+_REFERENCE_SLIDE_LIMIT = 3
+_DEFAULT_VISUAL_KEY = "main_visual"
+_DEFAULT_VISUAL_KEYS = ("main_visual", "secondary_visual")
+_MAX_INLINE_VISUAL_ASSETS = 2
+_SLIDE_SCHEMA_VERSION = "frontend_slide_schema_v2"
+_CANVAS_SCHEMA_VERSION = "ppt_canvas_schema_v1"
+_CANVAS_VISUAL_SPEC_VERSION = "ppt_canvas_visual_spec_v1"
+_CANVAS_LAYOUT_IR_VERSION = "ppt_layout_ir_v1"
+_ALLOWED_BLOCK_TYPES = {"text", "list", "image", "quote", "stat", "callout", "table"}
+_ALLOWED_CANVAS_NODE_TYPES = {"container", "component"}
+_ALLOWED_CANVAS_COMPONENTS = {
+    "heading",
+    "text",
+    "bullets",
+    "quote",
+    "stat",
+    "callout",
+    "figure",
+    "table",
+    "placeholder",
+}
+_ALLOWED_LAYOUT_ZONES = {"header", "main", "aside", "footer", "full", "left", "right"}
+_ALLOWED_WIDTH_HINTS = {"full", "wide", "half", "third", "narrow", "auto"}
+_ALLOWED_SIDE_HINTS = {"left", "right", "center", "auto"}
+_ALLOWED_EMPHASIS_HINTS = {"high", "medium", "low"}
+_COVER_INTENT_RE = re.compile(
+    r"(封面|标题页|cover|title\s*slide|title\s*page|汇报人|presenter|仅保留标题|居中排版)",
+    re.IGNORECASE,
+)
+_LAYOUT_INSTRUCTION_RE = re.compile(
+    r"(整页|页面|布局|排版|置于|放置|居中|左右|上下|留出|大面积空白|不放置|不放|图表|说明|正文|"
+    r"layout|place|position|center|left|right|top|bottom|blank|do not|without)",
+    re.IGNORECASE,
+)
+_SUPPORTED_SCHEMA_TEMPLATE_KEYS = (
+    "title_cover",
+    "section_divider",
+    "text_focus",
+    "hero_visual",
+    "split_media",
+    "visual_compare",
+    "insight_grid",
+    "metrics_dashboard",
+    "timeline_overview",
+    "stacked_cards",
+    "quote_focus",
+    "dual_list",
+)
+_SCHEMA_TEMPLATE_ALIASES = {
+    "cover": "title_cover",
+    "cover_slide": "title_cover",
+    "title_slide": "title_cover",
+    "divider": "section_divider",
+    "section": "section_divider",
+    "section_break": "section_divider",
+    "text_only": "text_focus",
+    "text_heavy": "text_focus",
+    "hero": "hero_visual",
+    "single_visual": "hero_visual",
+    "media_split": "split_media",
+    "split_layout": "split_media",
+    "compare": "visual_compare",
+    "comparison": "visual_compare",
+    "image_compare": "visual_compare",
+    "grid": "insight_grid",
+    "card_grid": "insight_grid",
+    "dashboard": "metrics_dashboard",
+    "metrics": "metrics_dashboard",
+    "timeline": "timeline_overview",
+    "process_timeline": "timeline_overview",
+    "cards": "stacked_cards",
+    "card_stack": "stacked_cards",
+    "quote": "quote_focus",
+    "quote_slide": "quote_focus",
+    "two_lists": "dual_list",
+    "dual_column_list": "dual_list",
+}
+_PREVIEW_MAX_SIDE = 1280
+_PREVIEW_SMALL_FILE_BYTES = 900 * 1024
+_PREVIEW_JPEG_QUALITY = 82
+_PIL_RESAMPLING = getattr(Image, "Resampling", Image)
+_PIL_LANCZOS = _PIL_RESAMPLING.LANCZOS
+
+
+def _format_exception_for_log(exc: BaseException) -> str:
+    text = str(exc).strip()
+    status_code = getattr(exc, "status_code", None)
+    detail = getattr(exc, "detail", None)
+    if status_code is not None or detail:
+        parts = [exc.__class__.__name__]
+        if status_code is not None:
+            parts.append(f"status_code={status_code}")
+        if detail:
+            parts.append(f"detail={detail}")
+        elif text:
+            parts.append(text)
+        return " ".join(parts)
+    return text or repr(exc)
+
+
+class Paper2PPTFrontendService:
+    def __init__(self) -> None:
+        from fastapi_app.services.paper2ppt_service import Paper2PPTService
+
+        self._paper2ppt_service = Paper2PPTService()
+
+    async def generate_slides(
+        self,
+        req: FrontendPPTGenerationRequest,
+        request: Request | None,
+    ) -> Dict[str, Any]:
+        base_dir = self._paper2ppt_service.resolve_result_path(req.result_path)
+        if not base_dir.exists():
+            raise HTTPException(status_code=400, detail=f"result_path not exists: {base_dir}")
+
+        pagecontent = self._paper2ppt_service._parse_pagecontent_json(req.pagecontent)
+        if not pagecontent:
+            raise HTTPException(status_code=400, detail="pagecontent is required")
+
+        slides_dir = base_dir / "frontend_slide_specs"
+        slides_dir.mkdir(parents=True, exist_ok=True)
+
+        credential_scope = self._paper2ppt_service._resolve_credential_scope(req.credential_scope)
+        resolved_chat_api_url, resolved_api_key = resolve_llm_credentials(
+            req.chat_api_url,
+            req.api_key,
+            scope=credential_scope,
+        )
+        resolved_image_api_url, resolved_image_api_key = resolve_image_generation_credentials(
+            req.chat_api_url,
+            req.api_key,
+            scope=credential_scope,
+        )
+
+        deck_theme = await self._load_or_create_deck_theme(
+            slides_dir=slides_dir,
+            pagecontent=pagecontent,
+            chat_api_url=resolved_chat_api_url,
+            api_key=resolved_api_key,
+            model=resolve_model_name(
+                req.model,
+                managed_default=settings.PAPER2PPT_CONTENT_MODEL,
+                fallback_default=settings.PAPER2PPT_DEFAULT_MODEL,
+            ),
+            language=req.language,
+            style=req.style,
+        )
+        current_slide = self._parse_json_text(req.current_slide, "current_slide")
+
+        if req.page_id is not None:
+            if req.page_id < 0 or req.page_id >= len(pagecontent):
+                raise HTTPException(status_code=400, detail="page_id out of range")
+            generated_slide = await self._generate_single_slide(
+                base_dir=base_dir,
+                slides_dir=slides_dir,
+                pagecontent=pagecontent,
+                slide_index=req.page_id,
+                chat_api_url=resolved_chat_api_url,
+                api_key=resolved_api_key,
+                model=resolve_model_name(
+                    req.model,
+                    managed_default=settings.PAPER2PPT_CONTENT_MODEL,
+                    fallback_default=settings.PAPER2PPT_DEFAULT_MODEL,
+                ),
+                language=req.language,
+                style=req.style,
+                include_images=req.include_images,
+                image_mode=req.image_mode,
+                image_style=req.image_style,
+                image_model=resolve_model_name(
+                    req.image_model,
+                    managed_default=settings.PAPER2PPT_IMAGE_GEN_MODEL,
+                    fallback_default=settings.PAPER2PPT_DEFAULT_IMAGE_MODEL,
+                ),
+                image_api_url=resolved_image_api_url,
+                image_api_key=resolved_image_api_key,
+                edit_prompt=req.edit_prompt,
+                current_slide=current_slide,
+                theme=deck_theme,
+            )
+            self._write_slide_spec(slides_dir, generated_slide)
+            self._sync_deck_manifest(slides_dir)
+            self._write_raw_ai_manifest(slides_dir, [generated_slide])
+            response_slide = self._externalize_slide_assets(generated_slide, request, base_dir=base_dir)
+            return {
+                "success": True,
+                "slides": [response_slide],
+                "result_path": str(base_dir),
+                "theme": deck_theme,
+                "parallel_generation": True,
+            }
+
+        skip_set: set[int] = set()
+        if req.skip_slides:
+            try:
+                parsed = json.loads(req.skip_slides)
+                if isinstance(parsed, list):
+                    skip_set = {
+                        int(item)
+                        for item in parsed
+                        if isinstance(item, (int, str)) and str(item).strip().isdigit()
+                    }
+            except (json.JSONDecodeError, TypeError, ValueError):
+                skip_set = set()
+
+        reused_slides: list[dict] = []
+        if skip_set:
+            log.info("[frontend] Incremental mode: skip_slides=%s", sorted(skip_set))
+            valid_skip_set: set[int] = set()
+            for idx in sorted(skip_set):
+                spec_path = slides_dir / f"page_{idx:03d}.json"
+                if not spec_path.exists():
+                    log.warning("[frontend] Spec not found for slide %s, will regenerate", idx)
+                    continue
+                try:
+                    content = await asyncio.to_thread(spec_path.read_text, encoding="utf-8")
+                    reused_slides.append(json.loads(content))
+                    valid_skip_set.add(idx)
+                    log.info("[frontend] Reusing existing spec for slide %s", idx)
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("[frontend] Failed to load spec for slide %s: %s", idx, exc)
+            skip_set = valid_skip_set
+
+        tasks = [
+            self._generate_single_slide(
+                base_dir=base_dir,
+                slides_dir=slides_dir,
+                pagecontent=pagecontent,
+                slide_index=index,
+                chat_api_url=resolved_chat_api_url,
+                api_key=resolved_api_key,
+                model=resolve_model_name(
+                    req.model,
+                    managed_default=settings.PAPER2PPT_CONTENT_MODEL,
+                    fallback_default=settings.PAPER2PPT_DEFAULT_MODEL,
+                ),
+                language=req.language,
+                style=req.style,
+                include_images=req.include_images,
+                image_mode=req.image_mode,
+                image_style=req.image_style,
+                image_model=resolve_model_name(
+                    req.image_model,
+                    managed_default=settings.PAPER2PPT_IMAGE_GEN_MODEL,
+                    fallback_default=settings.PAPER2PPT_DEFAULT_IMAGE_MODEL,
+                ),
+                image_api_url=resolved_image_api_url,
+                image_api_key=resolved_image_api_key,
+                edit_prompt=None,
+                current_slide=None,
+                theme=deck_theme,
+            )
+            for index in range(len(pagecontent))
+            if index not in skip_set
+        ]
+        generated_slides = await asyncio.gather(*tasks)
+        ordered_slides = sorted(
+            list(generated_slides) + reused_slides,
+            key=lambda item: int(item.get("page_num", 0)),
+        )
+
+        for slide in ordered_slides:
+            self._write_slide_spec(slides_dir, slide)
+        self._sync_deck_manifest(slides_dir)
+        self._write_raw_ai_manifest(slides_dir, ordered_slides)
+        response_slides = [self._externalize_slide_assets(slide, request, base_dir=base_dir) for slide in ordered_slides]
+
+        return {
+            "success": True,
+            "slides": response_slides,
+            "result_path": str(base_dir),
+            "theme": deck_theme,
+            "parallel_generation": True,
+        }
+
+    async def export_slides(
+        self,
+        req: FrontendPPTExportRequest,
+        screenshots: Sequence[UploadFile],
+        request: Request | None,
+    ) -> Dict[str, Any]:
+        base_dir = self._paper2ppt_service.resolve_result_path(req.result_path)
+        if not base_dir.exists():
+            raise HTTPException(status_code=400, detail=f"result_path not exists: {base_dir}")
+
+        slides = self._paper2ppt_service._parse_pagecontent_json(req.slides)
+        if not slides:
+            raise HTTPException(status_code=400, detail="slides is required")
+        if not screenshots:
+            raise HTTPException(status_code=400, detail="screenshots are required")
+        if len(screenshots) != len(slides):
+            raise HTTPException(
+                status_code=400,
+                detail=f"slides count ({len(slides)}) does not match screenshots count ({len(screenshots)})",
+            )
+
+        specs_dir = base_dir / "frontend_slide_specs"
+        specs_dir.mkdir(parents=True, exist_ok=True)
+        (specs_dir / "frontend_slides.edited.json").write_text(
+            json.dumps(slides, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+        image_dir = base_dir / "frontend_ppt_pages"
+        image_dir.mkdir(parents=True, exist_ok=True)
+        for stale_file in image_dir.glob("page_*.png"):
+            stale_file.unlink(missing_ok=True)
+
+        ordered_files = sorted(
+            screenshots,
+            key=lambda item: self._extract_page_index(item.filename or ""),
+        )
+        for index, screenshot in enumerate(ordered_files):
+            target_path = image_dir / f"page_{index:03d}.png"
+            target_path.write_bytes(await screenshot.read())
+
+        export_dir = base_dir / "frontend_exports"
+        export_dir.mkdir(parents=True, exist_ok=True)
+        pdf_path = export_dir / "paper2ppt_frontend.pdf"
+        pptx_path = export_dir / "paper2ppt_frontend.pptx"
+
+        convert_images_dir_to_pdf_and_full_slide_ppt(
+            input_dir=str(image_dir),
+            output_pdf_path=str(pdf_path),
+            output_pptx_path=str(pptx_path),
+        )
+
+        response = {
+            "success": True,
+            "result_path": str(base_dir),
+            "ppt_pdf_path": str(pdf_path),
+            "ppt_pptx_path": str(pptx_path),
+        }
+
+        if request is not None:
+            response["ppt_pdf_path"] = _to_outputs_url(str(pdf_path), request)
+            response["ppt_pptx_path"] = _to_outputs_url(str(pptx_path), request)
+            response["all_output_files"] = self._paper2ppt_service._collect_output_files_as_urls(
+                str(base_dir),
+                request,
+            )
+        else:
+            response["all_output_files"] = []
+
+        return response
+
+    async def review_slide(
+        self,
+        req: FrontendPPTReviewRequest,
+        screenshot: UploadFile,
+    ) -> Dict[str, Any]:
+        base_dir = self._paper2ppt_service.resolve_result_path(req.result_path)
+        if not base_dir.exists():
+            raise HTTPException(status_code=400, detail=f"result_path not exists: {base_dir}")
+
+        slide = self._parse_json_text(req.slide, "slide")
+        if slide is None:
+            raise HTTPException(status_code=400, detail="slide is required")
+
+        credential_scope = self._paper2ppt_service._resolve_credential_scope(req.credential_scope)
+        resolved_chat_api_url, resolved_api_key = resolve_llm_credentials(
+            req.chat_api_url,
+            req.api_key,
+            scope=credential_scope,
+        )
+
+        screenshot_bytes = await screenshot.read()
+        if not screenshot_bytes:
+            raise HTTPException(status_code=400, detail="screenshot is empty")
+
+        theme = self._load_deck_theme(base_dir / "frontend_slide_specs") or self._build_fallback_theme(
+            language=req.language,
+            style="",
+        )
+        local_layout_issues = self._parse_string_list(req.layout_issues)
+        mime_type = screenshot.content_type or "image/png"
+        data_url = f"data:{mime_type};base64,{base64.b64encode(screenshot_bytes).decode('utf-8')}"
+
+        try:
+            review_payload = await self._call_llm_json(
+                chat_api_url=resolved_chat_api_url,
+                api_key=resolved_api_key,
+                model=settings.PAPER2PPT_VLM_MODEL or settings.PAPER2PPT_CONTENT_MODEL,
+                messages=self._build_review_messages(
+                    slide=slide,
+                    theme=theme,
+                    language=req.language,
+                    data_url=data_url,
+                    local_layout_issues=local_layout_issues,
+                ),
+                temperature=0.1,
+                max_tokens=900,
+                timeout_seconds=float(max(30, int(settings.PAPER2PPT_VLM_TIMEOUT_SECONDS or 90))),
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "[Paper2PPTFrontendService] Visual review degraded to local layout checks for %s: %s",
+                str(slide.get("title") or slide.get("page_num") or "slide"),
+                exc,
+            )
+            fallback_summary = (
+                "视觉检查模型暂时不可用，已改用本地布局检测结果。"
+                if str(req.language or "").lower().startswith("zh")
+                else "Visual review model unavailable; fell back to local layout checks."
+            )
+            normalized = self._normalize_review_payload(
+                payload={
+                    "passed": not local_layout_issues,
+                    "summary": fallback_summary,
+                    "issues": [],
+                    "repair_prompt": "",
+                },
+                slide=slide,
+                local_layout_issues=local_layout_issues,
+            )
+            normalized["degraded"] = True
+            normalized["warning"] = str(type(exc).__name__)
+            normalized["success"] = True
+            return normalized
+
+        normalized = self._normalize_review_payload(payload=review_payload, slide=slide, local_layout_issues=local_layout_issues)
+        normalized["success"] = True
+        return normalized
+
+    async def upload_asset(
+        self,
+        *,
+        result_path: str,
+        asset_key: str,
+        upload: UploadFile,
+        request: Request | None,
+    ) -> Dict[str, Any]:
+        base_dir = self._paper2ppt_service.resolve_result_path(result_path)
+        if not base_dir.exists():
+            raise HTTPException(status_code=400, detail=f"result_path not exists: {base_dir}")
+
+        key = self._slugify(asset_key or _DEFAULT_VISUAL_KEY) or _DEFAULT_VISUAL_KEY
+        suffix = Path(upload.filename or "").suffix.lower() or ".png"
+        if suffix not in {".png", ".jpg", ".jpeg", ".webp", ".gif"}:
+            raise HTTPException(status_code=400, detail="unsupported image format")
+
+        payload = await upload.read()
+        if not payload:
+            raise HTTPException(status_code=400, detail="uploaded image is empty")
+
+        target_dir = base_dir / "frontend_assets" / "uploads"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target_path = (target_dir / f"{key}_{uuid4().hex}{suffix}").resolve()
+        target_path.write_bytes(payload)
+
+        asset = self._finalize_visual_asset(
+            base_dir=base_dir,
+            asset={
+                "key": key,
+                "label": key.replace("_", " ").title(),
+                "src": str(target_path),
+                "alt": Path(upload.filename or target_path.name).stem,
+                "source_type": "upload",
+                "storage_path": str(target_path),
+            },
+        )
+        return {
+            "success": True,
+            "asset": self._externalize_asset(asset, request, base_dir=base_dir),
+            "result_path": str(base_dir),
+        }
+
+    async def _generate_single_slide(
+        self,
+        *,
+        base_dir: Path,
+        slides_dir: Path,
+        pagecontent: List[Dict[str, Any]],
+        slide_index: int,
+        chat_api_url: str,
+        api_key: str,
+        model: str,
+        language: str,
+        style: str,
+        include_images: bool,
+        image_mode: Optional[str],
+        image_style: str,
+        image_model: Optional[str],
+        image_api_url: str,
+        image_api_key: str,
+        edit_prompt: Optional[str],
+        current_slide: Optional[Dict[str, Any]],
+        theme: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        outline_item = pagecontent[slide_index]
+        visual_assets = await self._prepare_visual_assets(
+            base_dir=base_dir,
+            outline_item=outline_item,
+            slide_index=slide_index,
+            include_images=include_images,
+            image_mode=image_mode,
+            image_style=image_style,
+            image_model=image_model,
+            image_api_url=image_api_url,
+            image_api_key=image_api_key,
+            chat_api_url=chat_api_url,
+            api_key=api_key,
+            model=model,
+            theme=theme,
+            current_slide=current_slide,
+        )
+        fallback_slide = self._build_fallback_slide(
+            outline_item=outline_item,
+            slide_index=slide_index,
+            slide_count=len(pagecontent),
+            theme=theme,
+            visual_assets=visual_assets,
+        )
+        reference_slides = (
+            self._load_reference_slides(
+                slides_dir=slides_dir,
+                exclude_page_num=slide_index + 1,
+            )
+            if (current_slide or edit_prompt)
+            else []
+        )
+        deck_identity = self._build_deck_identity_summary(theme)
+        messages = self._build_messages(
+            outline_item=outline_item,
+            slide_index=slide_index,
+            slide_count=len(pagecontent),
+            language=language,
+            style=style,
+            edit_prompt=edit_prompt,
+            current_slide=current_slide,
+            theme=theme,
+            deck_identity=deck_identity,
+            reference_slides=reference_slides,
+            visual_assets=visual_assets,
+        )
+
+        try:
+            async with _SLIDE_GEN_SEMAPHORE:
+                raw_payload = await self._call_llm_json(
+                    chat_api_url=chat_api_url,
+                    api_key=api_key,
+                    model=model,
+                    messages=messages,
+                    temperature=0.28 if ((current_slide or edit_prompt) and reference_slides) else 0.32 if (current_slide or edit_prompt) else 0.45,
+                    max_tokens=3400,
+                )
+            normalized = self._normalize_slide_payload(
+                payload=raw_payload,
+                outline_item=outline_item,
+                slide_index=slide_index,
+                slide_count=len(pagecontent),
+                theme=theme,
+                visual_assets=visual_assets,
+            )
+            normalized["_raw_ai_payload"] = raw_payload
+            return normalized
+        except Exception as exc:  # noqa: BLE001
+            error_message = _format_exception_for_log(exc)
+            log.warning(
+                "[Paper2PPTFrontendService] Falling back to default slide for page %s: %s",
+                slide_index,
+                error_message,
+            )
+            fallback_slide["generation_note"] = (
+                f"Fallback template used because frontend code generation failed: {error_message}"
+            )
+            fallback_slide["_raw_ai_payload"] = {"error": error_message, "fallback": True}
+            return fallback_slide
+
+    async def _call_llm_json(
+        self,
+        *,
+        chat_api_url: str,
+        api_key: str,
+        model: str,
+        messages: List[Dict[str, Any]],
+        temperature: float = 0.55,
+        max_tokens: int = 3200,
+        timeout_seconds: float = 180.0,
+    ) -> Dict[str, Any]:
+        api_url = chat_api_url.rstrip("/")
+        target_url = api_url if api_url.endswith("/chat/completions") else f"{api_url}/chat/completions"
+
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+
+        timeout = httpx.Timeout(timeout=timeout_seconds, connect=min(20.0, timeout_seconds))
+        async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
+            response = await client.post(target_url, json=payload, headers=headers)
+        if response.status_code != 200:
+            body = response.text[:400]
+            raise HTTPException(
+                status_code=502,
+                detail=f"frontend slide generation failed ({response.status_code}): {body}",
+            )
+
+        try:
+            data = response.json()
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=502, detail=f"invalid LLM response json: {exc}") from exc
+
+        content = self._extract_message_content(data)
+        parsed = self._extract_json_object(content)
+        if not isinstance(parsed, dict):
+            raise ValueError("LLM did not return a JSON object")
+        return parsed
+
+    def _extract_message_content(self, payload: Dict[str, Any]) -> str:
+        choices = payload.get("choices") or []
+        if not choices:
+            raise ValueError("LLM response missing choices")
+        message = choices[0].get("message") or {}
+        content = message.get("content", "")
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts: List[str] = []
+            for item in content:
+                if isinstance(item, str):
+                    parts.append(item)
+                    continue
+                if not isinstance(item, dict):
+                    continue
+                if item.get("type") == "text" and isinstance(item.get("text"), str):
+                    parts.append(item["text"])
+                    continue
+                text_value = item.get("text")
+                if isinstance(text_value, dict) and isinstance(text_value.get("value"), str):
+                    parts.append(text_value["value"])
+            return "\n".join(parts)
+        return str(content)
+
+    def _extract_json_object(self, raw_text: str) -> Dict[str, Any]:
+        text = raw_text.strip()
+        if text.startswith("```"):
+            text = re.sub(r"^```(?:json)?\s*", "", text)
+            text = re.sub(r"\s*```$", "", text)
+            text = text.strip()
+
+        try:
+            return json.loads(text)
+        except Exception:
+            match = _JSON_BLOCK_RE.search(text)
+            if not match:
+                raise
+            return json.loads(match.group(0))
+
+    async def _load_or_create_deck_theme(
+        self,
+        *,
+        slides_dir: Path,
+        pagecontent: List[Dict[str, Any]],
+        chat_api_url: str,
+        api_key: str,
+        model: str,
+        language: str,
+        style: str,
+    ) -> Dict[str, Any]:
+        existing_theme = self._load_deck_theme(slides_dir, language=language, style=style, require_style_match=True)
+        if existing_theme is not None:
+            return existing_theme
+
+        try:
+            theme = await self._generate_deck_theme(
+                pagecontent=pagecontent,
+                chat_api_url=chat_api_url,
+                api_key=api_key,
+                model=model,
+                language=language,
+                style=style,
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "[Paper2PPTFrontendService] Failed to generate deck theme: %s",
+                _format_exception_for_log(exc),
+            )
+            theme = self._build_fallback_theme(language=language, style=style)
+
+        self._write_deck_theme(slides_dir, theme)
+        return theme
+
+    async def _generate_deck_theme(
+        self,
+        *,
+        pagecontent: List[Dict[str, Any]],
+        chat_api_url: str,
+        api_key: str,
+        model: str,
+        language: str,
+        style: str,
+    ) -> Dict[str, Any]:
+        outline_summary = [
+            {
+                "page_num": index + 1,
+                "title": item.get("title", ""),
+                "layout_description": item.get("layout_description", ""),
+                "key_points": (item.get("key_points") or [])[:3],
+            }
+            for index, item in enumerate(pagecontent[:12])
+        ]
+        payload = await self._call_llm_json(
+            chat_api_url=chat_api_url,
+            api_key=api_key,
+            model=model,
+            messages=self._build_theme_messages(
+                outline_summary=outline_summary,
+                language=language,
+                style=style,
+            ),
+            temperature=0.3,
+            max_tokens=1400,
+        )
+        return self._normalize_theme_payload(payload, language=language, style=style)
+
+    async def _prepare_visual_assets(
+        self,
+        *,
+        base_dir: Path,
+        outline_item: Dict[str, Any],
+        slide_index: int,
+        include_images: bool,
+        image_mode: Optional[str],
+        image_style: str,
+        image_model: Optional[str],
+        image_api_url: str,
+        image_api_key: str,
+        chat_api_url: str,
+        api_key: str,
+        model: str,
+        theme: Dict[str, Any],
+        current_slide: Optional[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        current_assets = self._normalize_visual_assets(
+            current_slide.get("visual_assets") or current_slide.get("visualAssets") or []
+            if isinstance(current_slide, dict)
+            else [],
+            base_dir=base_dir,
+        )
+        if current_assets:
+            return current_assets
+
+        resolved_image_mode = self._resolve_image_mode(image_mode=image_mode, include_images=include_images)
+        if resolved_image_mode == "none":
+            return []
+
+        if resolved_image_mode in {"paper", "hybrid"}:
+            asset_refs = self._collect_outline_asset_refs(outline_item)
+        else:
+            asset_refs = []
+        if asset_refs:
+            paper_assets = await self._resolve_outline_assets(
+                base_dir=base_dir,
+                asset_refs=asset_refs,
+                outline_item=outline_item,
+                slide_index=slide_index,
+                image_style=image_style,
+                chat_api_url=chat_api_url,
+                api_key=api_key,
+                model=model,
+            )
+            if paper_assets:
+                return paper_assets
+
+        if resolved_image_mode == "paper":
+            return []
+
+        image_prompt = self._build_visual_asset_prompt(
+            outline_item=outline_item,
+            slide_index=slide_index,
+            image_style=image_style,
+            theme=theme,
+        )
+        generated_asset = await self._generate_visual_asset(
+            base_dir=base_dir,
+            slide_index=slide_index,
+            prompt=image_prompt,
+            image_style=image_style,
+            image_model=image_model,
+            image_api_url=image_api_url,
+            image_api_key=image_api_key,
+            outline_item=outline_item,
+        )
+        if generated_asset is not None:
+            return [generated_asset]
+
+        return [
+            {
+                "key": _DEFAULT_VISUAL_KEY,
+                "label": "Main Visual",
+                "src": "",
+                "alt": str(outline_item.get("title") or f"Slide {slide_index + 1} visual").strip(),
+                "source_type": "generated",
+                "storage_path": "",
+                "prompt": image_prompt,
+                "style": image_style,
+            }
+        ]
+
+    def _resolve_image_mode(self, *, image_mode: str | None, include_images: bool) -> str:
+        normalized = str(image_mode or "").strip().lower()
+        if normalized in {"none", "paper", "generated", "hybrid"}:
+            return normalized
+        return "hybrid" if include_images else "none"
+
+    async def _resolve_outline_assets(
+        self,
+        *,
+        base_dir: Path,
+        asset_refs: List[str],
+        outline_item: Dict[str, Any],
+        slide_index: int,
+        image_style: str,
+        chat_api_url: str,
+        api_key: str,
+        model: str,
+    ) -> List[Dict[str, Any]]:
+        resolved_assets: List[Dict[str, Any]] = []
+        for asset_index, asset_ref in enumerate(asset_refs[:_MAX_INLINE_VISUAL_ASSETS]):
+            normalized_ref = str(asset_ref or "").strip()
+            if not normalized_ref:
+                continue
+
+            if self._is_table_asset_ref(normalized_ref):
+                resolved_asset_path = await self._resolve_table_asset_path(
+                    base_dir=base_dir,
+                    asset_ref=normalized_ref,
+                    chat_api_url=chat_api_url,
+                    api_key=api_key,
+                    model=model,
+                )
+            else:
+                resolved_asset_path = self._resolve_asset_path(base_dir=base_dir, asset_ref=normalized_ref)
+
+            if not resolved_asset_path or not Path(resolved_asset_path).exists():
+                continue
+
+            resolved_assets.append(
+                self._finalize_visual_asset(
+                    base_dir=base_dir,
+                    asset={
+                        "key": self._build_visual_asset_key(asset_index),
+                        "label": self._build_visual_asset_label(normalized_ref, asset_index),
+                        "src": resolved_asset_path,
+                        "alt": str(outline_item.get("title") or f"Slide {slide_index + 1} visual").strip(),
+                        "source_type": "paper_asset",
+                        "storage_path": resolved_asset_path,
+                        "prompt": "",
+                        "style": image_style,
+                    },
+                )
+            )
+        return resolved_assets
+
+    async def _generate_visual_asset(
+        self,
+        *,
+        base_dir: Path,
+        slide_index: int,
+        prompt: str,
+        image_style: str,
+        image_model: Optional[str],
+        image_api_url: str,
+        image_api_key: str,
+        outline_item: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        if not image_api_url or not image_api_key:
+            return None
+
+        target_dir = base_dir / "frontend_assets" / "generated"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target_path = (target_dir / f"page_{slide_index:03d}_{_DEFAULT_VISUAL_KEY}.png").resolve()
+        model_name = image_model or settings.PAPER2PPT_IMAGE_GEN_MODEL or settings.PAPER2PPT_DEFAULT_IMAGE_MODEL
+        api_base = re.sub(r"/chat/completions/?$", "", image_api_url.rstrip("/"), flags=re.IGNORECASE)
+
+        try:
+            async with _IMAGE_GEN_SEMAPHORE:
+                await generate_or_edit_and_save_image_async(
+                    prompt=prompt,
+                    save_path=str(target_path),
+                    api_url=api_base,
+                    api_key=image_api_key,
+                    model=model_name,
+                    use_edit=False,
+                    aspect_ratio="16:9",
+                    resolution="2K",
+                    timeout=300,
+                )
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "[Paper2PPTFrontendService] Failed to generate frontend visual asset for page %s: %s",
+                slide_index,
+                exc,
+            )
+            return None
+
+        return self._finalize_visual_asset(
+            base_dir=base_dir,
+            asset={
+                "key": _DEFAULT_VISUAL_KEY,
+                "label": "Main Visual",
+                "src": str(target_path),
+                "alt": str(outline_item.get("title") or f"Slide {slide_index + 1} visual").strip(),
+                "source_type": "generated",
+                "storage_path": str(target_path),
+                "prompt": prompt,
+                "style": image_style,
+            },
+        )
+
+    def _build_visual_asset_prompt(
+        self,
+        *,
+        outline_item: Dict[str, Any],
+        slide_index: int,
+        image_style: str,
+        theme: Dict[str, Any],
+    ) -> str:
+        style_map = {
+            "academic_illustration": "clean academic illustration with publication-grade composition",
+            "realistic": "realistic but presentation-friendly illustration",
+            "sci_fi": "restrained sci-fi research visual with clean lighting",
+            "flat_infographic": "flat infographic-style illustration with simple shapes",
+        }
+        key_points = self._normalize_outline_points(outline_item.get("key_points"), limit=4, item_limit=120)
+        palette = theme.get("palette") or {}
+        return (
+            "Create one supporting image for an academic presentation slide. "
+            f"Page topic: {self._clean_text_content(outline_item.get('title'), f'Slide {slide_index + 1}', 220)}. "
+            f"Layout intent: {self._clean_text_content(outline_item.get('layout_description'), '', 220)}. "
+            f"Key points: {'; '.join(key_points) if key_points else 'keep it concise and presentation-friendly'}. "
+            f"Visual style: {style_map.get(image_style, image_style or 'academic illustration')}. "
+            f"Preferred palette anchors: background {palette.get('bg', '#0b1020')}, accent {palette.get('accent', '#f59e0b')}, text contrast {palette.get('text', '#e2e8f0')}. "
+            "The image must fit inside a 16:9 slide-side visual panel. "
+            "Generate the artwork edge-to-edge with no outer border, no gray padding, no framed mat, and no empty margins. "
+            "Do not put any text, letters, labels, logos, equations, UI chrome, watermark, or slide-like layout in the image. "
+            "Focus on one clear subject or scene that supports the slide narrative."
+        )
+
+    def _clean_text_content(self, value: Any, default: str = "", limit: int = 280) -> str:
+        text = self._extract_outline_text(value)
+        text = re.sub(r"\s+", " ", text)
+        return (text or default)[:limit]
+
+    def _extract_outline_text(self, value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value.strip()
+        if isinstance(value, (int, float, bool)):
+            return str(value).strip()
+        if isinstance(value, dict):
+            preferred_keys = (
+                "text",
+                "value",
+                "content",
+                "summary",
+                "title",
+                "label",
+                "body",
+                "description",
+                "reason",
+                "point",
+            )
+            for key in preferred_keys:
+                extracted = self._extract_outline_text(value.get(key))
+                if extracted:
+                    return extracted
+            parts = [self._extract_outline_text(item) for item in value.values()]
+            joined = " ".join(part for part in parts if part)
+            return joined.strip()
+        if isinstance(value, list):
+            parts = [self._extract_outline_text(item) for item in value]
+            joined = " ".join(part for part in parts if part)
+            return joined.strip()
+        return str(value).strip()
+
+    def _normalize_outline_points(
+        self,
+        value: Any,
+        *,
+        limit: int = 6,
+        item_limit: int = 120,
+    ) -> List[str]:
+        normalized: List[str] = []
+
+        def _append(item: Any) -> None:
+            text = self._clean_text_content(item, "", item_limit)
+            if text and text not in normalized:
+                normalized.append(text)
+
+        if isinstance(value, list):
+            for item in value:
+                if isinstance(item, list):
+                    for nested in item:
+                        _append(nested)
+                else:
+                    _append(item)
+        elif value is not None:
+            _append(value)
+        return normalized[:limit]
+
+    def _collect_outline_asset_refs(self, outline_item: Dict[str, Any]) -> List[str]:
+        collected: List[str] = []
+
+        def _push(value: Any) -> None:
+            if value is None:
+                return
+            if isinstance(value, dict):
+                for key in (
+                    "asset_ref",
+                    "assetRef",
+                    "path",
+                    "src",
+                    "storage_path",
+                    "storagePath",
+                    "ref",
+                    "name",
+                ):
+                    if key in value:
+                        _push(value.get(key))
+                        return
+                return
+            if isinstance(value, list):
+                for item in value:
+                    _push(item)
+                return
+
+            raw = _from_outputs_url(str(value or "").strip())
+            if not raw:
+                return
+            parts = [part.strip() for part in re.split(r"[,\n]+", raw) if part.strip()]
+            for part in parts:
+                normalized = part.strip().strip('"').strip("'")
+                if not normalized or normalized.lower() in {"null", "none", "n/a"}:
+                    continue
+                if normalized not in collected:
+                    collected.append(normalized)
+
+        for key in (
+            "asset_ref",
+            "assetRef",
+            "asset",
+            "asset_refs",
+            "assetRefs",
+            "assets",
+            "visual_assets",
+            "visualAssets",
+        ):
+            _push(outline_item.get(key))
+
+        return collected[:_MAX_INLINE_VISUAL_ASSETS]
+
+    def _build_visual_asset_key(self, asset_index: int) -> str:
+        if 0 <= asset_index < len(_DEFAULT_VISUAL_KEYS):
+            return _DEFAULT_VISUAL_KEYS[asset_index]
+        return f"visual_{asset_index + 1}"
+
+    def _build_visual_asset_label(self, asset_ref: str, asset_index: int) -> str:
+        if self._is_table_asset_ref(asset_ref):
+            return "Paper Table" if asset_index == 0 else f"Paper Table {asset_index + 1}"
+        return "Main Visual" if asset_index == 0 else f"Supporting Visual {asset_index + 1}"
+
+    def _is_table_asset_ref(self, asset_ref: Any) -> bool:
+        text = str(asset_ref or "").strip().lower()
+        return bool(text and re.search(r"\btable(?:[_\s-]*\d+)?\b", text))
+
+    def _normalize_table_asset_key(self, asset_ref: Any) -> str:
+        text = str(asset_ref or "").strip()
+        if not text:
+            return ""
+        match = re.search(r"(\d+)", text)
+        if match:
+            return f"table_{match.group(1)}"
+        return self._slugify(text) or text.lower().replace(" ", "_")
+
+    async def _resolve_table_asset_path(
+        self,
+        *,
+        base_dir: Path,
+        asset_ref: str,
+        chat_api_url: str,
+        api_key: str,
+        model: str,
+    ) -> str:
+        table_key = self._normalize_table_asset_key(asset_ref)
+        if not table_key:
+            return ""
+
+        for root in (
+            base_dir / "tables",
+            base_dir / "table_images",
+            base_dir / "input" / "auto" / "images",
+        ):
+            for ext in (".png", ".jpg", ".jpeg", ".webp"):
+                candidate = root / f"{table_key}{ext}"
+                if candidate.exists():
+                    return str(candidate.resolve())
+
+        for root in (base_dir / "tables", base_dir / "table_images", base_dir / "input" / "auto" / "images"):
+            if not root.exists():
+                continue
+            matches = sorted(root.glob(f"{table_key}.*"))
+            if matches:
+                return str(matches[0].resolve())
+
+        return await self._extract_table_asset(
+            base_dir=base_dir,
+            asset_ref=asset_ref,
+            chat_api_url=chat_api_url,
+            api_key=api_key,
+            model=model,
+        )
+
+    async def _extract_table_asset(
+        self,
+        *,
+        base_dir: Path,
+        asset_ref: str,
+        chat_api_url: str,
+        api_key: str,
+        model: str,
+    ) -> str:
+        mineru_output, mineru_root = self._load_mineru_context(base_dir)
+        if not mineru_output:
+            return ""
+
+        try:
+            state = Paper2FigureState(
+                request=Paper2FigureRequest(
+                    language="zh",
+                    chat_api_url=chat_api_url or "",
+                    chat_api_key=api_key or "",
+                    api_key=api_key or "",
+                    model=model or "gpt-5.1",
+                )
+            )
+            state.result_path = str(base_dir)
+            state.mineru_root = mineru_root
+            state.minueru_output = mineru_output
+            state.asset_ref = asset_ref
+
+            agent = create_react_agent(
+                name="table_extractor",
+                model_name=model or None,
+                temperature=0.1,
+                max_retries=6,
+                parser_type="json",
+            )
+            final_state = await agent.execute(state=state)
+            table_img_path = str(getattr(final_state, "table_img_path", "") or "").strip()
+            if table_img_path and Path(table_img_path).exists():
+                return str(Path(table_img_path).resolve())
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "[Paper2PPTFrontendService] Failed to extract table asset %s for frontend slide: %s",
+                asset_ref,
+                exc,
+            )
+        return ""
+
+    def _load_mineru_context(self, base_dir: Path) -> tuple[str, str]:
+        primary_root = base_dir / "input" / "auto"
+        search_roots = [primary_root]
+        if base_dir.exists():
+            for child in sorted(base_dir.glob("*/auto")):
+                if child not in search_roots:
+                    search_roots.append(child)
+
+        for root in search_roots:
+            if not root.exists():
+                continue
+            md_files = sorted(root.glob("*.md"))
+            if not md_files:
+                continue
+            try:
+                return md_files[0].read_text(encoding="utf-8"), str(root.resolve())
+            except Exception:  # noqa: BLE001
+                continue
+
+        return "", str(primary_root.resolve())
+
+    def _resolve_asset_path(self, *, base_dir: Path, asset_ref: str) -> str:
+        raw = _from_outputs_url(str(asset_ref or "").strip())
+        if not raw:
+            return ""
+
+        candidate = Path(raw).expanduser()
+        if candidate.is_absolute():
+            try:
+                return str(resolve_outputs_path(candidate, must_exist=True, allow_files=True))
+            except HTTPException:
+                return ""
+
+        search_paths = [
+            base_dir / candidate,
+            base_dir / "input" / candidate,
+            base_dir / "input" / "auto" / candidate,
+            base_dir / "input" / "auto" / "images" / candidate.name,
+        ]
+        for path in search_paths:
+            if path.exists():
+                return str(path.resolve())
+
+        filename = candidate.name
+        if filename:
+            for root in [base_dir / "input" / "auto" / "images", base_dir / "input" / "auto", base_dir]:
+                if not root.exists():
+                    continue
+                matches = list(root.rglob(filename))
+                if matches:
+                    return str(matches[0].resolve())
+
+        return ""
+
+    def _normalize_visual_assets(
+        self,
+        raw_assets: Any,
+        *,
+        base_dir: Path,
+    ) -> List[Dict[str, Any]]:
+        if not isinstance(raw_assets, list):
+            return []
+
+        normalized: List[Dict[str, Any]] = []
+        seen_keys: set[str] = set()
+        for index, raw_asset in enumerate(raw_assets):
+            if not isinstance(raw_asset, dict):
+                continue
+            key = self._slugify(raw_asset.get("key") or f"{_DEFAULT_VISUAL_KEY}_{index + 1}") or f"{_DEFAULT_VISUAL_KEY}_{index + 1}"
+            if key in seen_keys:
+                continue
+            src = str(
+                raw_asset.get("storage_path")
+                or raw_asset.get("storagePath")
+                or raw_asset.get("src")
+                or ""
+            ).strip()
+            resolved_src = self._resolve_asset_path(base_dir=base_dir, asset_ref=src) if src else ""
+            source_type = str(raw_asset.get("source_type") or raw_asset.get("sourceType") or "generated").strip()
+            if source_type not in {"generated", "paper_asset", "upload"}:
+                source_type = "generated"
+            normalized.append(
+                self._finalize_visual_asset(
+                    base_dir=base_dir,
+                    asset={
+                        "key": key,
+                        "label": str(raw_asset.get("label") or key.replace("_", " ").title()).strip(),
+                        "src": resolved_src or "",
+                        "alt": str(raw_asset.get("alt") or raw_asset.get("label") or key).strip(),
+                        "source_type": source_type,
+                        "storage_path": resolved_src or "",
+                        "preview_storage_path": str(
+                            raw_asset.get("preview_storage_path")
+                            or raw_asset.get("previewStoragePath")
+                            or raw_asset.get("preview_src")
+                            or raw_asset.get("previewSrc")
+                            or ""
+                        ).strip(),
+                        "original_src": str(raw_asset.get("original_src") or raw_asset.get("originalSrc") or "").strip(),
+                        "prompt": str(raw_asset.get("prompt") or "").strip(),
+                        "style": str(raw_asset.get("style") or "").strip(),
+                    },
+                )
+            )
+            seen_keys.add(key)
+        return normalized
+
+    def _build_theme_messages(
+        self,
+        *,
+        outline_summary: List[Dict[str, Any]],
+        language: str,
+        style: str,
+    ) -> List[Dict[str, str]]:
+        system_prompt = """
+You are defining a single deck-level visual theme for an academic HTML/CSS presentation.
+Return JSON only. No markdown. No explanation.
+
+Schema:
+{
+  "theme_name": "short id",
+  "visual_mood": "one sentence",
+  "style_family": "modern | business | academic | creative",
+  "palette": {
+    "bg": "#0b1020",
+    "panel": "rgba(15,23,42,0.92)",
+    "primary": "#7dd3fc",
+    "secondary": "#38bdf8",
+    "accent": "#f59e0b",
+    "text": "#e2e8f0",
+    "muted": "#94a3b8"
+  },
+  "typography": {
+    "title_font_stack": "font stack",
+    "body_font_stack": "font stack",
+    "eyebrow_size": 18,
+    "title_size": 56,
+    "summary_size": 26,
+    "body_size": 24
+  },
+  "layout_rules": ["rule 1", "rule 2"],
+  "component_rules": ["rule 1", "rule 2"],
+  "theme_lock": {
+    "must_keep": ["rule 1", "rule 2"],
+    "preferred_layout_patterns": ["hero_with_side_card"],
+    "component_signature": "one short sentence",
+    "avoid": ["rule 1", "rule 2"]
+  },
+  "footer_text": "deck footer",
+  "section_label_template": "Slide {page_num:02d}/{slide_count:02d}"
+}
+
+Requirements:
+1. Theme must fit text-first academic slides on a 1600x900 canvas.
+2. Use restrained, professional colors and a single coherent component language.
+3. Keep typography practical. Titles should stay below 60px, body text below 28px.
+4. Avoid references to images, charts, SVG, or external assets.
+5. Optimize for consistency across all slides in the same deck.
+6. The theme_lock must be concrete enough to prevent per-slide drift during later regeneration.
+7. If style_prompt contains explicit color or material directions, translate them into the palette instead of ignoring them.
+8. Do not default to cyan/teal accents unless the style_prompt clearly asks for them.
+9. style_family must be one of modern, business, academic, creative and should match the tone implied by style_prompt.
+""".strip()
+
+        user_payload = {
+            "language": language,
+            "style_prompt": style or "",
+            "outline_summary": outline_summary,
+        }
+
+        return [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": (
+                    "Create one deck theme for this outline summary:\n\n"
+                    f"{json.dumps(user_payload, ensure_ascii=False, indent=2)}"
+                ),
+            },
+        ]
+
+    def _normalize_template_key(
+        self,
+        raw_value: Any,
+        *,
+        blocks: Sequence[Dict[str, Any]],
+        visual_assets: Sequence[Dict[str, Any]],
+    ) -> str:
+        candidate = self._slugify(raw_value or "")
+        if candidate in _SUPPORTED_SCHEMA_TEMPLATE_KEYS:
+            return candidate
+        if candidate in _SCHEMA_TEMPLATE_ALIASES:
+            return _SCHEMA_TEMPLATE_ALIASES[candidate]
+
+        image_count = sum(1 for block in blocks if str(block.get("type") or "") == "image")
+        list_count = sum(1 for block in blocks if str(block.get("type") or "") == "list")
+        stat_count = sum(1 for block in blocks if str(block.get("type") or "") == "stat")
+        quote_count = sum(1 for block in blocks if str(block.get("type") or "") == "quote")
+        has_visual_assets = bool(visual_assets)
+        block_count = len(blocks)
+
+        if quote_count > 0:
+            return "quote_focus"
+        if image_count >= 2:
+            return "visual_compare"
+        if stat_count >= 2:
+            return "metrics_dashboard"
+        if list_count >= 2:
+            return "dual_list"
+        if image_count == 1 and list_count:
+            return "split_media"
+        if image_count == 1 or has_visual_assets:
+            return "hero_visual"
+        if block_count <= 3:
+            return "section_divider"
+        if block_count >= 6:
+            return "insight_grid"
+        return "text_focus"
+
+    def _normalize_layout_mode(self, raw_value: Any) -> str:
+        text = str(raw_value or "").strip().lower()
+        if text in {"fluid", "hybrid", "fixed"}:
+            return text
+        return "fluid"
+
+    def _normalize_block_type(self, raw_value: Any) -> str:
+        text = str(raw_value or "").strip().lower()
+        aliases = {
+            "textarea": "text",
+            "paragraph": "text",
+            "body": "text",
+            "bullet_list": "list",
+            "bullets": "list",
+            "points": "list",
+            "visual": "image",
+            "figure": "image",
+            "chart": "image",
+            "metric": "stat",
+            "number": "stat",
+            "note": "callout",
+        }
+        normalized = aliases.get(text, text or "text")
+        return normalized if normalized in _ALLOWED_BLOCK_TYPES else "text"
+
+    def _normalize_table_data(self, raw_value: Any) -> Optional[Dict[str, List[Any]]]:
+        if not isinstance(raw_value, dict):
+            return None
+        raw_headers = raw_value.get("headers") or raw_value.get("columns") or raw_value.get("cols") or []
+        raw_rows = raw_value.get("rows") or raw_value.get("data") or raw_value.get("values") or []
+        headers = [str(item).strip() for item in raw_headers if str(item).strip()] if isinstance(raw_headers, list) else []
+        rows: List[List[str]] = []
+        if isinstance(raw_rows, list):
+            for raw_row in raw_rows:
+                if not isinstance(raw_row, list):
+                    continue
+                row = [str(cell).strip() for cell in raw_row]
+                if row:
+                    rows.append(row)
+        max_columns = max([len(headers), *[len(row) for row in rows], 0])
+        if max_columns <= 0:
+            return None
+        normalized_headers = [
+            headers[index] if index < len(headers) and headers[index] else f"Column {index + 1}"
+            for index in range(max_columns)
+        ]
+        normalized_rows = [
+            [
+                row[index] if index < len(row) else ""
+                for index in range(max_columns)
+            ]
+            for row in rows
+        ] or [["" for _ in range(max_columns)]]
+        return {
+            "headers": normalized_headers,
+            "rows": normalized_rows,
+        }
+
+    def _is_cover_slide_intent(self, outline_item: Dict[str, Any], slide_index: int) -> bool:
+        title = str(outline_item.get("title") or "").strip()
+        layout_description = str(outline_item.get("layout_description") or "").strip()
+        key_points = [
+            str(item).strip()
+            for item in (outline_item.get("key_points") or [])
+            if str(item).strip()
+        ]
+        text = " ".join([title, layout_description, *key_points])
+        return bool(_COVER_INTENT_RE.search(text)) or (slide_index == 0 and not key_points)
+
+    def _is_layout_instruction_text(self, value: Any, outline_item: Dict[str, Any]) -> bool:
+        text = str(value or "").strip()
+        if not text:
+            return False
+        layout_description = str(outline_item.get("layout_description") or "").strip()
+        if layout_description and text == layout_description:
+            return True
+        if len(text) >= 36 and _LAYOUT_INSTRUCTION_RE.search(text):
+            return True
+        return False
+
+    def _remove_layout_instruction_content(
+        self,
+        *,
+        content: Dict[str, Any],
+        outline_item: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        cleaned = dict(content)
+        for key in list(cleaned.keys()):
+            if key == "assets":
+                continue
+            value = cleaned.get(key)
+            if isinstance(value, str) and self._is_layout_instruction_text(value, outline_item):
+                cleaned.pop(key, None)
+            elif isinstance(value, list):
+                filtered = [
+                    item
+                    for item in value
+                    if not self._is_layout_instruction_text(item, outline_item)
+                ]
+                if filtered:
+                    cleaned[key] = filtered
+                else:
+                    cleaned.pop(key, None)
+        return cleaned
+
+    def _layout_instruction_content_keys(
+        self,
+        *,
+        content: Dict[str, Any],
+        outline_item: Dict[str, Any],
+    ) -> set[str]:
+        keys: set[str] = set()
+        for key, value in content.items():
+            normalized_key = self._slugify(key)
+            if not normalized_key or normalized_key == "assets":
+                continue
+            if isinstance(value, str) and self._is_layout_instruction_text(value, outline_item):
+                keys.add(normalized_key)
+            elif isinstance(value, list) and value and all(
+                self._is_layout_instruction_text(item, outline_item)
+                for item in value
+            ):
+                keys.add(normalized_key)
+        return keys
+
+    def _prune_canvas_refs(
+        self,
+        node: Any,
+        *,
+        removed_keys: set[str],
+    ) -> Optional[Dict[str, Any]]:
+        if not isinstance(node, dict):
+            return None
+        normalized = dict(node)
+        if str(normalized.get("type") or "") == "component":
+            props = normalized.get("props") if isinstance(normalized.get("props"), dict) else {}
+            for prop_name, raw_ref in props.items():
+                if prop_name in {"asset_ref", "assetRef"}:
+                    continue
+                if prop_name.endswith("_ref") or prop_name.endswith("Ref") or prop_name == "ref":
+                    if self._slugify(raw_ref) in removed_keys:
+                        return None
+
+        children = normalized.get("children")
+        if isinstance(children, list):
+            normalized["children"] = [
+                child
+                for child in (
+                    self._prune_canvas_refs(child, removed_keys=removed_keys)
+                    for child in children
+                )
+                if child is not None
+            ]
+        return normalized
+
+    def _build_cover_canvas_root(self, *, has_presenter: bool) -> Dict[str, Any]:
+        header_children: List[Dict[str, Any]] = [
+            {
+                "type": "component",
+                "id": "title",
+                "component": "heading",
+                "props": {"text_ref": "title"},
+            },
+        ]
+        if has_presenter:
+            header_children.append(
+                {
+                    "type": "component",
+                    "id": "presenter",
+                    "component": "text",
+                    "props": {"text_ref": "presenter"},
+                }
+            )
+
+        return {
+            "type": "container",
+            "id": "root",
+            "style": {
+                "direction": "column",
+                "gap": 20,
+                "padding": 0,
+                "align": "center",
+                "justify": "center",
+            },
+            "children": [
+                {
+                    "type": "container",
+                    "id": "cover_stack",
+                    "style": {
+                        "direction": "column",
+                        "gap": 24,
+                        "align": "center",
+                        "justify": "center",
+                    },
+                    "children": header_children,
+                }
+            ],
+        }
+
+    def _apply_cover_slide_contract(
+        self,
+        *,
+        slide: Dict[str, Any],
+        outline_item: Dict[str, Any],
+        slide_index: int,
+        slide_count: int,
+        theme: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        if not self._is_cover_slide_intent(outline_item, slide_index):
+            return slide
+
+        normalized = dict(slide)
+        raw_content = normalized.get("content") if isinstance(normalized.get("content"), dict) else {}
+        title = str(raw_content.get("title") or normalized.get("title") or outline_item.get("title") or f"Slide {slide_index + 1}").strip()
+        presenter = str(raw_content.get("presenter") or raw_content.get("author") or raw_content.get("speaker") or "").strip()
+        if not presenter:
+            match = re.search(r"(汇报人[:：]\s*[^\n\r]+|Presenter[:：]\s*[^\n\r]+)", title, flags=re.IGNORECASE)
+            if match:
+                presenter = match.group(1).strip()
+                title = title.replace(match.group(1), "").strip()
+        if not presenter:
+            presenter = "汇报人：XXX"
+
+        section_template = str(theme.get("section_label_template") or "Slide {page_num:02d}/{slide_count:02d}")
+        try:
+            eyebrow = section_template.format(page_num=slide_index + 1, slide_count=slide_count)
+        except Exception:  # noqa: BLE001
+            eyebrow = f"Slide {slide_index + 1:02d}/{slide_count:02d}"
+
+        assets = raw_content.get("assets") if isinstance(raw_content.get("assets"), dict) else {}
+        normalized["template_key"] = "title_cover"
+        normalized["layout_family"] = "title_cover"
+        normalized["layout_mode"] = "fixed"
+        normalized["content"] = {
+            "eyebrow": str(raw_content.get("eyebrow") or eyebrow),
+            "title": title or f"Slide {slide_index + 1}",
+            "presenter": presenter,
+            "assets": assets,
+        }
+        normalized["root"] = self._build_cover_canvas_root(has_presenter=bool(presenter))
+        normalized["blocks"] = []
+        normalized["editable_fields"] = [
+            {
+                "key": "eyebrow",
+                "label": "Eyebrow",
+                "type": "text",
+                "value": normalized["content"]["eyebrow"],
+                "items": [],
+            },
+            {
+                "key": "title",
+                "label": "Title",
+                "type": "text",
+                "value": normalized["content"]["title"],
+                "items": [],
+            },
+            {
+                "key": "presenter",
+                "label": "Presenter",
+                "type": "text",
+                "value": normalized["content"]["presenter"],
+                "items": [],
+            },
+        ]
+        visual_spec = normalized.get("visual_spec") if isinstance(normalized.get("visual_spec"), dict) else {}
+        visual_spec = dict(visual_spec)
+        node_styles = dict(visual_spec.get("node_styles") or visual_spec.get("nodeStyles") or {})
+        palette = theme.get("palette") if isinstance(theme.get("palette"), dict) else {}
+        typography = theme.get("typography") if isinstance(theme.get("typography"), dict) else {}
+        node_styles.update(
+            {
+                "cover_stack": {
+                    "text_align": "center",
+                },
+                "eyebrow": {
+                    "text_align": "center",
+                    "font_size": 20,
+                    "color": palette.get("primary", ""),
+                },
+                "title": {
+                    "text_align": "center",
+                    "font_size": min(64, max(44, int(typography.get("title_size") or 56))),
+                    "font_weight": 700,
+                },
+                "presenter": {
+                    "text_align": "center",
+                    "font_size": max(22, int(typography.get("summary_size") or 26)),
+                    "color": palette.get("muted", ""),
+                },
+            }
+        )
+        visual_spec["node_styles"] = node_styles
+        normalized["visual_spec"] = visual_spec
+        normalized["generation_note"] = "Cover slide normalized from layout intent."
+        return normalized
+
+    def _default_zone_for_block(
+        self,
+        *,
+        block_type: str,
+        role: str,
+        has_visual_assets: bool,
+    ) -> str:
+        if role in {"eyebrow", "title"}:
+            return "header"
+        if role in {"footer"}:
+            return "footer"
+        if block_type == "image":
+            return "aside" if has_visual_assets else "main"
+        if role in {"takeaway", "stat", "callout"}:
+            return "aside" if has_visual_assets else "main"
+        return "main"
+
+    def _default_span_for_block(
+        self,
+        *,
+        block_type: str,
+        zone: str,
+        has_visual_assets: bool,
+    ) -> int:
+        if zone in {"header", "footer", "full"}:
+            return 12
+        if block_type == "image":
+            return 6 if has_visual_assets else 12
+        if zone in {"aside", "right", "left"}:
+            return 5 if block_type in {"stat", "callout"} else 6
+        if block_type == "list":
+            return 6 if has_visual_assets else 12
+        return 7 if has_visual_assets else 12
+
+    def _normalize_layout_hint(
+        self,
+        raw_layout: Any,
+        *,
+        block_type: str,
+        role: str,
+        order: int,
+        has_visual_assets: bool,
+    ) -> Dict[str, Any]:
+        layout = raw_layout if isinstance(raw_layout, dict) else {}
+        zone = str(
+            layout.get("zone")
+            or layout.get("slot")
+            or layout.get("region")
+            or layout.get("area")
+            or self._default_zone_for_block(
+                block_type=block_type,
+                role=role,
+                has_visual_assets=has_visual_assets,
+            )
+        ).strip().lower()
+        if zone not in _ALLOWED_LAYOUT_ZONES:
+            zone = self._default_zone_for_block(
+                block_type=block_type,
+                role=role,
+                has_visual_assets=has_visual_assets,
+            )
+
+        try:
+            span = int(layout.get("span") or layout.get("columns") or 0)
+        except (TypeError, ValueError):
+            span = 0
+        if span <= 0:
+            span = self._default_span_for_block(
+                block_type=block_type,
+                zone=zone,
+                has_visual_assets=has_visual_assets,
+            )
+        span = max(1, min(12, span))
+
+        try:
+            normalized_order = int(layout.get("order") or order)
+        except (TypeError, ValueError):
+            normalized_order = order
+        normalized_order = max(1, normalized_order)
+
+        preferred_width = str(
+            layout.get("preferred_width")
+            or layout.get("preferredWidth")
+            or layout.get("width")
+            or ""
+        ).strip().lower()
+        if preferred_width not in _ALLOWED_WIDTH_HINTS:
+            if span >= 12:
+                preferred_width = "full"
+            elif span >= 8:
+                preferred_width = "wide"
+            elif span >= 6:
+                preferred_width = "half"
+            elif span >= 4:
+                preferred_width = "third"
+            else:
+                preferred_width = "auto"
+
+        preferred_side = str(
+            layout.get("preferred_side")
+            or layout.get("preferredSide")
+            or layout.get("side")
+            or ""
+        ).strip().lower()
+        if preferred_side not in _ALLOWED_SIDE_HINTS:
+            if zone in {"left"}:
+                preferred_side = "left"
+            elif zone in {"right", "aside"}:
+                preferred_side = "right"
+            else:
+                preferred_side = "auto"
+
+        emphasis = str(layout.get("emphasis") or "").strip().lower()
+        if emphasis not in _ALLOWED_EMPHASIS_HINTS:
+            emphasis = "high" if role in {"title", "main_visual"} else "medium" if role in {"summary", "key_points"} else "low"
+
+        return {
+            "zone": zone,
+            "span": span,
+            "order": normalized_order,
+            "preferred_width": preferred_width,
+            "preferred_side": preferred_side,
+            "emphasis": emphasis,
+        }
+
+    def _normalize_blocks(
+        self,
+        raw_blocks: Any,
+        *,
+        outline_item: Dict[str, Any],
+        visual_assets: Sequence[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        if not isinstance(raw_blocks, list):
+            return []
+
+        outline_title = str(outline_item.get("title") or "").strip()
+        outline_points = [
+            str(item).strip()
+            for item in (outline_item.get("key_points") or [])
+            if str(item).strip()
+        ]
+        available_asset_keys = [
+            self._slugify(asset.get("key") or "")
+            for asset in visual_assets
+            if isinstance(asset, dict) and self._slugify(asset.get("key") or "")
+        ]
+        has_visual_assets = bool(available_asset_keys)
+        used_asset_keys: list[str] = []
+        normalized: List[Dict[str, Any]] = []
+        seen_ids: set[str] = set()
+
+        def _pick_asset_key(preferred: str = "") -> str:
+            preferred_key = self._slugify(preferred or "")
+            if preferred_key in available_asset_keys:
+                if preferred_key not in used_asset_keys:
+                    used_asset_keys.append(preferred_key)
+                return preferred_key
+
+            for key in available_asset_keys:
+                if key not in used_asset_keys:
+                    used_asset_keys.append(key)
+                    return key
+            return available_asset_keys[0] if available_asset_keys else ""
+
+        for index, raw_block in enumerate(raw_blocks):
+            if not isinstance(raw_block, dict):
+                continue
+
+            raw_id = (
+                raw_block.get("id")
+                or raw_block.get("key")
+                or raw_block.get("field_key")
+                or raw_block.get("fieldKey")
+                or raw_block.get("role")
+                or f"block_{index + 1}"
+            )
+            block_id = self._slugify(raw_id) or f"block_{index + 1}"
+            if block_id in seen_ids:
+                block_id = f"{block_id}_{index + 1}"
+            seen_ids.add(block_id)
+
+            block_type = self._normalize_block_type(
+                raw_block.get("type")
+                or raw_block.get("block_type")
+                or raw_block.get("blockType")
+                or raw_block.get("kind")
+            )
+            role = self._slugify(
+                raw_block.get("role")
+                or raw_block.get("semantic_role")
+                or raw_block.get("semanticRole")
+                or block_id
+            ) or block_id
+
+            items = [
+                str(item).strip()
+                for item in (
+                    raw_block.get("items")
+                    or raw_block.get("bullets")
+                    or raw_block.get("points")
+                    or []
+                )
+                if str(item).strip()
+            ]
+            content = str(
+                raw_block.get("content")
+                or raw_block.get("text")
+                or raw_block.get("value")
+                or raw_block.get("body")
+                or ""
+            ).strip()
+
+            if block_type == "list" and not items and content:
+                items = [line.strip(" -\u2022") for line in content.splitlines() if line.strip(" -\u2022")]
+            if block_type != "list" and not content and items:
+                content = " ".join(items)
+            table_data = self._normalize_table_data(
+                raw_block.get("table_data")
+                or raw_block.get("tableData")
+                or raw_block.get("table")
+                or {}
+            ) if block_type == "table" else None
+
+            asset_key = self._slugify(
+                raw_block.get("asset_key")
+                or raw_block.get("assetKey")
+                or raw_block.get("image_key")
+                or raw_block.get("imageKey")
+                or raw_block.get("visual_key")
+                or raw_block.get("visualKey")
+                or ""
+            )
+            if block_type == "image":
+                asset_key = _pick_asset_key(asset_key)
+                if not asset_key:
+                    continue
+            else:
+                asset_key = ""
+
+            if block_type == "list" and not items:
+                if role in {"key_points", "bullets"} and outline_points:
+                    items = outline_points[:4]
+                else:
+                    continue
+            if block_type == "table" and not table_data:
+                continue
+            if block_type != "image" and block_type != "table" and not content and not items:
+                continue
+
+            normalized_block = {
+                "id": block_id,
+                "type": block_type,
+                "role": role,
+                "content": content,
+                "items": items,
+                "asset_key": asset_key,
+                "layout": self._normalize_layout_hint(
+                    raw_block.get("layout") or raw_block.get("layout_hint") or raw_block.get("layoutHint"),
+                    block_type=block_type,
+                    role=role,
+                    order=index + 1,
+                    has_visual_assets=has_visual_assets,
+                ),
+            }
+            if table_data:
+                normalized_block["table_data"] = table_data
+            normalized.append(normalized_block)
+
+        if outline_title and not any(str(block.get("role") or "") == "title" for block in normalized):
+            normalized.insert(
+                0,
+                {
+                    "id": "title",
+                    "type": "text",
+                    "role": "title",
+                    "content": outline_title,
+                    "items": [],
+                    "asset_key": "",
+                    "layout": self._normalize_layout_hint(
+                        {"zone": "header", "span": 12, "order": 1, "preferred_width": "full", "emphasis": "high"},
+                        block_type="text",
+                        role="title",
+                        order=1,
+                        has_visual_assets=has_visual_assets,
+                    ),
+                },
+            )
+
+        if outline_points and not any(str(block.get("type") or "") == "list" for block in normalized):
+            normalized.append(
+                {
+                    "id": "key_points",
+                    "type": "list",
+                    "role": "key_points",
+                    "content": "",
+                    "items": outline_points[:4],
+                    "asset_key": "",
+                    "layout": self._normalize_layout_hint(
+                        {"zone": "main", "span": 6 if has_visual_assets else 12, "preferred_width": "wide"},
+                        block_type="list",
+                        role="key_points",
+                        order=len(normalized) + 1,
+                        has_visual_assets=has_visual_assets,
+                    ),
+                }
+            )
+
+        if outline_points and not any(
+            str(block.get("role") or "") in {"summary", "body"}
+            for block in normalized
+        ):
+            normalized.append(
+                {
+                    "id": "summary",
+                    "type": "text",
+                    "role": "summary",
+                    "content": outline_points[0],
+                    "items": [],
+                    "asset_key": "",
+                    "layout": self._normalize_layout_hint(
+                        {"zone": "main", "span": 7 if has_visual_assets else 12, "preferred_width": "wide"},
+                        block_type="text",
+                        role="summary",
+                        order=len(normalized) + 1,
+                        has_visual_assets=has_visual_assets,
+                    ),
+                }
+            )
+
+        if has_visual_assets and not any(str(block.get("type") or "") == "image" for block in normalized):
+            normalized.append(
+                {
+                    "id": self._slugify(available_asset_keys[0]) or _DEFAULT_VISUAL_KEY,
+                    "type": "image",
+                    "role": "main_visual",
+                    "content": "",
+                    "items": [],
+                    "asset_key": _pick_asset_key(available_asset_keys[0]),
+                    "layout": self._normalize_layout_hint(
+                        {"zone": "aside", "span": 6, "preferred_side": "right", "emphasis": "high"},
+                        block_type="image",
+                        role="main_visual",
+                        order=len(normalized) + 1,
+                        has_visual_assets=has_visual_assets,
+                    ),
+                }
+            )
+
+        normalized = sorted(
+            normalized[:8],
+            key=lambda item: int(((item.get("layout") or {}).get("order")) or 0),
+        )
+        for index, block in enumerate(normalized, start=1):
+            layout = dict(block.get("layout") or {})
+            layout["order"] = index
+            block["layout"] = layout
+        return normalized
+
+    def _derive_fields_from_blocks(
+        self,
+        blocks: Sequence[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        normalized: List[Dict[str, Any]] = []
+        seen_keys: set[str] = set()
+
+        preferred_keys = {
+            "title": "title",
+            "summary": "summary",
+            "key_points": "key_points",
+            "takeaway": "takeaway",
+            "footer": "footer",
+            "eyebrow": "eyebrow",
+        }
+
+        for block in blocks:
+            if not isinstance(block, dict):
+                continue
+            block_type = str(block.get("type") or "").strip().lower()
+            if block_type == "image":
+                continue
+
+            role = self._slugify(block.get("role") or "") or self._slugify(block.get("id") or "")
+            key = preferred_keys.get(role, self._slugify(block.get("id") or role))
+            if not key or key in seen_keys:
+                continue
+
+            label = str(block.get("label") or key.replace("_", " ").title()).strip()
+            if block_type == "table":
+                table_data = self._normalize_table_data(block.get("table_data") or block.get("tableData") or {})
+                if not table_data:
+                    continue
+                for col_index, header in enumerate(table_data["headers"]):
+                    field_key = f"{key}_cell_h_{col_index}"
+                    if field_key in seen_keys:
+                        continue
+                    normalized.append(
+                        {
+                            "key": field_key,
+                            "label": f"{label} Header {col_index + 1}",
+                            "type": "text",
+                            "value": str(header),
+                            "items": [],
+                        }
+                    )
+                    seen_keys.add(field_key)
+                for row_index, row in enumerate(table_data["rows"]):
+                    for col_index, cell in enumerate(row):
+                        field_key = f"{key}_cell_{row_index}_{col_index}"
+                        if field_key in seen_keys:
+                            continue
+                        normalized.append(
+                            {
+                                "key": field_key,
+                                "label": f"{label} R{row_index + 1}C{col_index + 1}",
+                                "type": "text",
+                                "value": str(cell),
+                                "items": [],
+                            }
+                        )
+                        seen_keys.add(field_key)
+                continue
+            if block_type == "list":
+                items = [
+                    str(item).strip()
+                    for item in (block.get("items") or [])
+                    if str(item).strip()
+                ]
+                if not items:
+                    continue
+                normalized.append(
+                    {
+                        "key": key,
+                        "label": label,
+                        "type": "list",
+                        "value": "",
+                        "items": items,
+                    }
+                )
+            else:
+                value = str(block.get("content") or "").strip()
+                if not value:
+                    continue
+                field_type = "text" if role in {"title", "eyebrow", "footer"} else "textarea" if len(value) > 80 or "\n" in value else "text"
+                normalized.append(
+                    {
+                        "key": key,
+                        "label": label,
+                        "type": field_type,
+                        "value": value,
+                        "items": [],
+                    }
+                )
+            seen_keys.add(key)
+
+        return normalized
+
+    def _derive_fields_from_canvas_content(
+        self,
+        content: Dict[str, Any],
+        referenced_keys: Optional[set[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        normalized: List[Dict[str, Any]] = []
+        seen_keys: set[str] = set()
+        allowed_keys = referenced_keys or set()
+
+        for raw_key, raw_value in content.items():
+            key = self._slugify(raw_key)
+            if not key or key == "assets" or key in seen_keys:
+                continue
+            if allowed_keys and key not in allowed_keys:
+                continue
+            label = key.replace("_", " ").title()
+
+            table_data = self._normalize_table_data(raw_value)
+            if table_data:
+                for col_index, header in enumerate(table_data["headers"]):
+                    field_key = f"{key}_cell_h_{col_index}"
+                    normalized.append(
+                        {
+                            "key": field_key,
+                            "label": f"{label} Header {col_index + 1}",
+                            "type": "text",
+                            "value": str(header),
+                            "items": [],
+                        }
+                    )
+                    seen_keys.add(field_key)
+                for row_index, row in enumerate(table_data["rows"]):
+                    for col_index, cell in enumerate(row):
+                        field_key = f"{key}_cell_{row_index}_{col_index}"
+                        normalized.append(
+                            {
+                                "key": field_key,
+                                "label": f"{label} R{row_index + 1}C{col_index + 1}",
+                                "type": "text",
+                                "value": str(cell),
+                                "items": [],
+                            }
+                        )
+                        seen_keys.add(field_key)
+                seen_keys.add(key)
+                continue
+
+            if isinstance(raw_value, list):
+                items = [
+                    str(item).strip()
+                    for item in raw_value
+                    if isinstance(item, (str, int, float)) and str(item).strip()
+                ]
+                if items:
+                    normalized.append(
+                        {
+                            "key": key,
+                            "label": label,
+                            "type": "list",
+                            "value": "",
+                            "items": items,
+                        }
+                    )
+                    seen_keys.add(key)
+                continue
+
+            if isinstance(raw_value, (str, int, float)):
+                value = str(raw_value).strip()
+                if not value:
+                    continue
+                field_type = "text" if key in {"title", "eyebrow", "footer"} else "textarea" if len(value) > 80 or "\n" in value else "text"
+                normalized.append(
+                    {
+                        "key": key,
+                        "label": label,
+                        "type": field_type,
+                        "value": value,
+                        "items": [],
+                    }
+                )
+                seen_keys.add(key)
+
+        return normalized
+
+    def _merge_editable_fields(
+        self,
+        *,
+        base_fields: Sequence[Dict[str, Any]],
+        override_fields: Sequence[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        merged: Dict[str, Dict[str, Any]] = {}
+        order: List[str] = []
+
+        for field_group in (base_fields, override_fields):
+            for raw_field in field_group:
+                if not isinstance(raw_field, dict):
+                    continue
+                key = str(raw_field.get("key") or "").strip()
+                if not key:
+                    continue
+                if key not in order:
+                    order.append(key)
+                merged[key] = {
+                    "key": key,
+                    "label": str(raw_field.get("label") or key.replace("_", " ").title()).strip(),
+                    "type": str(raw_field.get("type") or "text").strip(),
+                    "value": str(raw_field.get("value") or "").strip(),
+                    "items": [
+                        str(item).strip()
+                        for item in (raw_field.get("items") or [])
+                        if str(item).strip()
+                    ],
+                }
+
+        return [merged[key] for key in order if key in merged]
+
+    def _build_canvas_content(
+        self,
+        *,
+        slide: Dict[str, Any],
+        visual_assets: Sequence[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        content: Dict[str, Any] = {}
+        table_groups: Dict[str, Dict[str, Any]] = {}
+
+        def _get_table_group(owner_id: str) -> Dict[str, Any]:
+            table = table_groups.setdefault(owner_id, {"headers": [], "rows": []})
+            if not isinstance(table.get("headers"), list):
+                table["headers"] = []
+            if not isinstance(table.get("rows"), list):
+                table["rows"] = []
+            return table
+
+        def _set_table_cell(owner_id: str, row_index: Any, col_index: int, value: str) -> None:
+            table = _get_table_group(owner_id)
+            headers = table["headers"]
+            rows = table["rows"]
+            if row_index == "h":
+                while len(headers) <= col_index:
+                    headers.append(f"Column {len(headers) + 1}")
+                headers[col_index] = value
+                return
+            if not isinstance(row_index, int) or row_index < 0:
+                return
+            while len(rows) <= row_index:
+                rows.append([])
+            current_row = rows[row_index]
+            if not isinstance(current_row, list):
+                current_row = []
+                rows[row_index] = current_row
+            while len(current_row) <= col_index:
+                current_row.append("")
+            current_row[col_index] = value
+            while len(headers) <= col_index:
+                headers.append(f"Column {len(headers) + 1}")
+
+        for field in slide.get("editable_fields") or []:
+            if not isinstance(field, dict):
+                continue
+            key = self._slugify(field.get("key") or "")
+            if not key:
+                continue
+            match = re.match(r"^(.+)_cell_(h|\d+)_(\d+)$", key)
+            if match:
+                owner_id = match.group(1)
+                row_token = match.group(2)
+                row_index: Any = "h" if row_token == "h" else int(row_token)
+                col_index = int(match.group(3))
+                _set_table_cell(owner_id, row_index, col_index, str(field.get("value") or "").strip())
+                continue
+            if str(field.get("type") or "") == "list":
+                content[key] = [
+                    str(item).strip()
+                    for item in (field.get("items") or [])
+                    if str(item).strip()
+                ]
+            else:
+                content[key] = str(field.get("value") or "").strip()
+
+        for owner_id, table_data in table_groups.items():
+            content[owner_id] = {
+                "headers": [str(item).strip() for item in table_data.get("headers") or []],
+                "rows": [
+                    [str(cell).strip() for cell in row]
+                    for row in (table_data.get("rows") or [])
+                    if isinstance(row, list)
+                ],
+            }
+
+        for block in slide.get("blocks") or []:
+            if not isinstance(block, dict):
+                continue
+            block_type = str(block.get("type") or "").strip().lower()
+            key = self._slugify(block.get("role") or block.get("id") or "")
+            if not key:
+                continue
+            if block_type == "table":
+                table_data = self._normalize_table_data(block.get("table_data") or block.get("tableData") or block.get("table") or {})
+                if table_data:
+                    content[key] = table_data
+            elif block_type == "list" and key not in content:
+                items = [
+                    str(item).strip()
+                    for item in (block.get("items") or [])
+                    if str(item).strip()
+                ]
+                if items:
+                    content[key] = items
+            elif key not in content:
+                value = str(block.get("content") or "").strip()
+                if value:
+                    content[key] = value
+
+        assets: Dict[str, Dict[str, Any]] = {}
+        for asset in visual_assets:
+            if not isinstance(asset, dict):
+                continue
+            key = self._slugify(asset.get("key") or "")
+            if not key:
+                continue
+            assets[key] = {
+                "type": "image",
+                "asset_key": key,
+                "src": str(asset.get("src") or "").strip(),
+                "preview_src": str(asset.get("preview_src") or asset.get("previewSrc") or asset.get("src") or "").strip(),
+                "original_src": str(asset.get("original_src") or asset.get("originalSrc") or asset.get("storage_path") or "").strip(),
+                "alt": str(asset.get("alt") or asset.get("label") or key).strip(),
+            }
+        content["assets"] = assets
+        return content
+
+    def _clean_canvas_visual_number(
+        self,
+        value: Any,
+        *,
+        min_value: float | None = None,
+        max_value: float | None = None,
+    ) -> float | int | None:
+        try:
+            parsed = float(value)
+        except Exception:  # noqa: BLE001
+            return None
+        if min_value is not None:
+            parsed = max(float(min_value), parsed)
+        if max_value is not None:
+            parsed = min(float(max_value), parsed)
+        return int(parsed) if parsed.is_integer() else parsed
+
+    def _normalize_canvas_visual_style(self, raw_style: Any) -> Dict[str, Any]:
+        if not isinstance(raw_style, dict):
+            return {}
+        style: Dict[str, Any] = {}
+
+        fill = str(
+            raw_style.get("fill")
+            or raw_style.get("background")
+            or raw_style.get("backgroundColor")
+            or raw_style.get("background_color")
+            or ""
+        ).strip()
+        if fill:
+            style["fill"] = fill
+
+        color = str(raw_style.get("color") or raw_style.get("textColor") or raw_style.get("text_color") or "").strip()
+        if color:
+            style["color"] = color
+
+        border_color = str(raw_style.get("borderColor") or raw_style.get("border_color") or "").strip()
+        if border_color:
+            style["border_color"] = border_color
+
+        numeric_fields = {
+            "border_width": ("borderWidth", "border_width", 0, 12),
+            "radius": ("radius", "borderRadius", "border_radius", 0, 96),
+            "padding": ("padding", "padding_px", 0, 96),
+            "font_size": ("fontSize", "font_size", 8, 96),
+            "line_height": ("lineHeight", "line_height", 8, 140),
+            "opacity": ("opacity", "alpha", 0, 1),
+        }
+        for output_key, candidates in numeric_fields.items():
+            min_value = candidates[-2]
+            max_value = candidates[-1]
+            value = None
+            for candidate in candidates[:-2]:
+                if candidate in raw_style:
+                    value = raw_style.get(candidate)
+                    break
+            cleaned = self._clean_canvas_visual_number(value, min_value=min_value, max_value=max_value)
+            if cleaned is not None:
+                style[output_key] = cleaned
+
+        font_family = str(raw_style.get("fontFamily") or raw_style.get("font_family") or "").strip()
+        if font_family:
+            style["font_family"] = font_family
+
+        if raw_style.get("fontWeight") is not None or raw_style.get("font_weight") is not None:
+            font_weight = raw_style.get("fontWeight", raw_style.get("font_weight"))
+            style["font_weight"] = str(font_weight).strip()
+
+        font_style = str(raw_style.get("fontStyle") or raw_style.get("font_style") or "").strip().lower()
+        if font_style in {"normal", "italic"}:
+            style["font_style"] = font_style
+
+        text_align = str(raw_style.get("textAlign") or raw_style.get("text_align") or "").strip().lower()
+        if text_align in {"left", "center", "right", "justify"}:
+            style["text_align"] = text_align
+
+        image_fit = str(raw_style.get("imageFit") or raw_style.get("image_fit") or "").strip().lower()
+        if image_fit in {"contain", "cover", "fill"}:
+            style["image_fit"] = image_fit
+
+        emphasis = str(raw_style.get("emphasis") or "").strip().lower()
+        if emphasis in _ALLOWED_EMPHASIS_HINTS:
+            style["emphasis"] = emphasis
+
+        return style
+
+    def _normalize_canvas_visual_spec(self, raw_spec: Any) -> Dict[str, Any]:
+        if not isinstance(raw_spec, dict):
+            return {}
+        normalized: Dict[str, Any] = {"version": _CANVAS_VISUAL_SPEC_VERSION}
+
+        palette_source = raw_spec.get("palette") if isinstance(raw_spec.get("palette"), dict) else {}
+        palette: Dict[str, str] = {}
+        for key in ("bg", "panel", "primary", "secondary", "accent", "text", "muted"):
+            value = str(palette_source.get(key) or "").strip()
+            if value:
+                palette[key] = value
+        if palette:
+            normalized["palette"] = palette
+
+        typography_source = raw_spec.get("typography") if isinstance(raw_spec.get("typography"), dict) else {}
+        typography: Dict[str, Any] = {}
+        title_font = str(typography_source.get("title_font_stack") or typography_source.get("titleFontStack") or "").strip()
+        body_font = str(typography_source.get("body_font_stack") or typography_source.get("bodyFontStack") or "").strip()
+        if title_font:
+            typography["title_font_stack"] = title_font
+        if body_font:
+            typography["body_font_stack"] = body_font
+        for output_key, candidates in {
+            "eyebrow_size": ("eyebrow_size", "eyebrowSize", 8, 32),
+            "title_size": ("title_size", "titleSize", 24, 78),
+            "summary_size": ("summary_size", "summarySize", 14, 44),
+            "body_size": ("body_size", "bodySize", 12, 36),
+        }.items():
+            min_value = candidates[-2]
+            max_value = candidates[-1]
+            value = next((typography_source.get(candidate) for candidate in candidates[:-2] if candidate in typography_source), None)
+            cleaned = self._clean_canvas_visual_number(value, min_value=min_value, max_value=max_value)
+            if cleaned is not None:
+                typography[output_key] = cleaned
+        if typography:
+            normalized["typography"] = typography
+
+        surface_source = raw_spec.get("surface") if isinstance(raw_spec.get("surface"), dict) else {}
+        surface: Dict[str, Any] = {}
+        for output_key, candidates in {
+            "background": ("background",),
+            "panel": ("panel",),
+            "primary": ("primary",),
+            "secondary": ("secondary",),
+            "accent": ("accent",),
+            "text": ("text",),
+            "muted": ("muted",),
+        }.items():
+            value = str(next((surface_source.get(candidate) for candidate in candidates if candidate in surface_source), "") or "").strip()
+            if value:
+                surface[output_key] = value
+        for output_key, candidates in {
+            "card_radius": ("card_radius", "cardRadius", 0, 64),
+            "card_padding": ("card_padding", "cardPadding", 0, 72),
+            "section_gap": ("section_gap", "sectionGap", 0, 72),
+        }.items():
+            min_value = candidates[-2]
+            max_value = candidates[-1]
+            value = next((surface_source.get(candidate) for candidate in candidates[:-2] if candidate in surface_source), None)
+            cleaned = self._clean_canvas_visual_number(value, min_value=min_value, max_value=max_value)
+            if cleaned is not None:
+                surface[output_key] = cleaned
+        if surface:
+            normalized["surface"] = surface
+
+        layout_source = raw_spec.get("layout") if isinstance(raw_spec.get("layout"), dict) else {}
+        layout: Dict[str, Any] = {}
+        for output_key, candidates in {
+            "safe_margin": ("safe_margin", "safeMargin", 0, 120),
+            "section_gap": ("section_gap", "sectionGap", 0, 72),
+            "content_gap": ("content_gap", "contentGap", 0, 72),
+            "max_columns": ("max_columns", "maxColumns", 1, 4),
+        }.items():
+            min_value = candidates[-2]
+            max_value = candidates[-1]
+            value = next((layout_source.get(candidate) for candidate in candidates[:-2] if candidate in layout_source), None)
+            cleaned = self._clean_canvas_visual_number(value, min_value=min_value, max_value=max_value)
+            if cleaned is not None:
+                layout[output_key] = cleaned
+        if layout:
+            normalized["layout"] = layout
+
+        node_styles_source = raw_spec.get("node_styles") or raw_spec.get("nodeStyles")
+        if isinstance(node_styles_source, dict):
+            node_styles: Dict[str, Any] = {}
+            for raw_key, raw_style in node_styles_source.items():
+                key = self._slugify(raw_key)
+                style = self._normalize_canvas_visual_style(raw_style)
+                if key and style:
+                    node_styles[key] = style
+            if node_styles:
+                normalized["node_styles"] = node_styles
+
+        component_styles_source = raw_spec.get("component_styles") or raw_spec.get("componentStyles")
+        if isinstance(component_styles_source, dict):
+            component_styles: Dict[str, Any] = {}
+            for raw_key, raw_style in component_styles_source.items():
+                component = self._normalize_canvas_component_name(raw_key)
+                style = self._normalize_canvas_visual_style(raw_style)
+                if component and style:
+                    component_styles[component] = style
+            if component_styles:
+                normalized["component_styles"] = component_styles
+
+        return normalized if len(normalized) > 1 else {}
+
+    def _build_canvas_visual_spec(self, *, theme: Dict[str, Any], has_visual_assets: bool = False) -> Dict[str, Any]:
+        fallback_theme = self._build_fallback_theme(language="zh", style="")
+        palette = theme.get("palette") if isinstance(theme.get("palette"), dict) else fallback_theme["palette"]
+        typography = theme.get("typography") if isinstance(theme.get("typography"), dict) else fallback_theme["typography"]
+        raw_spec = {
+            "version": _CANVAS_VISUAL_SPEC_VERSION,
+            "palette": {
+                "bg": palette.get("bg"),
+                "panel": palette.get("panel"),
+                "primary": palette.get("primary"),
+                "secondary": palette.get("secondary"),
+                "accent": palette.get("accent"),
+                "text": palette.get("text"),
+                "muted": palette.get("muted"),
+            },
+            "typography": {
+                "title_font_stack": typography.get("title_font_stack"),
+                "body_font_stack": typography.get("body_font_stack"),
+                "eyebrow_size": typography.get("eyebrow_size"),
+                "title_size": typography.get("title_size"),
+                "summary_size": typography.get("summary_size"),
+                "body_size": typography.get("body_size"),
+            },
+            "surface": {
+                "background": palette.get("bg"),
+                "panel": palette.get("panel"),
+                "primary": palette.get("primary"),
+                "secondary": palette.get("secondary"),
+                "accent": palette.get("accent"),
+                "text": palette.get("text"),
+                "muted": palette.get("muted"),
+                "card_radius": 22 if has_visual_assets else 24,
+                "card_padding": 22,
+                "section_gap": 22,
+            },
+            "layout": {
+                "safe_margin": 62,
+                "section_gap": 22,
+                "content_gap": 18,
+                "max_columns": 2,
+            },
+            "component_styles": {
+                "heading": {
+                    "font_family": typography.get("title_font_stack"),
+                    "font_size": typography.get("title_size"),
+                    "font_weight": 700,
+                    "color": palette.get("text"),
+                },
+                "text": {
+                    "font_family": typography.get("body_font_stack"),
+                    "font_size": typography.get("body_size"),
+                    "color": palette.get("text"),
+                },
+                "bullets": {
+                    "font_family": typography.get("body_font_stack"),
+                    "font_size": typography.get("body_size"),
+                    "color": palette.get("text"),
+                },
+                "callout": {
+                    "fill": palette.get("panel"),
+                    "border_color": palette.get("accent"),
+                    "font_size": typography.get("body_size"),
+                    "color": palette.get("text"),
+                },
+                "figure": {
+                    "fill": palette.get("panel"),
+                    "border_color": palette.get("primary"),
+                    "image_fit": "contain",
+                },
+                "table": {
+                    "fill": palette.get("panel"),
+                    "border_color": palette.get("primary"),
+                    "font_size": max(14, int(typography.get("body_size") or 24) - 6),
+                    "color": palette.get("text"),
+                },
+            },
+        }
+        return self._normalize_canvas_visual_spec(raw_spec)
+
+    def _normalize_canvas_component_name(self, raw_value: Any) -> str:
+        text = self._slugify(raw_value or "")
+        aliases = {
+            "h1": "heading",
+            "h2": "heading",
+            "title": "heading",
+            "subtitle": "text",
+            "paragraph": "text",
+            "body": "text",
+            "body_text": "text",
+            "bullet_list": "bullets",
+            "bullet_points": "bullets",
+            "key_points": "bullets",
+            "list": "bullets",
+            "points": "bullets",
+            "image": "figure",
+            "visual": "figure",
+            "chart": "figure",
+            "diagram": "figure",
+            "table_card": "table",
+            "data_table": "table",
+            "metric": "stat",
+            "number": "stat",
+            "kpi": "stat",
+            "card": "callout",
+            "note": "callout",
+            "insight": "callout",
+            "timeline": "bullets",
+            "timeline_item": "text",
+        }
+        normalized = aliases.get(text, text or "placeholder")
+        return normalized if normalized in _ALLOWED_CANVAS_COMPONENTS else "text"
+
+    def _normalize_canvas_node_tree(self, node: Any) -> Any:
+        if not isinstance(node, dict):
+            return node
+        normalized = dict(node)
+        node_type = str(normalized.get("type") or "").strip().lower()
+        if node_type == "component":
+            props = normalized.get("props") if isinstance(normalized.get("props"), dict) else {}
+            normalized["component"] = self._normalize_canvas_component_name(
+                normalized.get("component") or props.get("component") or props.get("kind")
+            )
+        children = normalized.get("children")
+        if isinstance(children, list):
+            normalized["children"] = [self._normalize_canvas_node_tree(child) for child in children if isinstance(child, dict)]
+        return normalized
+
+    def _component_for_block(self, block: Dict[str, Any]) -> str:
+        block_type = str(block.get("type") or "").strip().lower()
+        role = str(block.get("role") or "").strip().lower()
+        if role == "title":
+            return "heading"
+        if block_type == "list":
+            return "bullets"
+        if block_type == "image":
+            return "figure"
+        if block_type == "quote":
+            return "quote"
+        if block_type == "stat":
+            return "stat"
+        if block_type == "callout":
+            return "callout"
+        if block_type == "table":
+            return "table"
+        return "text"
+
+    def _props_for_canvas_block(self, block: Dict[str, Any]) -> Dict[str, Any]:
+        component = self._component_for_block(block)
+        role = self._slugify(block.get("role") or block.get("id") or "")
+        block_id = self._slugify(block.get("id") or role) or role
+        ref = role or block_id
+        if component == "bullets":
+            if role in {"key_points", "points", "bullets", "main_points", "takeaways"} or block_id in {"key_points", "points", "bullets"}:
+                ref = "key_points"
+            return {"items_ref": ref}
+        if component == "figure":
+            asset_key = self._slugify(block.get("asset_key") or block.get("assetKey") or block_id)
+            return {"asset_ref": asset_key, "asset_key": asset_key, "fit": "contain"}
+        if component == "stat":
+            return {"value_ref": ref, "label": str(block.get("label") or role.replace("_", " ").title()).strip()}
+        if component == "table":
+            return {"table_ref": ref}
+        return {"text_ref": ref}
+
+    def _build_canvas_root_from_blocks(
+        self,
+        *,
+        blocks: Sequence[Dict[str, Any]],
+        template_key: str,
+    ) -> Dict[str, Any]:
+        header: List[Dict[str, Any]] = []
+        main_left: List[Dict[str, Any]] = []
+        main_right: List[Dict[str, Any]] = []
+        footer: List[Dict[str, Any]] = []
+
+        for block in blocks:
+            if not isinstance(block, dict):
+                continue
+            block_id = self._slugify(block.get("id") or block.get("role") or "") or "block"
+            role = self._slugify(block.get("role") or "")
+            if role == "eyebrow":
+                continue
+            layout = block.get("layout") if isinstance(block.get("layout"), dict) else {}
+            zone = str(layout.get("zone") or "main").strip().lower()
+            side = str(layout.get("preferred_side") or layout.get("preferredSide") or "").strip().lower()
+            component_node = {
+                "type": "component",
+                "id": block_id,
+                "component": self._component_for_block(block),
+                "props": self._props_for_canvas_block(block),
+                "style": {"emphasis": str(layout.get("emphasis") or "medium")},
+            }
+            if zone == "header":
+                header.append(component_node)
+            elif zone == "footer":
+                footer.append(component_node)
+            elif zone in {"aside", "right"} or side == "right":
+                main_right.append(component_node)
+            else:
+                main_left.append(component_node)
+
+        main_children: List[Dict[str, Any]] = []
+        if main_left:
+            main_children.append(
+                {
+                    "type": "container",
+                    "id": "main_left",
+                    "style": {"direction": "column", "gap": 18, "weight": 1, "align": "stretch"},
+                    "children": main_left,
+                }
+            )
+        if main_right:
+            main_children.append(
+                {
+                    "type": "container",
+                    "id": "main_right",
+                    "style": {"direction": "column", "gap": 18, "weight": 1, "align": "stretch"},
+                    "children": main_right,
+                }
+            )
+
+        children: List[Dict[str, Any]] = []
+        if header:
+            children.append(
+                {
+                    "type": "container",
+                    "id": "header",
+                    "style": {"direction": "column", "gap": 12, "align": "stretch"},
+                    "children": header,
+                }
+            )
+        children.append(
+            {
+                "type": "container",
+                "id": "main",
+                "style": {
+                    "direction": "row" if len(main_children) > 1 else "column",
+                    "gap": 24,
+                    "weight": 1,
+                    "align": "stretch",
+                },
+                "children": main_children or [
+                    {
+                        "type": "component",
+                        "id": "empty_main",
+                        "component": "placeholder",
+                        "props": {"text": "No content"},
+                    }
+                ],
+            }
+        )
+        if footer:
+            children.append(
+                {
+                    "type": "container",
+                    "id": "footer",
+                    "style": {"direction": "row", "gap": 16, "align": "end", "justify": "between"},
+                    "children": footer,
+                }
+            )
+
+        return {
+            "type": "container",
+            "id": "root",
+            "style": {
+                "direction": "column",
+                "gap": 24,
+                "padding": 0,
+                "align": "stretch",
+                "justify": "start",
+            },
+            "children": children,
+        }
+
+    def _collect_canvas_refs(self, node: Dict[str, Any], refs: List[Dict[str, str]], node_ids: set[str], issues: List[Dict[str, Any]]) -> None:
+        if not isinstance(node, dict):
+            return
+        node_id = self._slugify(node.get("id") or "")
+        if not node_id:
+            issues.append({"severity": "repairable", "code": "missing_node_id", "message": "Canvas node is missing id."})
+        elif node_id in node_ids:
+            issues.append({"severity": "repairable", "code": "duplicate_node_id", "node_id": node_id, "message": f"Duplicate canvas node id: {node_id}"})
+        else:
+            node_ids.add(node_id)
+
+        if str(node.get("type") or "") == "component":
+            props = node.get("props") if isinstance(node.get("props"), dict) else {}
+            for key, value in props.items():
+                if key.endswith("_ref") or key.endswith("Ref"):
+                    ref = str(value or "").strip()
+                    if ref:
+                        refs.append({"node_id": node_id, "prop": key, "ref": ref})
+
+        children = node.get("children")
+        if isinstance(children, list):
+            for child in children:
+                self._collect_canvas_refs(child, refs, node_ids, issues)
+
+    def _collect_canvas_referenced_keys(self, node: Dict[str, Any], keys: set[str]) -> None:
+        if not isinstance(node, dict):
+            return
+        if str(node.get("type") or "") == "component":
+            props = node.get("props") if isinstance(node.get("props"), dict) else {}
+            for key, value in props.items():
+                if not (key.endswith("_ref") or key.endswith("Ref")):
+                    continue
+                ref = self._slugify(value)
+                if ref:
+                    keys.add(ref)
+        children = node.get("children")
+        if isinstance(children, list):
+            for child in children:
+                self._collect_canvas_referenced_keys(child, keys)
+
+    def _collect_canvas_component_refs(self, node: Dict[str, Any], refs: set[str]) -> None:
+        if not isinstance(node, dict):
+            return
+        if str(node.get("type") or "") == "component":
+            component = self._normalize_canvas_component_name(node.get("component"))
+            props = node.get("props") if isinstance(node.get("props"), dict) else {}
+            if component == "stat":
+                value_ref = self._slugify(
+                    props.get("value_ref")
+                    or props.get("valueRef")
+                    or props.get("ref")
+                    or props.get("text_ref")
+                    or props.get("textRef")
+                )
+                label_ref = self._slugify(props.get("label_ref") or props.get("labelRef"))
+                if value_ref:
+                    refs.add(value_ref)
+                if label_ref:
+                    refs.add(label_ref)
+                return
+            if component in {"heading", "text", "quote", "callout"}:
+                text_ref = self._slugify(props.get("text_ref") or props.get("textRef") or props.get("ref"))
+                if text_ref:
+                    refs.add(text_ref)
+                return
+            if component == "bullets":
+                items_ref = self._slugify(props.get("items_ref") or props.get("itemsRef") or props.get("ref"))
+                if items_ref:
+                    refs.add(items_ref)
+                return
+            if component == "table":
+                table_ref = self._slugify(props.get("table_ref") or props.get("tableRef") or props.get("ref"))
+                if table_ref:
+                    refs.add(table_ref)
+                return
+            if component == "figure":
+                asset_ref = self._slugify(
+                    props.get("asset_ref")
+                    or props.get("assetRef")
+                    or props.get("asset_key")
+                    or props.get("assetKey")
+                    or props.get("ref")
+                )
+                if asset_ref:
+                    refs.add(asset_ref)
+                return
+        children = node.get("children")
+        if isinstance(children, list):
+            for child in children:
+                self._collect_canvas_component_refs(child, refs)
+
+    def _normalize_canvas_schema(
+        self,
+        *,
+        slide: Dict[str, Any],
+        visual_assets: Sequence[Dict[str, Any]],
+        outline_item: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        normalized = dict(slide)
+        derived_content = self._build_canvas_content(slide=normalized, visual_assets=visual_assets)
+        content = normalized.get("content") if isinstance(normalized.get("content"), dict) else None
+        if content is None:
+            content = derived_content
+        else:
+            content = dict(content)
+            for key in list(content.keys()):
+                if key != "assets" and re.match(r"^(.+)_cell_(h|\d+)_(\d+)$", self._slugify(key)):
+                    content.pop(key, None)
+            for key, value in derived_content.items():
+                if key == "assets":
+                    continue
+                if key not in content or content.get(key) in ("", None, []):
+                    content[key] = value
+            content["assets"] = {
+                **(derived_content.get("assets") if isinstance(derived_content.get("assets"), dict) else {}),
+                **(content.get("assets") if isinstance(content.get("assets"), dict) else {}),
+            }
+
+        if outline_item is not None:
+            removed_keys = self._layout_instruction_content_keys(content=content, outline_item=outline_item)
+            if removed_keys:
+                content = self._remove_layout_instruction_content(content=content, outline_item=outline_item)
+                if isinstance(normalized.get("root"), dict):
+                    normalized["root"] = self._prune_canvas_refs(normalized["root"], removed_keys=removed_keys)
+                blocks = normalized.get("blocks")
+                if isinstance(blocks, list):
+                    normalized["blocks"] = [
+                        block
+                        for block in blocks
+                        if not (
+                            isinstance(block, dict)
+                            and self._slugify(block.get("role") or block.get("id") or "") in removed_keys
+                        )
+                    ]
+
+        blocks = normalized.get("blocks") or []
+        if not isinstance(normalized.get("root"), dict):
+            normalized["root"] = self._build_canvas_root_from_blocks(
+                blocks=blocks if isinstance(blocks, list) else [],
+                template_key=str(normalized.get("template_key") or ""),
+            )
+        elif isinstance(normalized.get("root"), dict):
+            normalized["root"] = self._normalize_canvas_node_tree(normalized["root"])
+
+        visual_spec = self._normalize_canvas_visual_spec(
+            normalized.get("visual_spec") or normalized.get("visualSpec")
+        )
+        if visual_spec:
+            normalized["visual_spec"] = visual_spec
+        normalized.pop("visualSpec", None)
+
+        normalized["schema_version"] = _CANVAS_SCHEMA_VERSION
+        render_engine = str(normalized.get("render_engine") or normalized.get("renderEngine") or "canvas").strip().lower()
+        normalized["render_engine"] = "blocks" if render_engine == "blocks" else "canvas"
+        normalized["content"] = content
+        if isinstance(normalized.get("root"), dict):
+            self._repair_canvas_refs(normalized["root"], content=content)
+            component_refs: set[str] = set()
+            self._collect_canvas_component_refs(normalized["root"], component_refs)
+            if component_refs:
+                normalized["editable_fields"] = self._derive_fields_from_canvas_content(content, component_refs)
+        normalized.setdefault("layout_family", str(normalized.get("template_key") or "custom"))
+        normalized.setdefault("constraints", {"min_font_size": 18, "max_font_size": 56, "allow_overflow": False, "fit_mode": "browser_measure"})
+        normalized.setdefault("editable_map", {})
+
+        normalized["canvas_validation"] = self._validate_canvas_schema(normalized)
+        return normalized
+
+    def _validate_canvas_schema(self, slide: Dict[str, Any]) -> Dict[str, Any]:
+        content = slide.get("content") if isinstance(slide.get("content"), dict) else {}
+        assets = content.get("assets") if isinstance(content.get("assets"), dict) else {}
+        defined = {
+            self._slugify(key)
+            for key in content.keys()
+            if key != "assets" and self._slugify(key)
+        }
+        defined.update(f"assets.{self._slugify(key)}" for key in assets.keys() if self._slugify(key))
+
+        refs: List[Dict[str, str]] = []
+        issues: List[Dict[str, Any]] = []
+        node_ids: set[str] = set()
+        root = slide.get("root")
+        if not isinstance(root, dict):
+            issues.append({"severity": "error", "code": "missing_root", "message": "Canvas schema root is missing."})
+        else:
+            self._collect_canvas_refs(root, refs, node_ids, issues)
+
+        used_refs: List[str] = []
+        missing_refs: List[str] = []
+        for ref_item in refs:
+            ref = ref_item["ref"]
+            normalized_ref = self._slugify(ref)
+            defined_key = f"assets.{normalized_ref}" if ref_item["prop"] in {"asset_ref", "assetRef"} else normalized_ref
+            used_refs.append(ref)
+            if defined_key not in defined:
+                suggested = ""
+                if ref_item["prop"] in {"items_ref", "itemsRef"} and "key_points" in defined:
+                    suggested = "key_points"
+                elif ref_item["prop"] in {"text_ref", "textRef"} and "title" in defined:
+                    suggested = "title"
+                elif ref_item["prop"] in {"asset_ref", "assetRef"} and assets:
+                    suggested = next(iter(assets.keys()))
+                missing_refs.append(ref)
+                issues.append(
+                    {
+                        "severity": "repairable",
+                        "code": "missing_ref",
+                        "node_id": ref_item["node_id"],
+                        "ref": ref,
+                        "suggested_ref": suggested,
+                        "message": f"Reference '{ref}' does not exist in slide content.",
+                    }
+                )
+
+        used_normalized = {self._slugify(ref) for ref in used_refs}
+        orphan = sorted(
+            key
+            for key in defined
+            if not key.startswith("assets.") and key not in used_normalized
+        )
+        return {
+            "ok": not any(issue.get("severity") == "error" for issue in issues),
+            "used_refs": used_refs,
+            "defined_content_keys": sorted(defined),
+            "missing_refs": missing_refs,
+            "orphan_content_keys": orphan,
+            "empty_components": [],
+            "issues": issues,
+        }
+
+    def _repair_canvas_refs(self, node: Dict[str, Any], *, content: Dict[str, Any]) -> None:
+        if not isinstance(node, dict):
+            return
+        props = node.get("props") if isinstance(node.get("props"), dict) else None
+        assets = content.get("assets") if isinstance(content.get("assets"), dict) else {}
+        content_keys = {self._slugify(key): key for key in content.keys() if key != "assets"}
+        asset_keys = {self._slugify(key): key for key in assets.keys()}
+
+        if props is not None:
+            for prop_name in list(props.keys()):
+                if not (prop_name.endswith("_ref") or prop_name.endswith("Ref")):
+                    continue
+                raw_ref = str(props.get(prop_name) or "").strip()
+                normalized_ref = self._slugify(raw_ref)
+                if prop_name in {"asset_ref", "assetRef"}:
+                    if normalized_ref not in asset_keys and asset_keys:
+                        props[prop_name] = next(iter(asset_keys.values()))
+                    continue
+                if normalized_ref in content_keys:
+                    props[prop_name] = content_keys[normalized_ref]
+                    continue
+                if prop_name in {"items_ref", "itemsRef"} and "key_points" in content_keys:
+                    props[prop_name] = content_keys["key_points"]
+                elif prop_name in {"text_ref", "textRef"} and "title" in content_keys:
+                    props[prop_name] = content_keys["title"]
+
+        children = node.get("children")
+        if isinstance(children, list):
+            for child in children:
+                self._repair_canvas_refs(child, content=content)
+
+    def _build_fallback_blocks(
+        self,
+        *,
+        outline_item: Dict[str, Any],
+        slide_index: int,
+        slide_count: int,
+        theme: Dict[str, Any],
+        visual_assets: Optional[Sequence[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
+        visual_assets = list(visual_assets or [])[:_MAX_INLINE_VISUAL_ASSETS]
+        has_visual = bool(visual_assets)
+        key_points = [
+            str(item).strip()
+            for item in (outline_item.get("key_points") or [])
+            if str(item).strip()
+        ][:4]
+        summary = key_points[0] if key_points else ""
+        takeaway = key_points[-1] if key_points else "Refine the narrative in the editor"
+        section_template = str(theme.get("section_label_template") or "Slide {page_num:02d}/{slide_count:02d}")
+        try:
+            eyebrow = section_template.format(page_num=slide_index + 1, slide_count=slide_count)
+        except Exception:  # noqa: BLE001
+            eyebrow = f"Slide {slide_index + 1:02d}/{slide_count:02d}"
+
+        blocks: List[Dict[str, Any]] = [
+            {
+                "id": "eyebrow",
+                "type": "text",
+                "role": "eyebrow",
+                "content": eyebrow,
+                "items": [],
+                "asset_key": "",
+                "layout": self._normalize_layout_hint(
+                    {"zone": "header", "span": 12, "preferred_width": "full"},
+                    block_type="text",
+                    role="eyebrow",
+                    order=1,
+                    has_visual_assets=has_visual,
+                ),
+            },
+            {
+                "id": "title",
+                "type": "text",
+                "role": "title",
+                "content": str(outline_item.get("title") or f"Slide {slide_index + 1}"),
+                "items": [],
+                "asset_key": "",
+                "layout": self._normalize_layout_hint(
+                    {"zone": "header", "span": 12, "preferred_width": "full", "emphasis": "high"},
+                    block_type="text",
+                    role="title",
+                    order=2,
+                    has_visual_assets=has_visual,
+                ),
+            },
+        ]
+
+        if summary:
+            blocks.append(
+                {
+                    "id": "summary",
+                    "type": "text",
+                    "role": "summary",
+                    "content": summary,
+                    "items": [],
+                    "asset_key": "",
+                    "layout": self._normalize_layout_hint(
+                        {"zone": "main", "span": 7 if has_visual else 12, "preferred_width": "wide"},
+                        block_type="text",
+                        role="summary",
+                        order=3,
+                        has_visual_assets=has_visual,
+                    ),
+                }
+            )
+
+        if key_points:
+            blocks.append(
+                {
+                    "id": "key_points",
+                    "type": "list",
+                    "role": "key_points",
+                    "content": "",
+                    "items": key_points,
+                    "asset_key": "",
+                    "layout": self._normalize_layout_hint(
+                        {"zone": "main", "span": 6 if has_visual else 12, "preferred_width": "wide"},
+                        block_type="list",
+                        role="key_points",
+                        order=len(blocks) + 1,
+                        has_visual_assets=has_visual,
+                    ),
+                }
+            )
+
+        for asset_index, asset in enumerate(visual_assets):
+            asset_key = self._slugify(asset.get("key") or "") or self._build_visual_asset_key(asset_index)
+            blocks.append(
+                {
+                    "id": f"{asset_key}_{asset_index + 1}",
+                    "type": "image",
+                    "role": "main_visual" if asset_index == 0 else "supporting_visual",
+                    "content": "",
+                    "items": [],
+                    "asset_key": asset_key,
+                    "layout": self._normalize_layout_hint(
+                        {
+                            "zone": "aside" if asset_index == 0 else "right",
+                            "span": 6,
+                            "preferred_side": "right",
+                            "preferred_width": "half",
+                            "emphasis": "high" if asset_index == 0 else "medium",
+                        },
+                        block_type="image",
+                        role="main_visual" if asset_index == 0 else "supporting_visual",
+                        order=len(blocks) + 1,
+                        has_visual_assets=has_visual,
+                    ),
+                }
+            )
+
+        blocks.extend(
+            [
+                {
+                    "id": "takeaway",
+                    "type": "text",
+                    "role": "takeaway",
+                    "content": takeaway,
+                    "items": [],
+                    "asset_key": "",
+                    "layout": self._normalize_layout_hint(
+                        {"zone": "footer", "span": 8, "preferred_width": "wide"},
+                        block_type="text",
+                        role="takeaway",
+                        order=len(blocks) + 1,
+                        has_visual_assets=has_visual,
+                    ),
+                },
+                {
+                    "id": "footer",
+                    "type": "text",
+                    "role": "footer",
+                    "content": str(theme.get("footer_text") or "Paper2Any Frontend PPT"),
+                    "items": [],
+                    "asset_key": "",
+                    "layout": self._normalize_layout_hint(
+                        {"zone": "footer", "span": 4, "preferred_side": "right", "preferred_width": "third"},
+                        block_type="text",
+                        role="footer",
+                        order=len(blocks) + 2,
+                        has_visual_assets=has_visual,
+                    ),
+                },
+            ]
+        )
+        return blocks
+
+    def _normalize_legacy_slide_payload(
+        self,
+        *,
+        payload: Dict[str, Any],
+        outline_item: Dict[str, Any],
+        slide_index: int,
+        slide_count: int,
+        theme: Dict[str, Any],
+        visual_assets: List[Dict[str, Any]],
+        fallback_slide: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        html_template = payload.get("html_template") or payload.get("html") or ""
+        css_code = payload.get("css_code") or payload.get("css") or ""
+        if not isinstance(html_template, str) or not isinstance(css_code, str):
+            return fallback_slide
+        if len(html_template) > 16000 or len(css_code) > 20000:
+            return fallback_slide
+        if _FORBIDDEN_HTML_RE.search(html_template) or _FORBIDDEN_CSS_RE.search(css_code):
+            return fallback_slide
+
+        normalized_html = self._sanitize_html_template(html_template)
+        normalized_css = self._sanitize_css(css_code, theme=theme)
+        editable_fields = self._normalize_fields(
+            payload.get("editable_fields"),
+            outline_item=outline_item,
+            slide_index=slide_index,
+        )
+        if not editable_fields:
+            return fallback_slide
+
+        normalized_html, attribute_warnings = self._sanitize_attribute_placeholders(
+            normalized_html,
+            editable_fields,
+        )
+        if attribute_warnings:
+            log.warning(
+                "[Paper2PPTFrontendService] Sanitized attribute placeholders for page %s: %s",
+                slide_index + 1,
+                ", ".join(attribute_warnings),
+            )
+
+        field_keys = {field["key"] for field in editable_fields}
+        placeholders = set(_FIELD_PLACEHOLDER_RE.findall(normalized_html))
+        image_placeholders = set(_IMAGE_PLACEHOLDER_RE.findall(normalized_html))
+        asset_keys = {str(asset.get("key") or "").strip() for asset in visual_assets if str(asset.get("key") or "").strip()}
+        if not placeholders:
+            return fallback_slide
+        if not placeholders.issubset(field_keys):
+            return fallback_slide
+        if image_placeholders and not image_placeholders.issubset(asset_keys):
+            return fallback_slide
+        if visual_assets and not image_placeholders:
+            return fallback_slide
+
+        title_value = (
+            self._find_field_value(editable_fields, "title")
+            or outline_item.get("title")
+            or f"Slide {slide_index + 1}"
+        )
+        blocks = self._build_fallback_blocks(
+            outline_item=outline_item,
+            slide_index=slide_index,
+            slide_count=slide_count,
+            theme=theme,
+            visual_assets=visual_assets,
+        )
+        slide = {
+            "slide_id": str(payload.get("slide_id") or slide_index + 1),
+            "page_num": slide_index + 1,
+            "title": str(payload.get("title") or title_value),
+            "schema_version": _SLIDE_SCHEMA_VERSION,
+            "layout_mode": "fixed",
+            "template_key": self._normalize_template_key(
+                payload.get("template_key") or payload.get("template") or "",
+                blocks=blocks,
+                visual_assets=visual_assets,
+            ),
+            "blocks": blocks,
+            "html_template": normalized_html,
+            "css_code": normalized_css,
+            "editable_fields": self._merge_editable_fields(
+                base_fields=fallback_slide.get("editable_fields") or [],
+                override_fields=editable_fields,
+            ),
+            "visual_assets": visual_assets,
+            "visual_spec": self._build_canvas_visual_spec(theme=theme, has_visual_assets=bool(visual_assets)),
+            "generation_note": str(payload.get("generation_note") or "Normalized from legacy html/css slide payload."),
+            "status": "done",
+        }
+        slide = self._apply_cover_slide_contract(
+            slide=slide,
+            outline_item=outline_item,
+            slide_index=slide_index,
+            slide_count=slide_count,
+            theme=theme,
+        )
+        return self._normalize_canvas_schema(slide=slide, visual_assets=visual_assets, outline_item=outline_item)
+
+    def _build_messages(
+        self,
+        *,
+        outline_item: Dict[str, Any],
+        slide_index: int,
+        slide_count: int,
+        language: str,
+        style: str,
+        edit_prompt: Optional[str],
+        current_slide: Optional[Dict[str, Any]],
+        theme: Dict[str, Any],
+        deck_identity: Dict[str, Any],
+        reference_slides: List[Dict[str, Any]],
+        visual_assets: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        system_prompt = """
+You are an expert academic slide information architect.
+Generate a single 16:9 presentation slide as Canvas schema JSON for a browser-based PPT editor.
+
+Hard requirements:
+1. Return JSON only. No markdown fences. No explanation.
+2. Output schema:
+{
+  "title": "short string",
+  "render_engine": "canvas",
+  "layout_family": "two_column | text_focus | visual_compare | grid | timeline | custom",
+  "root": {
+    "type": "container",
+    "id": "root",
+    "style": {"direction": "column", "gap": 24, "align": "stretch"},
+    "children": [
+      {
+        "type": "container",
+        "id": "main",
+        "style": {"direction": "row", "gap": 24, "weight": 1},
+        "children": [
+          {"type": "component", "id": "title", "component": "heading", "props": {"text_ref": "title"}}
+        ]
+      }
+    ]
+  },
+  "content": {
+    "title": "same title text",
+    "summary": "short summary text",
+    "key_points": ["same bullet texts"],
+    "table_1": {"headers": ["Column A", "Column B"], "rows": [["A1", "B1"]]},
+    "assets": {"main_visual": {"type": "image", "asset_key": "main_visual"}}
+  },
+  "visual_spec": {
+    "palette": {"bg": "#0b1020", "panel": "rgba(15,23,42,0.92)", "primary": "#7dd3fc", "secondary": "#38bdf8", "accent": "#f59e0b", "text": "#e2e8f0", "muted": "#94a3b8"},
+    "typography": {"title_font_stack": "Georgia, serif", "body_font_stack": "Segoe UI, sans-serif", "title_size": 56, "body_size": 24},
+    "surface": {"card_radius": 24, "card_padding": 22, "section_gap": 22},
+    "layout": {"safe_margin": 62, "section_gap": 22, "content_gap": 18, "max_columns": 2},
+    "component_styles": {"heading": {"font_size": 56, "font_weight": 700}, "figure": {"image_fit": "contain"}}
+  },
+  "constraints": {"min_font_size": 18, "max_font_size": 56, "allow_overflow": false, "fit_mode": "browser_measure"},
+  "generation_note": "one short sentence"
+}
+3. Do not output blocks, elements, content_blocks, template_key, html_template, css_code, CSS, SVG, pixel coordinates, percentages, or absolute positions.
+4. Every meaningful visible text must appear in content, then root components reference it.
+5. Supported node types: container, component. Supported components: heading, text, bullets, quote, stat, callout, figure, table, placeholder.
+6. Component refs: heading/text/quote/callout use text_ref; bullets use items_ref; table uses table_ref; figure uses asset_ref.
+7. Every *_ref in root.props must exactly match a key in content, or assets.<key> for asset_ref. Do not invent refs.
+8. For figures, use only supplied visual asset keys. Never invent image URLs or asset ids. If visual_assets are empty, do not create figure components.
+9. root.style may express layout intent only: direction, gap, weight, columns, padding, align, justify. Put color, typography, radius, card padding, and image fit in visual_spec.
+10. Keep the slide inside a practical 1600x900 presentation canvas using fluid layout intent, not fixed coordinates.
+11. Use the supplied deck theme so every page belongs to the same presentation family.
+12. Treat theme_lock as non-negotiable. Do not invent a new palette family, typography system, or unrelated component language.
+13. Prefer 4-8 meaningful visible components. Avoid over-fragmentation and repeated content.
+14. layout_description is layout intent only. Never copy it or paraphrase it into content, summary, bullets, notes, footer, or any visible text.
+15. For cover/title pages, include only essential visible fields such as eyebrow, title, presenter/author, and optional date. Do not invent summary, takeaway, bullets, or footer copy unless the outline explicitly provides it as content.
+16. Keep titles within 2 lines, and keep body content concise enough for a readable academic slide.
+17. If reference deck slides are provided, preserve their Canvas component grammar, layout family, and visual_spec language.
+18. Browser layout measurement will produce layout_ir later; do not output layout_ir.
+""".strip()
+
+        outline_payload = {
+            "slide_index_1based": slide_index + 1,
+            "slide_count": slide_count,
+            "language": language,
+            "style_prompt": style or "",
+            "outline_title": outline_item.get("title", ""),
+            "layout_description": outline_item.get("layout_description", ""),
+            "key_points": outline_item.get("key_points", []),
+            "visual_assets": [
+                {
+                    "key": asset.get("key"),
+                    "label": asset.get("label"),
+                    "source_type": asset.get("source_type"),
+                    "alt": asset.get("alt"),
+                }
+                for asset in visual_assets
+            ],
+            "deck_theme": theme,
+            "theme_lock": theme.get("theme_lock") or self._build_theme_lock(theme),
+        }
+
+        user_sections = [
+            "Create a slide based on this outline JSON:",
+            json.dumps(outline_payload, ensure_ascii=False, indent=2),
+            "Deck identity summary that must stay stable across the whole deck:",
+            json.dumps(deck_identity, ensure_ascii=False, indent=2),
+            (
+                "Produce only Canvas root/content/visual_spec JSON. "
+                "The frontend will map Canvas nodes into a fluid layout engine, so focus on semantic grouping, hierarchy, "
+                "layout intent, and explicit visual tokens instead of code-level rendering. "
+                "If space is tight, merge related ideas into fewer components instead of inventing extra decorative nodes."
+            ),
+        ]
+
+        if reference_slides:
+            user_sections.extend(
+                [
+                    "Reference deck slides. Reuse their component grammar instead of inventing a new one:",
+                    json.dumps(reference_slides, ensure_ascii=False, indent=2),
+                ]
+            )
+
+        if current_slide:
+            user_sections.extend(
+                [
+                    "Current slide schema for reference:",
+                    json.dumps(self._summarize_reference_slide(current_slide), ensure_ascii=False, indent=2),
+                    (
+                        "Preserve the same layout family, node naming style, and reading flow from the current slide "
+                        "unless the revision request explicitly changes structure."
+                    ),
+                ]
+            )
+        if edit_prompt:
+            user_sections.append(f"Revision request: {edit_prompt}")
+
+        user_sections.append(
+            "Ensure the root tree fully covers all meaningful visible content on the slide, and keep node ids/content keys stable for downstream editing."
+        )
+
+        return [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": "\n\n".join(user_sections)},
+        ]
+
+    def _build_review_messages(
+        self,
+        *,
+        slide: Dict[str, Any],
+        theme: Dict[str, Any],
+        language: str,
+        data_url: str,
+        local_layout_issues: List[str],
+    ) -> List[Dict[str, Any]]:
+        system_prompt = """
+You are a strict visual QA reviewer for 16:9 academic presentation slides.
+Review a rendered slide screenshot and return JSON only. No markdown. No explanation.
+
+Schema:
+{
+  "passed": true,
+  "summary": "one short sentence",
+  "issues": ["issue 1", "issue 2"],
+  "repair_prompt": "precise instruction for regenerating the slide while keeping the same content and deck theme"
+}
+
+Check for:
+1. Overflow, clipping, text too large, crowded spacing, broken alignment.
+2. Missing hierarchy or inconsistent typography.
+3. Visual inconsistency with the provided deck theme.
+4. Weak use of the 16:9 canvas.
+
+If there are any meaningful problems, set passed=false and provide a concrete repair_prompt.
+""".strip()
+
+        review_context = {
+            "language": language,
+            "deck_theme": theme,
+            "slide_overview": self._summarize_slide_for_review(slide),
+            "local_layout_issues": local_layout_issues[:6],
+        }
+
+        return [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": (
+                            "Review this rendered academic slide and keep the same content hierarchy during repair.\n\n"
+                            f"{json.dumps(review_context, ensure_ascii=False, indent=2)}"
+                        ),
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": data_url},
+                    },
+                ],
+            },
+        ]
+
+    def _summarize_slide_for_review(self, slide: Dict[str, Any]) -> Dict[str, Any]:
+        editable_fields = slide.get("editable_fields") or slide.get("editableFields") or []
+        summarized_fields: List[Dict[str, Any]] = []
+        if isinstance(editable_fields, list):
+            for field in editable_fields[:10]:
+                if not isinstance(field, dict):
+                    continue
+                field_type = str(field.get("type") or "text").strip()
+                entry: Dict[str, Any] = {
+                    "key": str(field.get("key") or "").strip(),
+                    "type": field_type,
+                }
+                if field_type == "list":
+                    entry["items"] = self._normalize_outline_points(field.get("items"), limit=5, item_limit=140)
+                else:
+                    entry["value"] = self._clean_text_content(field.get("value"), "", 280)
+                summarized_fields.append(entry)
+
+        visual_assets = slide.get("visual_assets") or slide.get("visualAssets") or []
+        summarized_assets: List[Dict[str, str]] = []
+        if isinstance(visual_assets, list):
+            for asset in visual_assets[:4]:
+                if not isinstance(asset, dict):
+                    continue
+                summarized_assets.append(
+                    {
+                        "key": str(asset.get("key") or "").strip(),
+                        "label": str(asset.get("label") or "").strip(),
+                        "source_type": str(asset.get("source_type") or asset.get("sourceType") or "").strip(),
+                    }
+                )
+
+        return {
+            "page_num": slide.get("page_num") or slide.get("pageNum"),
+            "title": str(slide.get("title") or "").strip(),
+            "editable_fields": summarized_fields,
+            "visual_assets": summarized_assets,
+        }
+
+    def _normalize_slide_payload(
+        self,
+        *,
+        payload: Dict[str, Any],
+        outline_item: Dict[str, Any],
+        slide_index: int,
+        slide_count: int,
+        theme: Dict[str, Any],
+        visual_assets: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        fallback_slide = self._build_fallback_slide(
+            outline_item=outline_item,
+            slide_index=slide_index,
+            slide_count=slide_count,
+            theme=theme,
+            visual_assets=visual_assets,
+        )
+        raw_root = payload.get("root")
+        raw_content = payload.get("content")
+        raw_blocks = payload.get("blocks")
+        if raw_blocks is None:
+            raw_blocks = payload.get("elements")
+        if raw_blocks is None:
+            raw_blocks = payload.get("content_blocks") or payload.get("contentBlocks")
+
+        if isinstance(raw_root, dict) and isinstance(raw_content, dict):
+            derived_fields = self._derive_fields_from_canvas_content(raw_content)
+            if not derived_fields:
+                derived_fields = self._normalize_fields(
+                    payload.get("editable_fields"),
+                    outline_item=outline_item,
+                    slide_index=slide_index,
+                )
+            editable_fields = self._merge_editable_fields(
+                base_fields=[],
+                override_fields=derived_fields,
+            )
+            title_value = (
+                self._find_field_value(editable_fields, "title")
+                or str(raw_content.get("title") or "").strip()
+                or outline_item.get("title")
+                or f"Slide {slide_index + 1}"
+            )
+            visual_spec = (
+                self._normalize_canvas_visual_spec(payload.get("visual_spec") or payload.get("visualSpec"))
+                or self._build_canvas_visual_spec(theme=theme, has_visual_assets=bool(visual_assets))
+            )
+            slide = {
+                "slide_id": str(payload.get("slide_id") or slide_index + 1),
+                "page_num": slide_index + 1,
+                "title": str(payload.get("title") or title_value),
+                "schema_version": _CANVAS_SCHEMA_VERSION,
+                "render_engine": "canvas",
+                "layout_mode": self._normalize_layout_mode(payload.get("layout_mode") or payload.get("layoutMode")),
+                "template_key": self._normalize_template_key(
+                    payload.get("template_key") or payload.get("template") or payload.get("layout_template") or payload.get("layoutTemplate"),
+                    blocks=[],
+                    visual_assets=visual_assets,
+                ),
+                "layout_family": str(payload.get("layout_family") or payload.get("layoutFamily") or "custom").strip() or "custom",
+                "blocks": [],
+                "html_template": str(fallback_slide.get("html_template") or ""),
+                "css_code": str(fallback_slide.get("css_code") or ""),
+                "editable_fields": editable_fields,
+                "visual_assets": visual_assets,
+                "root": raw_root,
+                "content": raw_content,
+                "visual_spec": visual_spec,
+                "generation_note": str(payload.get("generation_note") or "Canvas-only slide payload."),
+                "status": "done",
+            }
+            if isinstance(payload.get("constraints"), dict):
+                slide["constraints"] = payload["constraints"]
+            if isinstance(payload.get("editable_map"), dict):
+                slide["editable_map"] = payload["editable_map"]
+            slide = self._apply_cover_slide_contract(
+                slide=slide,
+                outline_item=outline_item,
+                slide_index=slide_index,
+                slide_count=slide_count,
+                theme=theme,
+            )
+            return self._normalize_canvas_schema(slide=slide, visual_assets=visual_assets, outline_item=outline_item)
+
+        if raw_blocks is None:
+            return self._normalize_legacy_slide_payload(
+                payload=payload,
+                outline_item=outline_item,
+                slide_index=slide_index,
+                slide_count=slide_count,
+                theme=theme,
+                visual_assets=visual_assets,
+                fallback_slide=fallback_slide,
+            )
+
+        normalized_blocks = self._normalize_blocks(
+            raw_blocks,
+            outline_item=outline_item,
+            visual_assets=visual_assets,
+        )
+        if not normalized_blocks:
+            return fallback_slide
+
+        derived_fields = self._derive_fields_from_blocks(normalized_blocks)
+        if not derived_fields:
+            derived_fields = self._normalize_fields(
+                payload.get("editable_fields"),
+                outline_item=outline_item,
+                slide_index=slide_index,
+            )
+
+        editable_fields = self._merge_editable_fields(
+            base_fields=fallback_slide.get("editable_fields") or [],
+            override_fields=derived_fields,
+        )
+
+        title_value = (
+            self._find_field_value(editable_fields, "title")
+            or next(
+                (
+                    str(block.get("content") or "").strip()
+                    for block in normalized_blocks
+                    if str(block.get("role") or "") == "title" and str(block.get("content") or "").strip()
+                ),
+                "",
+            )
+            or outline_item.get("title")
+            or f"Slide {slide_index + 1}"
+        )
+        visual_spec = (
+            self._normalize_canvas_visual_spec(payload.get("visual_spec") or payload.get("visualSpec"))
+            or self._build_canvas_visual_spec(theme=theme, has_visual_assets=bool(visual_assets))
+        )
+        slide = {
+            "slide_id": str(payload.get("slide_id") or slide_index + 1),
+            "page_num": slide_index + 1,
+            "title": str(payload.get("title") or title_value),
+            "schema_version": _SLIDE_SCHEMA_VERSION,
+            "layout_mode": self._normalize_layout_mode(payload.get("layout_mode") or payload.get("layoutMode")),
+            "template_key": self._normalize_template_key(
+                payload.get("template_key") or payload.get("template") or payload.get("layout_template") or payload.get("layoutTemplate"),
+                blocks=normalized_blocks,
+                visual_assets=visual_assets,
+            ),
+            "blocks": normalized_blocks,
+            "html_template": str(fallback_slide.get("html_template") or ""),
+            "css_code": str(fallback_slide.get("css_code") or ""),
+            "editable_fields": editable_fields,
+            "visual_assets": visual_assets,
+            "visual_spec": visual_spec,
+            "generation_note": str(payload.get("generation_note") or "Schema-driven slide payload."),
+            "status": "done",
+        }
+        if isinstance(payload.get("root"), dict):
+            slide["root"] = payload["root"]
+        if isinstance(payload.get("content"), dict):
+            slide["content"] = payload["content"]
+        if isinstance(payload.get("constraints"), dict):
+            slide["constraints"] = payload["constraints"]
+        if isinstance(payload.get("editable_map"), dict):
+            slide["editable_map"] = payload["editable_map"]
+        slide = self._apply_cover_slide_contract(
+            slide=slide,
+            outline_item=outline_item,
+            slide_index=slide_index,
+            slide_count=slide_count,
+            theme=theme,
+        )
+        return self._normalize_canvas_schema(slide=slide, visual_assets=visual_assets, outline_item=outline_item)
+
+    def _normalize_review_payload(
+        self,
+        *,
+        payload: Dict[str, Any],
+        slide: Dict[str, Any],
+        local_layout_issues: List[str],
+    ) -> Dict[str, Any]:
+        issues = self._normalize_outline_points(payload.get("issues"), limit=12, item_limit=220)
+        combined_issues: List[str] = []
+        for issue in [*local_layout_issues, *issues]:
+            if issue and issue not in combined_issues:
+                combined_issues.append(issue)
+
+        passed = bool(payload.get("passed")) and not combined_issues
+        summary = str(payload.get("summary") or "").strip()
+        if not summary:
+            summary = "未发现明显版式问题。" if passed else "检测到需要修复的版式问题。"
+
+        repair_prompt = str(payload.get("repair_prompt") or "").strip()
+        if not passed and not repair_prompt:
+            slide_title = str(slide.get("title") or "current slide").strip()
+            repair_prompt = (
+                f"Keep the same deck theme and the same slide topic '{slide_title}'. "
+                "Fix overflow, oversized text, spacing, alignment, and readability issues. "
+                "Preserve the editable text fields and keep the slide inside a clean 16:9 canvas. "
+                f"Specific issues: {'; '.join(combined_issues) if combined_issues else 'general layout cleanup'}."
+            )
+
+        return {
+            "passed": passed,
+            "summary": summary,
+            "issues": combined_issues,
+            "repair_prompt": repair_prompt,
+        }
+
+    def _normalize_fields(
+        self,
+        raw_fields: Any,
+        *,
+        outline_item: Dict[str, Any],
+        slide_index: int,
+    ) -> List[Dict[str, Any]]:
+        normalized: List[Dict[str, Any]] = []
+        seen_keys: set[str] = set()
+        outline_points = self._normalize_outline_points(outline_item.get("key_points"), limit=6, item_limit=120)
+
+        if isinstance(raw_fields, list):
+            for raw_field in raw_fields:
+                if not isinstance(raw_field, dict):
+                    continue
+                key = self._slugify(raw_field.get("key") or raw_field.get("label") or "")
+                if not key or key in seen_keys:
+                    continue
+                field_type = str(raw_field.get("type") or "text").strip().lower()
+                if field_type not in {"text", "textarea", "list"}:
+                    field_type = "text"
+                label = str(raw_field.get("label") or key.replace("_", " ").title())
+                if field_type == "list":
+                    items = [
+                        str(item).strip()
+                        for item in (raw_field.get("items") or [])
+                        if str(item).strip()
+                        and not self._is_layout_instruction_text(item, outline_item)
+                    ]
+                    if not items:
+                        items = outline_points[:4]
+                    if not items:
+                        continue
+                    normalized.append(
+                        {
+                            "key": key,
+                            "label": label,
+                            "type": "list",
+                            "value": "",
+                            "items": items,
+                        }
+                    )
+                else:
+                    value = str(raw_field.get("value") or "").strip()
+                    if self._is_layout_instruction_text(value, outline_item):
+                        continue
+                    normalized.append(
+                        {
+                            "key": key,
+                            "label": label,
+                            "type": field_type,
+                            "value": value,
+                            "items": [],
+                        }
+                    )
+                seen_keys.add(key)
+
+        if "title" not in seen_keys:
+            normalized.append(
+                {
+                    "key": "title",
+                    "label": "Title",
+                    "type": "text",
+                    "value": self._clean_text_content(outline_item.get("title"), f"Slide {slide_index + 1}", 220),
+                    "items": [],
+                }
+            )
+        if "summary" not in seen_keys:
+            normalized.append(
+                {
+                    "key": "summary",
+                    "label": "Summary",
+                    "type": "textarea",
+                    "value": str(outline_points[0] if outline_points else "").strip(),
+                    "items": [],
+                }
+            )
+        if "key_points" not in seen_keys:
+            normalized.append(
+                {
+                    "key": "key_points",
+                    "label": "Key Points",
+                    "type": "list",
+                    "value": "",
+                    "items": outline_points[:4] or ["Summarize the key contribution"],
+                }
+            )
+        return normalized
+
+    def _build_fallback_theme(self, *, language: str, style: str) -> Dict[str, Any]:
+        style_family = self._infer_style_family(style)
+        footer_text = "Paper2Any Frontend PPT"
+        section_label_template = (
+            "第 {page_num:02d}/{slide_count:02d} 页"
+            if language.strip().lower().startswith("zh")
+            else "Slide {page_num:02d}/{slide_count:02d}"
+        )
+        visual_mood = (
+            style.strip()
+            or (
+                "Academic storytelling with calm contrast, concise hierarchy, and consistent card components."
+            )
+        )
+        palette = self._resolve_palette_from_style(style)
+        family_rules = self._build_family_rules(style_family)
+        return {
+            "theme_name": "scholarly_signal",
+            "visual_mood": visual_mood,
+            "style_family": style_family,
+            "palette": palette,
+            "typography": {
+                "title_font_stack": 'Georgia, "Times New Roman", serif',
+                "body_font_stack": '"Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif',
+                "eyebrow_size": 18,
+                "title_size": 56,
+                "summary_size": 26,
+                "body_size": 24,
+            },
+            "layout_rules": family_rules["layout_rules"],
+            "component_rules": family_rules["component_rules"],
+            "theme_lock": {
+                "must_keep": [
+                    "Use only the deck palette colors for fills, borders, and emphasis.",
+                    "Keep the same serif title style and sans body style across the deck.",
+                    family_rules["must_keep"],
+                ],
+                "preferred_layout_patterns": family_rules["preferred_layout_patterns"],
+                "component_signature": family_rules["component_signature"],
+                "avoid": [
+                    "Do not introduce unrelated bright color families.",
+                    "Do not use more than two main columns.",
+                    family_rules["avoid"],
+                ],
+            },
+            "footer_text": footer_text,
+            "section_label_template": section_label_template,
+        }
+
+    def _infer_style_family(self, style: str) -> str:
+        style_text = (style or "").strip().lower()
+        if any(keyword in style_text for keyword in ("academic", "report", "paper", "research", "严谨", "学术", "报告")):
+            return "academic"
+        if any(keyword in style_text for keyword in ("business", "brand", "corporate", "executive", "商务", "商业", "品牌")):
+            return "business"
+        if any(keyword in style_text for keyword in ("creative", "illustration", "warm", "friendly", "playful", "soft", "创意", "插画", "柔和")):
+            return "creative"
+        return "modern"
+
+    def _build_family_rules(self, style_family: str) -> Dict[str, Any]:
+        family = (style_family or "modern").strip().lower()
+        if family == "academic":
+            return {
+                "layout_rules": [
+                    "Keep generous white or paper-like breathing room and stable reading rhythm.",
+                    "Prefer section, bullets, two-column, and comparison layouts over showy hero frames.",
+                    "Use image_focus only for genuinely visual pages.",
+                    "Reserve a quiet footer for provenance or page identity.",
+                ],
+                "component_rules": [
+                    "Use restrained panels, subtle dividers, and report-like hierarchy.",
+                    "Keep decoration secondary to text structure and evidence density.",
+                    "Avoid billboard marketing blocks or exaggerated hero cards.",
+                ],
+                "preferred_layout_patterns": [
+                    "section_break",
+                    "split_report_grid",
+                    "comparison_columns",
+                    "timeline_overview",
+                ],
+                "component_signature": "Refined report-style panels, paper-like spacing, and calm academic hierarchy.",
+                "must_keep": "Keep the visual language rigorous, airy, and report-like rather than glossy.",
+                "avoid": "Do not use neon glow, oversized promo badges, or playful sticker motifs.",
+            }
+        if family == "business":
+            return {
+                "layout_rules": [
+                    "Favor crisp comparison, KPI-card, and executive-summary patterns.",
+                    "Use strong alignment and clear block grouping with moderate density.",
+                    "Keep image_focus to showcase slides only.",
+                    "Prefer horizontal momentum and strong title anchoring.",
+                ],
+                "component_rules": [
+                    "Use sharp, decisive cards with stronger contrast and cleaner edges.",
+                    "Accent color should be used sparingly for strategic emphasis.",
+                    "Make hierarchy feel presentation-room ready rather than article-like.",
+                ],
+                "preferred_layout_patterns": [
+                    "executive_hero",
+                    "split_insight_grid",
+                    "kpi_cards",
+                    "decision_comparison",
+                ],
+                "component_signature": "Crisp executive cards, strong title anchors, and controlled business contrast.",
+                "must_keep": "Keep the deck polished, decisive, and boardroom-oriented.",
+                "avoid": "Do not use whimsical illustration accents or soft scrapbook styling.",
+            }
+        if family == "creative":
+            return {
+                "layout_rules": [
+                    "Allow more asymmetry, softer framing, and stronger hero moments.",
+                    "Alternate between image_focus, section, cards, and timeline layouts to keep the deck lively.",
+                    "Use comparison and two-column layouts only when the content clearly calls for them.",
+                    "Let accent shapes support the narrative without overpowering text.",
+                ],
+                "component_rules": [
+                    "Use soft panels, expressive color accents, and warmer visual transitions.",
+                    "Preserve readability, but allow more character in backgrounds and separators.",
+                    "Favor friendly, presentation-forward composition over report density.",
+                ],
+                "preferred_layout_patterns": [
+                    "hero_spotlight",
+                    "soft_cards",
+                    "story_timeline",
+                    "image_caption_feature",
+                ],
+                "component_signature": "Warm expressive panels, softer geometry, and more atmospheric deck motion.",
+                "must_keep": "Keep the deck warm, expressive, and visibly more playful than academic or business presets.",
+                "avoid": "Do not collapse the deck back into a uniform report grid on every page.",
+            }
+        return {
+            "layout_rules": [
+                "Keep 72px+ safe margins around major content.",
+                "Prefer one dominant text area plus one supporting card or metrics block.",
+                "Avoid more than two visual columns in a single slide.",
+                "Reserve a quiet footer area for page identity or takeaway.",
+            ],
+            "component_rules": [
+                "Use refined rounded cards with controlled glow and layered depth.",
+                "Use one accent color only for emphasis, not for large fills.",
+                "Keep text hierarchy clear with title, summary, and supporting bullets.",
+            ],
+            "preferred_layout_patterns": [
+                "hero_with_side_card",
+                "split_insight_grid",
+                "stacked_cards",
+                "timeline_overview",
+            ],
+            "component_signature": "Modern layered cards, restrained glow, and polished presentation spacing.",
+            "must_keep": "Keep the deck sleek, layered, and contemporary without drifting into plain report style.",
+            "avoid": "Do not flatten everything into plain white report blocks unless the prompt explicitly asks for that.",
+        }
+
+    def _resolve_palette_from_style(self, style: str) -> Dict[str, str]:
+        style_text = (style or "").strip().lower()
+
+        palette_presets = [
+            (
+                ("terracotta", "ivory", "象牙", "暖白", "赤陶", "赭"),
+                {
+                    "bg": "#f4efe6",
+                    "panel": "rgba(255, 249, 241, 0.88)",
+                    "primary": "#8c3b2a",
+                    "secondary": "#d0a77d",
+                    "accent": "#b85c38",
+                    "text": "#2d2018",
+                    "muted": "#6c5b4c",
+                },
+            ),
+            (
+                ("midnight", "navy", "午夜蓝", "海军蓝", "深海军", "electric blue"),
+                {
+                    "bg": "#0f172a",
+                    "panel": "rgba(15, 23, 42, 0.92)",
+                    "primary": "#93c5fd",
+                    "secondary": "#60a5fa",
+                    "accent": "#3b82f6",
+                    "text": "#e5eefc",
+                    "muted": "#b7c3d7",
+                },
+            ),
+            (
+                ("burgundy", "parchment", "酒红", "米白", "纸感", "墨黑"),
+                {
+                    "bg": "#f8f2e7",
+                    "panel": "rgba(255, 248, 240, 0.9)",
+                    "primary": "#7f1d1d",
+                    "secondary": "#b45353",
+                    "accent": "#991b1b",
+                    "text": "#231815",
+                    "muted": "#705c55",
+                },
+            ),
+            (
+                ("forest", "olive", "森林绿", "橄榄", "沙金", "sand gold"),
+                {
+                    "bg": "#f4f1e8",
+                    "panel": "rgba(248, 245, 237, 0.9)",
+                    "primary": "#355e3b",
+                    "secondary": "#7c8f4e",
+                    "accent": "#c89b5d",
+                    "text": "#1f2a22",
+                    "muted": "#5c685d",
+                },
+            ),
+            (
+                ("orange", "亮橙", "黑白灰", "monochrome"),
+                {
+                    "bg": "#f6f6f5",
+                    "panel": "rgba(255, 255, 255, 0.9)",
+                    "primary": "#2f2f34",
+                    "secondary": "#71717a",
+                    "accent": "#f97316",
+                    "text": "#111111",
+                    "muted": "#60646c",
+                },
+            ),
+            (
+                ("plum", "mist pink", "深紫红", "雾粉", "银灰"),
+                {
+                    "bg": "#f5eef2",
+                    "panel": "rgba(255, 248, 251, 0.9)",
+                    "primary": "#5c2346",
+                    "secondary": "#9d6381",
+                    "accent": "#c08497",
+                    "text": "#241823",
+                    "muted": "#6b5967",
+                },
+            ),
+        ]
+
+        for keywords, palette in palette_presets:
+            if any(keyword in style_text for keyword in keywords):
+                return palette
+
+        return {
+            "bg": "#0b1020",
+            "panel": "rgba(15, 23, 42, 0.92)",
+            "primary": "#7dd3fc",
+            "secondary": "#38bdf8",
+            "accent": "#f59e0b",
+            "text": "#e2e8f0",
+            "muted": "#94a3b8",
+        }
+
+    def _normalize_theme_payload(
+        self,
+        payload: Dict[str, Any],
+        *,
+        language: str,
+        style: str,
+    ) -> Dict[str, Any]:
+        fallback = self._build_fallback_theme(language=language, style=style)
+        palette_raw = payload.get("palette") or payload.get("color_palette") or {}
+        typography_raw = payload.get("typography") or {}
+        theme_lock_raw = payload.get("theme_lock") or {}
+
+        def _clean_text(value: Any, default: str) -> str:
+            text = str(value or "").strip()
+            return text or default
+
+        def _clean_color(value: Any, default: str) -> str:
+            text = str(value or "").strip()
+            return text or default
+
+        def _clean_int(value: Any, default: int, min_value: int, max_value: int) -> int:
+            try:
+                parsed = int(float(value))
+            except Exception:  # noqa: BLE001
+                return default
+            return max(min_value, min(max_value, parsed))
+
+        def _clean_style_family(value: Any, default: str) -> str:
+            candidate = str(value or "").strip().lower()
+            if candidate in {"modern", "business", "academic", "creative"}:
+                return candidate
+            return default
+
+        def _clean_list(value: Any, defaults: List[str], limit: int = 6) -> List[str]:
+            if isinstance(value, list):
+                cleaned = self._normalize_outline_points(value, limit=limit, item_limit=140)
+                if cleaned:
+                    return cleaned[:limit]
+            return defaults[:limit]
+
+        layout_rules = self._normalize_outline_points(payload.get("layout_rules"), limit=6, item_limit=180)
+        component_rules = self._normalize_outline_points(payload.get("component_rules"), limit=6, item_limit=180)
+
+        return {
+            "style_prompt": str(style or "").strip(),
+            "theme_name": _clean_text(payload.get("theme_name"), fallback["theme_name"]),
+            "visual_mood": _clean_text(payload.get("visual_mood"), fallback["visual_mood"]),
+            "style_family": _clean_style_family(payload.get("style_family"), fallback["style_family"]),
+            "palette": {
+                "bg": _clean_color(palette_raw.get("bg"), fallback["palette"]["bg"]),
+                "panel": _clean_color(palette_raw.get("panel"), fallback["palette"]["panel"]),
+                "primary": _clean_color(palette_raw.get("primary"), fallback["palette"]["primary"]),
+                "secondary": _clean_color(palette_raw.get("secondary"), fallback["palette"]["secondary"]),
+                "accent": _clean_color(palette_raw.get("accent"), fallback["palette"]["accent"]),
+                "text": _clean_color(palette_raw.get("text"), fallback["palette"]["text"]),
+                "muted": _clean_color(palette_raw.get("muted"), fallback["palette"]["muted"]),
+            },
+            "typography": {
+                "title_font_stack": _clean_text(
+                    typography_raw.get("title_font_stack"),
+                    fallback["typography"]["title_font_stack"],
+                ),
+                "body_font_stack": _clean_text(
+                    typography_raw.get("body_font_stack"),
+                    fallback["typography"]["body_font_stack"],
+                ),
+                "eyebrow_size": _clean_int(
+                    typography_raw.get("eyebrow_size"),
+                    fallback["typography"]["eyebrow_size"],
+                    12,
+                    24,
+                ),
+                "title_size": _clean_int(
+                    typography_raw.get("title_size"),
+                    fallback["typography"]["title_size"],
+                    42,
+                    60,
+                ),
+                "summary_size": _clean_int(
+                    typography_raw.get("summary_size"),
+                    fallback["typography"]["summary_size"],
+                    20,
+                    30,
+                ),
+                "body_size": _clean_int(
+                    typography_raw.get("body_size"),
+                    fallback["typography"]["body_size"],
+                    18,
+                    28,
+                ),
+            },
+            "layout_rules": layout_rules or fallback["layout_rules"],
+            "component_rules": component_rules or fallback["component_rules"],
+            "theme_lock": {
+                "must_keep": _clean_list(
+                    theme_lock_raw.get("must_keep"),
+                    fallback["theme_lock"]["must_keep"],
+                ),
+                "preferred_layout_patterns": _clean_list(
+                    theme_lock_raw.get("preferred_layout_patterns"),
+                    fallback["theme_lock"]["preferred_layout_patterns"],
+                ),
+                "component_signature": _clean_text(
+                    theme_lock_raw.get("component_signature"),
+                    fallback["theme_lock"]["component_signature"],
+                ),
+                "avoid": _clean_list(
+                    theme_lock_raw.get("avoid"),
+                    fallback["theme_lock"]["avoid"],
+                ),
+            },
+            "footer_text": _clean_text(payload.get("footer_text"), fallback["footer_text"]),
+            "section_label_template": _clean_text(
+                payload.get("section_label_template"),
+                fallback["section_label_template"],
+            ),
+        }
+
+    def _build_theme_lock(self, theme: Dict[str, Any]) -> Dict[str, Any]:
+        fallback = self._build_fallback_theme(language="zh", style="")
+        theme_lock = theme.get("theme_lock")
+        if isinstance(theme_lock, dict):
+            return {
+                "must_keep": self._normalize_outline_points(
+                    theme_lock.get("must_keep"),
+                    limit=8,
+                    item_limit=180,
+                ) or fallback["theme_lock"]["must_keep"],
+                "preferred_layout_patterns": self._normalize_outline_points(
+                    theme_lock.get("preferred_layout_patterns"),
+                    limit=8,
+                    item_limit=180,
+                ) or fallback["theme_lock"]["preferred_layout_patterns"],
+                "component_signature": str(
+                    theme_lock.get("component_signature")
+                    or fallback["theme_lock"]["component_signature"]
+                ).strip(),
+                "avoid": self._normalize_outline_points(
+                    theme_lock.get("avoid"),
+                    limit=8,
+                    item_limit=180,
+                ) or fallback["theme_lock"]["avoid"],
+            }
+        return fallback["theme_lock"]
+
+    def _build_deck_identity_summary(self, theme: Dict[str, Any]) -> Dict[str, Any]:
+        palette = theme.get("palette") or {}
+        typography = theme.get("typography") or {}
+        theme_lock = self._build_theme_lock(theme)
+        return {
+            "theme_name": str(theme.get("theme_name") or "deck_theme").strip(),
+            "visual_mood": str(theme.get("visual_mood") or "").strip(),
+            "style_family": str(theme.get("style_family") or "modern").strip(),
+            "palette_anchor": {
+                "bg": str(palette.get("bg") or "").strip(),
+                "primary": str(palette.get("primary") or "").strip(),
+                "accent": str(palette.get("accent") or "").strip(),
+                "text": str(palette.get("text") or "").strip(),
+            },
+            "typography_anchor": {
+                "title_font_stack": str(typography.get("title_font_stack") or "").strip(),
+                "body_font_stack": str(typography.get("body_font_stack") or "").strip(),
+                "title_size": typography.get("title_size"),
+                "body_size": typography.get("body_size"),
+            },
+            "must_keep": theme_lock.get("must_keep") or [],
+            "preferred_layout_patterns": theme_lock.get("preferred_layout_patterns") or [],
+            "component_signature": theme_lock.get("component_signature") or "",
+            "avoid": theme_lock.get("avoid") or [],
+        }
+
+    def _externalize_asset(
+        self,
+        asset: Dict[str, Any],
+        request: Request | None,
+        *,
+        base_dir: Path,
+    ) -> Dict[str, Any]:
+        normalized = self._finalize_visual_asset(base_dir=base_dir, asset=asset)
+        storage_path = str(
+            normalized.get("storage_path")
+            or normalized.get("storagePath")
+            or normalized.get("original_src")
+            or normalized.get("originalSrc")
+            or normalized.get("src")
+            or ""
+        ).strip()
+        preview_storage_path = str(
+            normalized.get("preview_storage_path")
+            or normalized.get("previewStoragePath")
+            or normalized.get("preview_src")
+            or normalized.get("previewSrc")
+            or ""
+        ).strip()
+        if storage_path:
+            try:
+                resolved_storage = str(resolve_outputs_path(storage_path, must_exist=False, allow_files=True))
+            except HTTPException:
+                resolved_storage = ""
+            try:
+                resolved_preview = (
+                    str(resolve_outputs_path(preview_storage_path, must_exist=False, allow_files=True))
+                    if preview_storage_path
+                    else ""
+                )
+            except HTTPException:
+                resolved_preview = ""
+            if not resolved_preview and resolved_storage:
+                resolved_preview = self._ensure_preview_asset(base_dir=base_dir, original_path=resolved_storage)
+            normalized["storage_path"] = resolved_storage
+            normalized["preview_storage_path"] = resolved_preview
+            normalized["original_src"] = _to_outputs_url(resolved_storage, request) if (request is not None and resolved_storage) else resolved_storage
+            normalized["preview_src"] = _to_outputs_url(resolved_preview, request) if (request is not None and resolved_preview) else (resolved_preview or normalized["original_src"])
+            normalized["src"] = normalized["preview_src"] or normalized["original_src"]
+        else:
+            normalized["src"] = str(normalized.get("src") or "").strip()
+            normalized["storage_path"] = ""
+            normalized["preview_storage_path"] = ""
+            normalized["preview_src"] = normalized["src"]
+            normalized["original_src"] = normalized["src"]
+        return normalized
+
+    def _externalize_slide_assets(
+        self,
+        slide: Dict[str, Any],
+        request: Request | None,
+        *,
+        base_dir: Path,
+    ) -> Dict[str, Any]:
+        normalized = dict(slide)
+        raw_assets = normalized.get("visual_assets") or []
+        if isinstance(raw_assets, list):
+            normalized["visual_assets"] = [
+                self._externalize_asset(asset, request, base_dir=base_dir)
+                for asset in raw_assets
+                if isinstance(asset, dict)
+            ]
+        return normalized
+
+    def _finalize_visual_asset(
+        self,
+        *,
+        base_dir: Path,
+        asset: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        normalized = dict(asset)
+        raw_storage_path = str(
+            normalized.get("storage_path")
+            or normalized.get("storagePath")
+            or normalized.get("original_src")
+            or normalized.get("originalSrc")
+            or normalized.get("src")
+            or ""
+        ).strip()
+        resolved_storage = self._resolve_asset_path(base_dir=base_dir, asset_ref=raw_storage_path) if raw_storage_path else ""
+
+        raw_preview_path = str(
+            normalized.get("preview_storage_path")
+            or normalized.get("previewStoragePath")
+            or normalized.get("preview_src")
+            or normalized.get("previewSrc")
+            or ""
+        ).strip()
+        resolved_preview = self._resolve_asset_path(base_dir=base_dir, asset_ref=raw_preview_path) if raw_preview_path else ""
+
+        if resolved_storage:
+            if not resolved_preview or not Path(resolved_preview).exists():
+                resolved_preview = self._ensure_preview_asset(base_dir=base_dir, original_path=resolved_storage)
+            normalized["storage_path"] = resolved_storage
+            normalized["preview_storage_path"] = resolved_preview or ""
+            normalized["original_src"] = resolved_storage
+            normalized["preview_src"] = resolved_preview or resolved_storage
+            normalized["src"] = resolved_preview or resolved_storage
+        else:
+            normalized["storage_path"] = ""
+            normalized["preview_storage_path"] = ""
+            normalized["original_src"] = str(normalized.get("original_src") or normalized.get("originalSrc") or normalized.get("src") or "").strip()
+            normalized["preview_src"] = str(normalized.get("preview_src") or normalized.get("previewSrc") or normalized.get("src") or "").strip()
+            normalized["src"] = normalized["preview_src"] or normalized["original_src"]
+        return normalized
+
+    def _ensure_preview_asset(
+        self,
+        *,
+        base_dir: Path,
+        original_path: str,
+    ) -> str:
+        source_path = Path(str(original_path or "").strip())
+        if not source_path.exists() or not source_path.is_file():
+            return ""
+        if source_path.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp", ".gif"}:
+            return str(source_path)
+
+        try:
+            source_stat = source_path.stat()
+        except OSError:
+            return str(source_path)
+
+        try:
+            with Image.open(source_path) as original_img:
+                original_img = ImageOps.exif_transpose(original_img)
+                if max(original_img.size) <= _PREVIEW_MAX_SIDE and source_stat.st_size <= _PREVIEW_SMALL_FILE_BYTES:
+                    return str(source_path)
+
+                preview_root = base_dir / "frontend_assets" / "previews"
+                preview_root.mkdir(parents=True, exist_ok=True)
+                digest = hashlib.sha1(
+                    f"{source_path}|{source_stat.st_size}|{source_stat.st_mtime_ns}".encode("utf-8")
+                ).hexdigest()[:16]
+                has_alpha = self._image_has_alpha(original_img)
+                preview_ext = ".png" if has_alpha else ".jpg"
+                preview_path = (preview_root / f"{source_path.stem}_{digest}{preview_ext}").resolve()
+                if preview_path.exists():
+                    return str(preview_path)
+
+                preview_img = original_img.copy()
+                preview_img.thumbnail((_PREVIEW_MAX_SIDE, _PREVIEW_MAX_SIDE), _PIL_LANCZOS)
+                if has_alpha:
+                    preview_img = preview_img.convert("RGBA")
+                    preview_img.save(preview_path, format="PNG", optimize=True)
+                else:
+                    preview_img = preview_img.convert("RGB")
+                    preview_img.save(
+                        preview_path,
+                        format="JPEG",
+                        quality=_PREVIEW_JPEG_QUALITY,
+                        optimize=True,
+                        progressive=True,
+                    )
+                return str(preview_path)
+        except (UnidentifiedImageError, OSError, ValueError) as exc:
+            log.warning(
+                "[Paper2PPTFrontendService] Failed to build preview for %s: %s",
+                source_path,
+                exc,
+            )
+            return str(source_path)
+
+    def _image_has_alpha(self, image: Image.Image) -> bool:
+        bands = image.getbands()
+        if "A" in bands:
+            return True
+        if image.mode == "P":
+            return "transparency" in image.info
+        return False
+
+    def _load_reference_slides(
+        self,
+        *,
+        slides_dir: Path,
+        exclude_page_num: int,
+    ) -> List[Dict[str, Any]]:
+        references: List[Dict[str, Any]] = []
+        for path in sorted(slides_dir.glob("page_*.json")):
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except Exception:  # noqa: BLE001
+                continue
+            if not isinstance(payload, dict):
+                continue
+            page_num = int(payload.get("page_num") or 0)
+            if page_num <= 0 or page_num == exclude_page_num:
+                continue
+            references.append(payload)
+
+        if len(references) > _REFERENCE_SLIDE_LIMIT:
+            step = max(1, len(references) // _REFERENCE_SLIDE_LIMIT)
+            references = references[::step][:_REFERENCE_SLIDE_LIMIT]
+
+        return [self._summarize_reference_slide(slide) for slide in references]
+
+    def _summarize_reference_slide(self, slide: Dict[str, Any]) -> Dict[str, Any]:
+        blocks = slide.get("blocks") or slide.get("elements") or []
+        if isinstance(blocks, list) and blocks:
+            block_outline: List[Dict[str, Any]] = []
+            for raw_block in blocks[:8]:
+                if not isinstance(raw_block, dict):
+                    continue
+                layout = raw_block.get("layout") or {}
+                block_outline.append(
+                    {
+                        "id": str(raw_block.get("id") or "").strip(),
+                        "type": str(raw_block.get("type") or "").strip(),
+                        "role": str(raw_block.get("role") or "").strip(),
+                        "zone": str(layout.get("zone") or "").strip(),
+                        "span": layout.get("span"),
+                        "asset_key": str(raw_block.get("asset_key") or raw_block.get("assetKey") or "").strip(),
+                    }
+                )
+
+            return {
+                "page_num": int(slide.get("page_num") or 0),
+                "title": str(slide.get("title") or "").strip(),
+                "template_key": str(slide.get("template_key") or slide.get("templateKey") or "").strip(),
+                "layout_mode": str(slide.get("layout_mode") or slide.get("layoutMode") or "").strip(),
+                "field_keys": [
+                    str(field.get("key") or "").strip()
+                    for field in (slide.get("editable_fields") or [])
+                    if isinstance(field, dict) and str(field.get("key") or "").strip()
+                ][:10],
+                "block_outline": block_outline,
+            }
+
+        html_template = str(slide.get("html_template") or "")
+        css_code = str(slide.get("css_code") or "")
+        editable_fields = slide.get("editable_fields") or []
+        return {
+            "page_num": int(slide.get("page_num") or 0),
+            "title": str(slide.get("title") or "").strip(),
+            "layout_type": str(slide.get("layout_type") or slide.get("layoutType") or "").strip(),
+            "field_keys": [
+                str(field.get("key") or "").strip()
+                for field in editable_fields
+                if isinstance(field, dict) and str(field.get("key") or "").strip()
+            ][:10],
+            "visual_asset_keys": [
+                str(asset.get("key") or "").strip()
+                for asset in (slide.get("visual_assets") or [])
+                if isinstance(asset, dict) and str(asset.get("key") or "").strip()
+            ][:4],
+        }
+
+    def _extract_html_outline(self, html_template: str, limit: int = 12) -> List[str]:
+        cleaned = re.sub(r"\{\{(?:field|list):[^}]+\}\}", "field", html_template)
+        cleaned = re.sub(r"\s+", " ", cleaned)
+        outline = re.findall(r"<([a-z0-9]+)(?:[^>]*class=['\"]([^'\"]+)['\"])?", cleaned, flags=re.IGNORECASE)
+        rows: List[str] = []
+        for tag, class_name in outline:
+            tag_name = tag.lower()
+            class_token = ""
+            if class_name:
+                class_token = "." + ".".join(
+                    item
+                    for item in class_name.strip().split()
+                    if item and not item.startswith("ppt-inline-editable")
+                )
+            value = f"{tag_name}{class_token}"
+            if value not in rows:
+                rows.append(value)
+            if len(rows) >= limit:
+                break
+        return rows
+
+    def _extract_component_classes(self, html_template: str, css_code: str, limit: int = 10) -> List[str]:
+        tokens = re.findall(r"class=['\"]([^'\"]+)['\"]", html_template, flags=re.IGNORECASE)
+        selector_tokens = re.findall(r"\.([a-zA-Z0-9_-]+)", css_code)
+        ranked: List[str] = []
+        for raw_group in tokens:
+            for token in raw_group.split():
+                token = token.strip()
+                if not token or token == "slide-root" or token.startswith("ppt-inline-editable"):
+                    continue
+                if token not in ranked:
+                    ranked.append(token)
+        for token in selector_tokens:
+            token = token.strip()
+            if not token or token == "slide-root" or token.startswith("ppt-inline-editable"):
+                continue
+            if token not in ranked:
+                ranked.append(token)
+        return ranked[:limit]
+
+    def _extract_css_selectors(self, css_code: str, limit: int = 8) -> List[str]:
+        selectors = re.findall(r"([^{]+)\{", css_code)
+        cleaned: List[str] = []
+        for selector in selectors:
+            normalized = " ".join(selector.split())
+            normalized = re.sub(r"\s*,\s*", ", ", normalized)
+            if not normalized:
+                continue
+            if normalized not in cleaned:
+                cleaned.append(normalized)
+            if len(cleaned) >= limit:
+                break
+        return cleaned
+
+    def _clean_text_content(self, value: Any, default: str = "", limit: int = 240) -> str:
+        if isinstance(value, (list, tuple)):
+            text = " ".join(str(item).strip() for item in value if str(item).strip())
+        elif isinstance(value, dict):
+            text = str(
+                value.get("text")
+                or value.get("content")
+                or value.get("title")
+                or value.get("value")
+                or ""
+            )
+        else:
+            text = str(value or "")
+
+        text = html.unescape(text)
+        text = re.sub(r"\s+", " ", text).strip()
+        if not text:
+            text = str(default or "").strip()
+        if limit > 0 and len(text) > limit:
+            text = text[: max(0, limit - 3)].rstrip() + "..."
+        return text
+
+    def _normalize_outline_points(
+        self,
+        value: Any,
+        *,
+        limit: int = 6,
+        item_limit: int = 160,
+    ) -> List[str]:
+        if value is None:
+            raw_items: Sequence[Any] = []
+        elif isinstance(value, (list, tuple)):
+            raw_items = value
+        elif isinstance(value, dict):
+            raw_items = list(value.values())
+        else:
+            text = str(value)
+            raw_items = re.split(r"(?:\r?\n)+|[;；]\s*|(?:^|\s)[\-•]\s+", text)
+
+        normalized: List[str] = []
+        seen = set()
+        for item in raw_items:
+            if isinstance(item, dict):
+                item = (
+                    item.get("text")
+                    or item.get("content")
+                    or item.get("title")
+                    or item.get("value")
+                    or item.get("label")
+                    or ""
+                )
+            elif isinstance(item, (list, tuple)):
+                item = " ".join(str(part).strip() for part in item if str(part).strip())
+
+            cleaned = self._clean_text_content(item, "", item_limit)
+            cleaned = re.sub(r"^\s*(?:[0-9]+[.)、]|[A-Za-z][.)])\s*", "", cleaned).strip()
+            if not cleaned:
+                continue
+            dedupe_key = cleaned.lower()
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            normalized.append(cleaned)
+            if len(normalized) >= limit:
+                break
+        return normalized
+
+    def _choose_fallback_layout_type(
+        self,
+        *,
+        outline_item: Dict[str, Any],
+        slide_index: int,
+        theme: Dict[str, Any],
+        visual_assets: Sequence[Dict[str, Any]],
+    ) -> str:
+        style_family = str(theme.get("style_family") or "modern").strip().lower()
+        layout_hint = str(outline_item.get("layout_description") or "").lower()
+        title = str(outline_item.get("title") or "").lower()
+        key_points = self._normalize_outline_points(outline_item.get("key_points"), limit=6, item_limit=120)
+        bullet_count = len(key_points)
+
+        if slide_index == 0:
+            return "cover"
+        if any(keyword in title for keyword in ("overview", "agenda", "outline", "introduction", "background", "summary")):
+            return "section"
+        if any(keyword in layout_hint for keyword in ("compare", "contrast", "trade-off", "versus", "vs", "对比", "比较")):
+            return "comparison"
+        if any(keyword in layout_hint for keyword in ("timeline", "process", "workflow", "loop", "pipeline", "流程", "时间线")):
+            return "timeline"
+        if any(keyword in layout_hint for keyword in ("card", "grid", "domain", "application", "industry", "module", "模块", "领域")):
+            return "cards_2x2"
+        if bullet_count >= 5 and style_family in {"business", "modern"}:
+            return "two_column"
+        if visual_assets and style_family in {"creative", "modern"} and slide_index % 3 == 1:
+            return "image_focus"
+        if bullet_count >= 4 and style_family == "academic":
+            return "bullets"
+        if style_family == "business":
+            return "two_column"
+        if style_family == "creative":
+            return "cards_2x2"
+        return "bullets"
+
+    def _build_fallback_slide(
+        self,
+        *,
+        outline_item: Dict[str, Any],
+        slide_index: int,
+        slide_count: int,
+        theme: Dict[str, Any],
+        visual_assets: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
+        fallback_theme = self._build_fallback_theme(language="zh", style="")
+        palette = (
+            theme.get("palette")
+            if isinstance(theme.get("palette"), dict)
+            else fallback_theme["palette"]
+        )
+        typography = (
+            theme.get("typography")
+            if isinstance(theme.get("typography"), dict)
+            else fallback_theme["typography"]
+        )
+        visual_assets = (visual_assets or [])[:_MAX_INLINE_VISUAL_ASSETS]
+        has_visual = bool(visual_assets)
+        has_multi_visual = len(visual_assets) > 1
+        key_points = [
+            str(item).strip()
+            for item in (outline_item.get("key_points") or [])
+            if str(item).strip()
+        ][:4]
+        summary = key_points[0] if key_points else ""
+        takeaway = key_points[-1] if key_points else "Refine the narrative in the editor"
+        section_template = str(theme.get("section_label_template") or "Slide {page_num:02d}/{slide_count:02d}")
+        try:
+            eyebrow = section_template.format(page_num=slide_index + 1, slide_count=slide_count)
+        except Exception:  # noqa: BLE001
+            eyebrow = f"Slide {slide_index + 1:02d}/{slide_count:02d}"
+
+        visual_markup = ""
+        if has_visual:
+            visual_markup = "\n".join(
+                f'        <div class="visual-shell visual-shell-{asset_index + 1}">{{{{image:{asset.get("key") or self._build_visual_asset_key(asset_index)}}}}}</div>'
+                for asset_index, asset in enumerate(visual_assets)
+            )
+
+        fallback_theme = self._build_fallback_theme(language="zh", style="")
+        raw_palette = theme.get("palette") if isinstance(theme.get("palette"), dict) else {}
+        raw_typography = theme.get("typography") if isinstance(theme.get("typography"), dict) else {}
+        palette = {
+            **fallback_theme["palette"],
+            **{key: str(value).strip() for key, value in raw_palette.items() if str(value).strip()},
+        }
+        typography = {
+            **fallback_theme["typography"],
+            **{key: value for key, value in raw_typography.items() if value not in (None, "")},
+        }
+
+        html_template = """
+<div class="slide-root">
+  <div class="slide-shell">
+    <div class="grid-layer"></div>
+    <div class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow">{{field:eyebrow}}</div>
+        <h1 class="title">{{field:title}}</h1>
+        <p class="summary">{{field:summary}}</p>
+        """ + (
+            """
+        <ul class="bullet-list compact">{{list:key_points}}</ul>
+"""
+            if has_visual
+            else ""
+        ) + """
+      </div>
+      """ + (
+            """
+      <div class="visual-card """ + ("visual-card-grid" if has_multi_visual else "") + """">
+""" + visual_markup + """
+      </div>
+"""
+            if has_visual
+            else """
+      <div class="stat-card">
+        <div class="card-label">{{field:points_label}}</div>
+        <ul class="bullet-list">{{list:key_points}}</ul>
+      </div>
+"""
+        ) + """
+    </div>
+    <div class="footer-row">
+      <div class="takeaway-card">
+        <div class="takeaway-label">{{field:takeaway_label}}</div>
+        <p class="takeaway-text">{{field:takeaway}}</p>
+      </div>
+      <div class="footer-tag">{{field:footer}}</div>
+    </div>
+  </div>
+</div>
+""".strip()
+
+        css_code = f"""
+.slide-root {{
+  width: 100%;
+  height: 100%;
+  background:
+    radial-gradient(circle at top right, {palette["secondary"]}33 0%, transparent 28%),
+    radial-gradient(circle at bottom left, {palette["accent"]}22 0%, transparent 32%),
+    {palette["bg"]};
+  color: {palette["text"]};
+  overflow: hidden;
+}}
+.slide-root * {{
+  box-sizing: border-box;
+}}
+.slide-shell {{
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 68px 72px;
+}}
+.grid-layer {{
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
+  background-size: 48px 48px;
+  opacity: 0.22;
+}}
+.hero {{
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: {'1.08fr 0.92fr' if has_visual else '1.5fr 0.95fr'};
+  gap: 28px;
+  height: calc(100% - 120px);
+}}
+.hero-copy {{
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 20px;
+}}
+.eyebrow {{
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: {palette["secondary"]}22;
+  border: 1px solid {palette["primary"]}55;
+  color: {palette["primary"]};
+  font-size: {int(typography.get("eyebrow_size") or 18)}px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}}
+.title {{
+  margin: 0;
+  max-width: 880px;
+  font-size: {int(typography.get("title_size") or 56)}px;
+  line-height: 1.04;
+  letter-spacing: 0;
+  font-family: {typography.get("title_font_stack") or 'Georgia, "Times New Roman", serif'};
+}}
+.summary {{
+  margin: 0;
+  max-width: 840px;
+  font-size: {int(typography.get("summary_size") or 26)}px;
+  line-height: 1.42;
+  color: {palette["muted"]};
+  white-space: pre-wrap;
+  font-family: {typography.get("body_font_stack") or '"Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif'};
+}}
+.stat-card, .takeaway-card, .visual-card {{
+  border-radius: 28px;
+  border: 1px solid {palette["primary"]}30;
+  background: {palette["panel"]};
+  box-shadow: 0 30px 60px rgba(15, 23, 42, 0.35);
+  backdrop-filter: blur(10px);
+}}
+.stat-card {{
+  align-self: center;
+  padding: 28px;
+}}
+.visual-card {{
+  padding: 18px;
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}}
+.visual-card.visual-card-grid {{
+  justify-content: stretch;
+}}
+.visual-shell {{
+  width: 100%;
+  height: 100%;
+  min-height: 384px;
+  border-radius: 22px;
+  overflow: hidden;
+}}
+.visual-card.visual-card-grid .visual-shell {{
+  flex: 1 1 0;
+  min-height: 160px;
+}}
+.visual-card.visual-card-grid .visual-shell-1 {{
+  min-height: 236px;
+}}
+.card-label, .takeaway-label {{
+  font-size: {int(typography.get("eyebrow_size") or 18)}px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: {palette["primary"]};
+  margin-bottom: 14px;
+  font-weight: 700;
+}}
+.bullet-list {{
+  margin: 0;
+  padding-left: 26px;
+  display: grid;
+  gap: 14px;
+  font-size: {int(typography.get("body_size") or 24)}px;
+  line-height: 1.35;
+  font-family: {typography.get("body_font_stack") or '"Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif'};
+}}
+.bullet-list li {{
+  color: {palette["text"]};
+}}
+.bullet-list.compact {{
+  max-width: 720px;
+  gap: 10px;
+  font-size: {max(18, int(typography.get("body_size") or 24) - 2)}px;
+}}
+.footer-row {{
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1.4fr auto;
+  align-items: end;
+  gap: 18px;
+}}
+.takeaway-card {{
+  padding: 24px 28px;
+}}
+.takeaway-text {{
+  margin: 0;
+  font-size: {int(typography.get("body_size") or 24)}px;
+  line-height: 1.4;
+  color: {palette["text"]};
+  white-space: pre-wrap;
+  font-family: {typography.get("body_font_stack") or '"Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif'};
+}}
+.footer-tag {{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 220px;
+  padding: 14px 18px;
+  border-radius: 999px;
+  border: 1px solid {palette["accent"]}55;
+  color: {palette["accent"]};
+  font-size: {int(typography.get("eyebrow_size") or 18)}px;
+  font-weight: 700;
+  background: rgba(15, 23, 42, 0.45);
+}}
+""".strip()
+
+        editable_fields = [
+            {
+                "key": "eyebrow",
+                "label": "Eyebrow",
+                "type": "text",
+                "value": eyebrow,
+                "items": [],
+            },
+            {
+                "key": "title",
+                "label": "Title",
+                "type": "text",
+                "value": str(outline_item.get("title") or f"Slide {slide_index + 1}"),
+                "items": [],
+            },
+            {
+                "key": "summary",
+                "label": "Summary",
+                "type": "textarea",
+                "value": summary,
+                "items": [],
+            },
+            {
+                "key": "key_points",
+                "label": "Key Points",
+                "type": "list",
+                "value": "",
+                "items": key_points or ["Summarize the page content here"],
+            },
+            {
+                "key": "takeaway_label",
+                "label": "Takeaway Label",
+                "type": "text",
+                "value": "Takeaway",
+                "items": [],
+            },
+            {
+                "key": "takeaway",
+                "label": "Takeaway",
+                "type": "textarea",
+                "value": takeaway,
+                "items": [],
+            },
+            {
+                "key": "footer",
+                "label": "Footer",
+                "type": "text",
+                "value": str(theme.get("footer_text") or "Paper2Any Frontend PPT"),
+                "items": [],
+            },
+        ]
+        if not has_visual:
+            editable_fields.insert(
+                3,
+                {
+                    "key": "points_label",
+                    "label": "Points Label",
+                    "type": "text",
+                    "value": "Key Points",
+                    "items": [],
+                },
+            )
+
+        blocks = self._build_fallback_blocks(
+            outline_item=outline_item,
+            slide_index=slide_index,
+            slide_count=slide_count,
+            theme=theme,
+            visual_assets=visual_assets,
+        )
+        template_key = self._normalize_template_key(
+            "split_media" if has_visual else "text_focus",
+            blocks=blocks,
+            visual_assets=visual_assets,
+        )
+        slide = {
+            "slide_id": str(slide_index + 1),
+            "page_num": slide_index + 1,
+            "title": str(outline_item.get("title") or f"Slide {slide_index + 1}"),
+            "schema_version": _SLIDE_SCHEMA_VERSION,
+            "layout_mode": "fluid",
+            "template_key": template_key,
+            "blocks": blocks,
+            "html_template": html_template,
+            "css_code": css_code,
+            "editable_fields": editable_fields,
+            "visual_assets": visual_assets,
+            "visual_spec": self._build_canvas_visual_spec(theme=theme, has_visual_assets=has_visual),
+            "generation_note": "Built-in fallback template",
+            "status": "done",
+        }
+        slide = self._apply_cover_slide_contract(
+            slide=slide,
+            outline_item=outline_item,
+            slide_index=slide_index,
+            slide_count=slide_count,
+            theme=theme,
+        )
+        return self._normalize_canvas_schema(slide=slide, visual_assets=visual_assets, outline_item=outline_item)
+
+    def _sanitize_html_template(self, html_template: str) -> str:
+        cleaned = re.sub(r"<\s*/?\s*(html|head|body)\b[^>]*>", "", html_template, flags=re.IGNORECASE)
+        cleaned = re.sub(r"<script[\s\S]*?</script>", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\son[a-z]+\s*=\s*(['\"]).*?\1", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
+        cleaned = re.sub(r"\sstyle\s*=\s*(['\"]).*?\1", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
+        cleaned = cleaned.strip()
+        if 'class="slide-root"' not in cleaned and "class='slide-root'" not in cleaned:
+            cleaned = f'<div class="slide-root">{cleaned}</div>'
+        return cleaned
+
+    def _sanitize_attribute_placeholders(
+        self,
+        html_template: str,
+        editable_fields: Sequence[Dict[str, Any]],
+    ) -> tuple[str, list[str]]:
+        field_map = {
+            str(field.get("key") or "").strip(): field
+            for field in editable_fields
+            if isinstance(field, dict) and str(field.get("key") or "").strip()
+        }
+        warnings: list[str] = []
+
+        def _replace_attr(match: re.Match[str]) -> str:
+            attr_name, quote, attr_value = match.groups()
+            next_value = attr_value
+
+            def _replace_field(token_match: re.Match[str]) -> str:
+                field_key = str(token_match.group(1) or "").strip()
+                field = field_map.get(field_key)
+                if field is None:
+                    return ""
+                if str(field.get("type") or "") == "list":
+                    raw_value = " • ".join(self._normalize_outline_points(field.get("items"), limit=12, item_limit=180))
+                else:
+                    raw_value = self._extract_outline_text(field.get("value"))
+                return html.escape(" ".join(raw_value.split()), quote=True)
+
+            next_value = re.sub(r"\{\{field:([a-zA-Z0-9_]+)\}\}", _replace_field, next_value)
+            next_value = re.sub(r"\{\{list:([a-zA-Z0-9_]+)\}\}", _replace_field, next_value)
+            next_value = re.sub(r"\{\{image:([a-zA-Z0-9_]+)\}\}", "", next_value)
+
+            if next_value != attr_value:
+                warnings.append(attr_name)
+                return f"{attr_name}={quote}{next_value}{quote}"
+            return match.group(0)
+
+        sanitized = _ATTRIBUTE_RE.sub(_replace_attr, html_template)
+        return sanitized, sorted(set(warnings))
+
+    def _sanitize_css(self, css_code: str, *, theme: Dict[str, Any]) -> str:
+        cleaned = re.sub(r"/\*[\s\S]*?\*/", "", css_code)
+        cleaned = re.sub(r"@import[^;]+;", "", cleaned, flags=re.IGNORECASE)
+
+        def _clamp_font_size(match: re.Match[str]) -> str:
+            prefix, value_raw, unit = match.groups()
+            try:
+                value = float(value_raw)
+            except Exception:  # noqa: BLE001
+                return match.group(0)
+            if unit == "px":
+                value = max(12.0, min(72.0, value))
+                value_text = f"{value:.2f}".rstrip("0").rstrip(".")
+            else:
+                value = max(0.75, min(4.5, value))
+                value_text = f"{value:.2f}".rstrip("0").rstrip(".")
+            return f"{prefix}{value_text}{unit}"
+
+        cleaned = re.sub(
+            r"(font-size\s*:\s*)(\d+(?:\.\d+)?)(px|rem)",
+            _clamp_font_size,
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+        guard_css = f"""
+.slide-root {{
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  color: {(theme.get("palette") or {}).get("text", "#e2e8f0")};
+}}
+.slide-root * {{
+  box-sizing: border-box;
+}}
+""".strip()
+        return f"{cleaned.strip()}\n{guard_css}".strip()
+
+    def _find_field_value(self, fields: Sequence[Dict[str, Any]], key: str) -> str:
+        for field in fields:
+            if field.get("key") == key and isinstance(field.get("value"), str):
+                return field["value"]
+        return ""
+
+    def _load_deck_theme(
+        self,
+        slides_dir: Path,
+        *,
+        language: str = "zh",
+        style: str = "",
+        require_style_match: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        theme_path = slides_dir / _THEME_FILENAME
+        if not theme_path.exists():
+            return None
+        try:
+            payload = json.loads(theme_path.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            return None
+        if not isinstance(payload, dict):
+            return None
+        if require_style_match:
+            cached_style = str(payload.get("style_prompt") or payload.get("stylePrompt") or "").strip()
+            requested_style = str(style or "").strip()
+            if cached_style != requested_style:
+                return None
+        normalized = self._normalize_theme_payload(payload, language=language, style=style)
+        return normalized
+
+    def _write_deck_theme(self, slides_dir: Path, theme: Dict[str, Any]) -> None:
+        (slides_dir / _THEME_FILENAME).write_text(
+            json.dumps(theme, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    def _write_slide_spec(self, slides_dir: Path, slide: Dict[str, Any]) -> None:
+        page_num = int(slide.get("page_num") or 0)
+        target_path = slides_dir / f"page_{page_num - 1:03d}.json"
+        target_path.write_text(
+            json.dumps(slide, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+        raw_payload = slide.get("_raw_ai_payload")
+        if raw_payload is not None:
+            raw_path = slides_dir / f"page_{page_num - 1:03d}.raw_ai.json"
+            raw_path.write_text(
+                json.dumps(raw_payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+
+    def _sync_deck_manifest(self, slides_dir: Path) -> None:
+        slides: List[Dict[str, Any]] = []
+        for path in sorted(slides_dir.glob("page_*.json")):
+            try:
+                slides.append(json.loads(path.read_text(encoding="utf-8")))
+            except Exception:  # noqa: BLE001
+                continue
+        manifest = {
+            "theme": self._load_deck_theme(slides_dir),
+            "slides": slides,
+        }
+        (slides_dir / "frontend_slides.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    def _write_raw_ai_manifest(self, slides_dir: Path, slides: Sequence[Dict[str, Any]]) -> None:
+        raw_entries = [
+            {
+                "page_num": int(slide.get("page_num") or 0),
+                "title": str(slide.get("title") or ""),
+                "raw_ai_payload": slide.get("_raw_ai_payload"),
+            }
+            for slide in slides
+            if slide.get("_raw_ai_payload") is not None
+        ]
+        if not raw_entries:
+            return
+        (slides_dir / "frontend_raw_ai.json").write_text(
+            json.dumps(raw_entries, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    def _parse_json_text(self, raw_text: Optional[str], field_name: str) -> Optional[Dict[str, Any]]:
+        if raw_text is None or not raw_text.strip():
+            return None
+        try:
+            data = json.loads(raw_text)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=400, detail=f"invalid {field_name} json: {exc}") from exc
+        if not isinstance(data, dict):
+            raise HTTPException(status_code=400, detail=f"{field_name} must be a JSON object")
+        return data
+
+    def _parse_string_list(self, raw_text: Optional[str]) -> List[str]:
+        if raw_text is None or not raw_text.strip():
+            return []
+        stripped = raw_text.strip()
+        try:
+            parsed = json.loads(stripped)
+            if isinstance(parsed, list):
+                return [str(item).strip() for item in parsed if str(item).strip()]
+        except Exception:  # noqa: BLE001
+            pass
+        return [line.strip() for line in stripped.splitlines() if line.strip()]
+
+    def _slugify(self, raw_value: Any) -> str:
+        text = str(raw_value or "").strip().lower()
+        text = re.sub(r"[^a-z0-9_]+", "_", text)
+        text = re.sub(r"_+", "_", text)
+        return text.strip("_")
+
+    def _extract_page_index(self, filename: str) -> int:
+        match = re.search(r"(\d+)", filename or "")
+        if not match:
+            return 10_000
+        return int(match.group(1))

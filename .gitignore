@@ -1,0 +1,222 @@
+# ============================================================
+# Paper2Any .gitignore
+# 用途：上传 GitHub 时排除不需要版本控制的文件。
+#
+#   【必须忽略】= 含真实密钥 / 大体积生成物 / 本机环境，绝不入库。
+#   【按需保留（已注释）】= 原被忽略，但通常应入库；已注释掉忽略
+#        规则，默认按「保留入库」处理。如确认含机密或不需共享，
+#        取消注释即可恢复忽略。
+# ============================================================
+
+
+# ============================================================
+# 虚拟环境（【必须忽略】体积大 + 含本机绝对路径，绝不入库）
+#   当前项目使用的是根目录 .venv / .dfavenv
+# ============================================================
+.venv
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.dfavenv
+.dfavenv/
+.pdm-python
+.pdm-build/
+.pixi
+__pypackages__/
+
+
+# ============================================================
+# API 密钥 / 环境变量（【必须忽略】泄露即风险）
+#   真实 .env 含：BACKEND_API_KEY、SIMPLE_*_API_KEY、
+#   MINERU_API_KEY、SUPABASE_SERVICE_ROLE_KEY、VITE_API_KEY 等
+# ============================================================
+.env
+.env.*
+.env.local
+.env.*.local
+.envrc
+.pypirc
+
+# 常见私钥 / 证书文件
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_rsa.pub
+*.keystore
+
+# 部署用 env（含密钥）
+deploy/docker.env
+deploy/profiles/*.env
+!deploy/profiles/*.env.example
+!deploy/profiles/*.env.*.example
+
+# —— 以下「模板/示例」不含真实密钥，【保留入库】供他人参考 ——
+# 注意：必须是「反向排除」写法，否则 .env.* 会连带忽略示例文件
+!.env.example
+!**/.env.example
+!.env.simple.example
+!**/.env.simple.example
+!**/.env.*.example
+
+
+# ============================================================
+# Python 编译产物 / 缓存（【必须忽略】）
+# ============================================================
+__pycache__/
+*.py[codz]
+*$py.class
+*_cache/
+*_cache
+*.so
+dataflow_agent/tmps/
+dataflow_cache/
+
+# 打包 / 分发
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+/lib/
+/lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.manifest
+*.spec
+
+# 测试 / 覆盖率
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py.cover
+.hypothesis/
+.pytest_cache/
+cover/
+tests/debug_frames/
+
+
+# ============================================================
+# 前端 / Node.js（【必须忽略】依赖与构建产物）
+# ============================================================
+node_modules/
+frontend-workflow/node_modules/
+frontend-workflow/dist/
+frontend-workflow/build/
+frontend-workflow/.vite/
+*.local
+
+
+# ============================================================
+# 日志（【必须忽略】）
+# ============================================================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+dataflow_agent.log*
+dataflow_agent.log.*
+dev-debug.log
+nohup.out
+
+
+# ============================================================
+# 生成物 / 大数据（【必须忽略】模型权重、输出、原始数据等）
+# ============================================================
+outputs/
+outputs/*
+fastapi_app/outputs/
+data/*
+!data/redeem_codes/README.md
+raw_data_store/
+tmps/*
+rebuttal_sessions/
+list.txt
+sam_b.pt
+
+# 模型权重：保留目录结构与说明，忽略实际权重文件（体积巨大）
+models/*
+!models/.gitkeep
+!models/README.md
+!models/RMBG-2.0/
+!models/RMBG-2.0/.gitkeep
+!models/sam3/
+!models/sam3/.gitkeep
+!models/sam3-official/
+!models/sam3-official/sam3/
+!models/sam3-official/sam3/.gitkeep
+models/RMBG-2.0/*
+models/sam3/*
+models/sam3-official/sam3/*
+
+
+# ============================================================
+# 编辑器 / OS / 工具（一般【必须忽略】）
+# ============================================================
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.idea
+
+# AI 助手本地配置（【必须忽略】本机私有）
+.cursorignore
+.cursorindexingignore
+CLAUDE.md
+.claude
+.taskmaster/
+
+
+# ============================================================
+# 按需保留（已注释忽略规则 —— 默认入库）
+#   以下条目原本被忽略，但属于「源码 / 配置模板」，通常应入库。
+#   若确认含机密或不需要共享，取消注释即可恢复忽略。
+# ============================================================
+
+# 脚本源码：应随仓库分发，不要忽略
+# script/optimize_readme_assets.py
+
+# 部署脚本：运维工具，建议入库；若含内网地址可改回忽略
+# deploy/monitor.sh
+# deploy/stop_monitor.sh
+# deploy/clean_git_history.sh
+# deploy/precise_clean.sh
+
+# 共享 IDE 配置（VS Code）：团队统一配置时可入库；
+# 如不希望共享个人设置，保持注释（即忽略）
+# .vscode/
+
+# 配置目录 conf/：若只放示例 / 模板则入库；若含密钥则取消注释忽略
+# conf/
+
+# WorkBuddy 本地记忆目录（本机私有，公开仓库建议忽略）
+# .workbuddy/
+
+
+# ============================================================
+# 个人 / 本地备忘录（【必须忽略】避免误传隐私）
+# ============================================================
+iphone.md

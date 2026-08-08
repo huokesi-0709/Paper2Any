@@ -1,0 +1,58 @@
+{
+  "title": "Image2DrawIO",
+  "subtitle": "Upload any diagram image and get an editable DrawIO file.",
+  "upload": {
+    "title": "Upload Image",
+    "drag": "Drag & drop an image here",
+    "button": "Choose Image",
+    "hint": "PNG / JPG up to 15MB"
+  },
+  "config": {
+    "title": "AI Settings",
+    "apiUrl": "API Base URL",
+    "buyLink": "Buy Now",
+    "apiKey": "API Key (for VLM / inpainting)",
+    "genModel": "Image Edit Model",
+    "vlmModel": "VLM OCR Model"
+  },
+  "preview": {
+    "title": "Preview",
+    "placeholder": "Generated DrawIO diagram will appear here"
+  },
+  "xml": {
+    "title": "DrawIO XML",
+    "placeholder": "XML output will appear here after generation"
+  },
+  "actions": {
+    "generate": "Generate DrawIO",
+    "processing": "Generating...",
+    "download": "Download .drawio",
+    "open": "Open File",
+    "copy": "Copy XML",
+    "copied": "Copied!",
+    "clear": "Clear"
+  },
+  "status": {
+    "uploading": "Uploading image...",
+    "processing": "Analyzing and converting...",
+    "complete": "Conversion complete"
+  },
+  "errors": {
+    "selectFile": "Please select an image",
+    "imgOnly": "Only JPG / PNG images are supported",
+    "sizeLimit": "Image size must be under 15MB",
+    "apiFail": "Conversion failed, please try again",
+    "quotaFull": "Insufficient points. Please get a redeem code and redeem it in Account first."
+  },
+  "cases": {
+    "title": "Cases",
+    "subtitle": "Convert sample images into editable DrawIO",
+    "feishu": "View Feishu Doc",
+    "items": {
+      "case1Title": "Case 1",
+      "case1Desc": "Complex diagram converted to editable DrawIO",
+      "case2Title": "Case 2",
+      "case2Desc": "Structure details automatically reconstructed"
+    }
+  }
+}

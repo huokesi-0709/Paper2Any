@@ -1,0 +1,320 @@
+import { useEffect, useState } from 'react';
+import { MessageSquare, Send, Bot, User, Loader2, FileText, ChevronDown, ChevronRight } from 'lucide-react';
+import { ChatMessage, KnowledgeFile } from '../types';
+import { apiFetch } from '../../../config/api';
+import { getApiSettings } from '../../../services/apiSettingsService';
+import { useAuthStore } from '../../../stores/authStore';
+import { useRuntimeBilling } from '../../../hooks/useRuntimeBilling';
+
+interface ChatToolProps {
+  files: KnowledgeFile[];
+  selectedIds: Set<string>;
+}
+
+const escapeHtml = (text: string) =>
+  text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+const renderInline = (text: string) => {
+  let html = escapeHtml(text);
+  html = html.replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 rounded bg-white/10 text-purple-200 font-mono text-xs">$1</code>');
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer" class="text-purple-300 hover:text-purple-200 underline">$1</a>');
+  return html;
+};
+
+const renderMarkdownToHtml = (content: string) => {
+  if (!content) return '';
+  const codeBlockRegex = /```([a-zA-Z0-9_-]+)?\n([\s\S]*?)```/g;
+  let lastIndex = 0;
+  let html = '';
+  let match: RegExpExecArray | null;
+
+  const processTextBlock = (block: string) => {
+    const lines = block.split('\n');
+    let blockHtml = '';
+    let inUl = false;
+    let inOl = false;
+
+    const closeLists = () => {
+      if (inUl) {
+        blockHtml += '</ul>';
+        inUl = false;
+      }
+      if (inOl) {
+        blockHtml += '</ol>';
+        inOl = false;
+      }
+    };
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+
+      const headingMatch = /^(#{1,6})\s+(.+)$/.exec(trimmed);
+      if (headingMatch) {
+        closeLists();
+        const level = headingMatch[1].length;
+        const headingText = renderInline(headingMatch[2]);
+        blockHtml += `<h${level} class="font-semibold text-gray-100 mt-3 mb-2">${headingText}</h${level}>`;
+        continue;
+      }
+
+      if (/^[-*]\s+/.test(trimmed)) {
+        if (!inUl) {
+          closeLists();
+          blockHtml += '<ul class="list-disc pl-5 space-y-1">';
+          inUl = true;
+        }
+        blockHtml += `<li>${renderInline(trimmed.replace(/^[-*]\s+/, ''))}</li>`;
+        continue;
+      }
+
+      if (/^\d+\.\s+/.test(trimmed)) {
+        if (!inOl) {
+          closeLists();
+          blockHtml += '<ol class="list-decimal pl-5 space-y-1">';
+          inOl = true;
+        }
+        blockHtml += `<li>${renderInline(trimmed.replace(/^\d+\.\s+/, ''))}</li>`;
+        continue;
+      }
+
+      if (!trimmed) {
+        closeLists();
+        blockHtml += '<div class="h-2"></div>';
+        continue;
+      }
+
+      closeLists();
+      blockHtml += `<p class="my-1">${renderInline(line)}</p>`;
+    }
+
+    closeLists();
+    return blockHtml;
+  };
+
+  while ((match = codeBlockRegex.exec(content)) !== null) {
+    const before = content.slice(lastIndex, match.index);
+    html += processTextBlock(before);
+    const code = escapeHtml(match[2].replace(/\s+$/, ''));
+    html += `<pre class="bg-black/40 border border-white/10 rounded-lg p-3 my-2 overflow-x-auto text-xs"><code class="text-emerald-200 font-mono whitespace-pre">${code}</code></pre>`;
+    lastIndex = match.index + match[0].length;
+  }
+
+  html += processTextBlock(content.slice(lastIndex));
+  return html;
+};
+
+const MarkdownContent = ({ content, className }: { content: string; className?: string }) => (
+  <div
+    className={className || 'text-sm leading-relaxed text-gray-200'}
+    dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(content) }}
+  />
+);
+
+const AnalysisDetail = ({ filename, analysis }: { filename: string, analysis: string }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    
+    return (
+        <div className="border-t border-white/10 mt-2 pt-2">
+            <button 
+                onClick={() => setIsOpen(!isOpen)}
+                className="flex items-center gap-2 text-xs text-purple-300 hover:text-purple-200 transition-colors w-full text-left"
+            >
+                {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                <FileText size={12} />
+                <span>分析: {filename}</span>
+            </button>
+            
+            {isOpen && (
+                <div className="mt-2 pl-6 pr-2 text-xs text-gray-300 leading-relaxed bg-black/20 p-2 rounded-lg">
+                  <MarkdownContent content={analysis} className="text-xs leading-relaxed text-gray-300" />
+                </div>
+            )}
+        </div>
+    );
+};
+
+export const ChatTool = ({ files, selectedIds }: ChatToolProps) => {
+  const { user } = useAuthStore();
+  const { userApiConfigRequired } = useRuntimeBilling();
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+    {
+      id: 'welcome',
+      role: 'assistant',
+      content: '你好！我是你的知识库助手。请在“我的知识库”中勾选素材，然后在此处进行提问。',
+      time: new Date().toLocaleTimeString()
+    }
+  ]);
+  const [inputMsg, setInputMsg] = useState('');
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [apiUrl, setApiUrl] = useState('');
+  const [apiKey, setApiKey] = useState('');
+
+  useEffect(() => {
+    const settings = getApiSettings(user?.id || null);
+    if (settings) {
+      setApiUrl(settings.apiUrl || '');
+      setApiKey(settings.apiKey || '');
+    }
+  }, [user?.id]);
+
+  const handleSendMessage = async () => {
+    if (!inputMsg.trim()) return;
+    
+    const userMsg: ChatMessage = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: inputMsg,
+      time: new Date().toLocaleTimeString()
+    };
+    
+    setChatMessages(prev => [...prev, userMsg]);
+    setInputMsg('');
+    setIsChatLoading(true);
+
+    try {
+      if (selectedIds.size === 0) {
+        const botMsg: ChatMessage = {
+            id: Date.now().toString(),
+            role: 'assistant',
+            content: '请先在中间的知识库列表中勾选至少一个文件，我才能基于这些资料回答您的问题。',
+            time: new Date().toLocaleTimeString()
+        };
+        setChatMessages(prev => [...prev, botMsg]);
+        setIsChatLoading(false);
+        return;
+      }
+
+      const selectedFiles = files
+        .filter(f => selectedIds.has(f.id))
+        .map(f => f.url)
+        .filter(Boolean);
+      
+      // Construct history for API
+      const history = chatMessages.filter(m => m.id !== 'welcome').map(m => ({
+          role: m.role,
+          content: m.content
+      }));
+
+      const res = await apiFetch('/api/v1/kb/chat', {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+              files: selectedFiles,
+              query: userMsg.content,
+              history: history,
+              ...(userApiConfigRequired
+                ? {
+                    api_url: apiUrl?.trim() || undefined,
+                    api_key: apiKey?.trim() || undefined,
+                  }
+                : {})
+          })
+      });
+
+      if (!res.ok) {
+          throw new Error("Chat request failed");
+      }
+
+      const data = await res.json();
+      
+      const botMsg: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: data.answer || "抱歉，我无法回答这个问题。",
+        time: new Date().toLocaleTimeString(),
+        details: data.file_analyses
+      };
+      setChatMessages(prev => [...prev, botMsg]);
+      
+    } catch (err) {
+      console.error("Chat error:", err);
+      const errorMsg: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: "发生错误，请稍后重试。",
+          time: new Date().toLocaleTimeString()
+      };
+      setChatMessages(prev => [...prev, errorMsg]);
+    } finally {
+        setIsChatLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full bg-[#0a0a1a]">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {selectedIds.size === 0 && (
+          <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs flex items-start gap-2">
+            <div className="mt-0.5"><Bot size={14} /></div>
+            <p>请先在中间的知识库列表中勾选至少一个文件，我才能基于这些资料回答您的问题。</p>
+          </div>
+        )}
+
+        {chatMessages.map(msg => (
+          <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+              msg.role === 'assistant' ? 'bg-primary-500/20 text-primary-400' : 'bg-white/10 text-gray-400'
+            }`}>
+              {msg.role === 'assistant' ? <Bot size={16} /> : <User size={16} />}
+            </div>
+            <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+              msg.role === 'assistant' ? 'bg-white/5 text-gray-200' : 'bg-primary-600 text-white'
+            }`}>
+              {msg.role === 'assistant' ? <MarkdownContent content={msg.content} /> : msg.content}
+              
+              {/* Display File Analyses if available */}
+              {msg.details && msg.details.length > 0 && (
+                  <div className="mt-4 pt-2 border-t border-white/10">
+                      <p className="text-xs text-gray-500 mb-2 font-medium">思考过程 / 文件分析:</p>
+                      {msg.details.map((detail, idx) => (
+                          <AnalysisDetail 
+                            key={idx} 
+                            filename={detail.filename} 
+                            analysis={detail.analysis} 
+                          />
+                      ))}
+                  </div>
+              )}
+            </div>
+          </div>
+        ))}
+        {isChatLoading && (
+          <div className="flex gap-3 animate-pulse">
+            <div className="w-8 h-8 rounded-full bg-primary-500/20 text-primary-400 flex items-center justify-center"><Bot size={16} /></div>
+            <div className="bg-white/5 rounded-2xl px-4 py-3 text-sm flex items-center gap-2 text-gray-400">
+              <Loader2 size={14} className="animate-spin" /> 思考中...
+            </div>
+          </div>
+        )}
+      </div>
+      
+      <div className="p-4 border-t border-white/5 bg-[#0a0a1a]">
+        <div className="relative">
+          <input
+            type="text"
+            value={inputMsg}
+            onChange={e => setInputMsg(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
+            placeholder={selectedIds.size > 0 ? "有问题尽管问我..." : "请先勾选素材..."}
+            disabled={selectedIds.size === 0}
+            className="w-full bg-white/5 border border-white/10 rounded-xl pl-4 pr-12 py-3.5 text-sm text-gray-200 outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          />
+          <button
+            onClick={handleSendMessage}
+            disabled={!inputMsg.trim() || isChatLoading || selectedIds.size === 0}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg transition-colors disabled:opacity-50"
+          >
+            <Send size={16} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};

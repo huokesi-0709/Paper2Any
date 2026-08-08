@@ -1,0 +1,8 @@
+# Deprecated compatibility file.
+# Historical one-shot installer for Linux + Paper workflows + NVIDIA CUDA 12.
+# New installs should use:
+#   pip install -r requirements-paper.txt
+#   pip install -r requirements-cu12.txt
+
+-r requirements-paper.txt
+-r requirements-cu12.txt

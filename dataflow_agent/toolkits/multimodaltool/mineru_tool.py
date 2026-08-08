@@ -1,0 +1,1067 @@
+# Before Using, do these:
+
+# hf download opendatalab/MinerU2.5-2509-1.2B --local-dir opendatalab/MinerU2.5-2509-1.2B
+
+# With vllm>=0.10.1, you can use following command to serve the model. The logits processor is used to support no_repeat_ngram_size sampling param, which can help the model to avoid generating repeated content.
+
+# vllm serve opendatalab/MinerU2.5-2509-1.2B --host 127.0.0.1 --port <port> \
+#   --logits-processors mineru_vl_utils:MinerULogitsProcessor
+# If you are using vllm<0.10.1, no_repeat_ngram_size sampling param is not supported. You still can serve the model without logits processor:
+
+# vllm serve models/MinerU2.5-2509-1.2B \
+#     --host 127.0.0.1 \
+#     --port 8010 \
+#     --logits-processors mineru_vl_utils:MinerULogitsProcessor \
+#     --gpu-memory-utilization 0.4
+
+# vllm serve opendatalab/MinerU2.5-2509-1.2B --host 127.0.0.1 --port <port>
+
+import asyncio
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Sequence, Union, Optional
+import time
+import os
+import shutil
+import subprocess
+import re
+import random
+import warnings
+import zipfile
+from PIL import Image
+import requests
+from dataflow_agent.logger import get_logger
+
+try:
+    from mineru_vl_utils import MinerUClient
+except Exception:
+    MinerUClient = None
+
+log = get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class MinerURemoteConfig:
+    base_url: str
+    api_key: str
+    model_version: str
+    poll_interval_seconds: float
+    timeout_seconds: float
+
+
+def _get_mineru_remote_config() -> MinerURemoteConfig:
+    """
+    Return MinerU remote API configuration.
+
+    Priority:
+    1) process environment
+    2) `fastapi_app.config.settings`
+    3) hardcoded defaults
+    """
+    base_url = (os.getenv("MINERU_API_BASE_URL") or "").strip()
+    api_key = (os.getenv("MINERU_API_KEY") or "").strip()
+    model_version = (os.getenv("MINERU_API_MODEL_VERSION") or "").strip()
+    poll_interval_raw = (os.getenv("MINERU_API_POLL_INTERVAL_SECONDS") or "").strip()
+    timeout_raw = (os.getenv("MINERU_API_TIMEOUT_SECONDS") or "").strip()
+
+    try:
+        from fastapi_app.config.settings import settings
+
+        if not base_url:
+            base_url = (getattr(settings, "MINERU_API_BASE_URL", "") or "").strip()
+        if not api_key:
+            api_key = (getattr(settings, "MINERU_API_KEY", "") or "").strip()
+        if not model_version:
+            model_version = (getattr(settings, "MINERU_API_MODEL_VERSION", "") or "").strip()
+        if not poll_interval_raw:
+            poll_interval_raw = str(getattr(settings, "MINERU_API_POLL_INTERVAL_SECONDS", "") or "").strip()
+        if not timeout_raw:
+            timeout_raw = str(getattr(settings, "MINERU_API_TIMEOUT_SECONDS", "") or "").strip()
+    except Exception:
+        pass
+
+    if not base_url:
+        base_url = "https://mineru.net/api/v4"
+    if not model_version:
+        model_version = "vlm"
+
+    try:
+        poll_interval_seconds = float(poll_interval_raw) if poll_interval_raw else 5.0
+    except ValueError:
+        poll_interval_seconds = 5.0
+
+    try:
+        timeout_seconds = float(timeout_raw) if timeout_raw else 900.0
+    except ValueError:
+        timeout_seconds = 900.0
+
+    return MinerURemoteConfig(
+        base_url=base_url.rstrip("/"),
+        api_key=api_key,
+        model_version=model_version,
+        poll_interval_seconds=max(1.0, poll_interval_seconds),
+        timeout_seconds=max(30.0, timeout_seconds),
+    )
+
+
+def _should_use_remote_mineru(config: Optional[MinerURemoteConfig] = None) -> bool:
+    cfg = config or _get_mineru_remote_config()
+    return bool(cfg.api_key)
+
+
+def _require_mineru_client() -> Any:
+    if MinerUClient is None:
+        raise RuntimeError(
+            "mineru_vl_utils is not installed. "
+            "Install local MinerU dependencies or configure MINERU_API_KEY to use the remote API."
+        )
+    return MinerUClient
+
+
+def _raise_mineru_api_error(action: str, payload: Dict[str, Any]) -> None:
+    code = payload.get("code")
+    msg = payload.get("msg") or payload.get("message") or "unknown error"
+    trace_id = payload.get("trace_id") or ""
+    if trace_id:
+        raise RuntimeError(f"{action} failed: code={code}, msg={msg}, trace_id={trace_id}")
+    raise RuntimeError(f"{action} failed: code={code}, msg={msg}")
+
+
+def _copy_remote_result_tree(extracted_root: Path, auto_dir: Path, pdf_stem: str) -> str:
+    """
+    Copy the remote MinerU result tree into the legacy local output layout.
+    """
+    full_md_candidates = sorted(extracted_root.rglob("full.md"))
+    if not full_md_candidates:
+        raise RuntimeError("MinerU result zip missing full.md")
+
+    source_root = full_md_candidates[0].parent
+    shutil.copytree(source_root, auto_dir, dirs_exist_ok=True)
+
+    canonical_md = auto_dir / "full.md"
+    if not canonical_md.exists():
+        raise RuntimeError("MinerU result zip missing full.md after extraction")
+
+    markdown_text = canonical_md.read_text(encoding="utf-8", errors="replace")
+    legacy_markdown_path = auto_dir / f"{pdf_stem}.md"
+    legacy_markdown_path.write_text(markdown_text, encoding="utf-8")
+    return markdown_text
+
+
+def _run_remote_mineru_pdf_extract(
+    pdf_file: Path,
+    auto_dir: Path,
+    markdown_path: Path,
+    config: MinerURemoteConfig,
+) -> tuple[str, str]:
+    """
+    Official MinerU remote API path for local files:
+    1. request upload URL
+    2. upload file
+    3. poll extract result
+    4. download result zip
+    5. materialize full.md into legacy auto dir layout
+    """
+    headers = {
+        "Authorization": f"Bearer {config.api_key}",
+        "Content-Type": "application/json",
+        "Accept": "*/*",
+    }
+    batch_submit_url = f"{config.base_url}/file-urls/batch"
+    submit_payload = {
+        "files": [{"name": pdf_file.name, "data_id": f"{pdf_file.stem}-{int(time.time())}"}],
+        "model_version": config.model_version,
+    }
+
+    log.info("[MinerU-Remote] requesting upload URL for %s", pdf_file.name)
+    submit_resp = requests.post(batch_submit_url, headers=headers, json=submit_payload, timeout=60)
+    submit_resp.raise_for_status()
+    submit_data = submit_resp.json()
+    if submit_data.get("code") != 0:
+        _raise_mineru_api_error("MinerU remote upload-url request", submit_data)
+
+    batch_data = submit_data.get("data") or {}
+    batch_id = batch_data.get("batch_id")
+    file_urls = batch_data.get("file_urls") or []
+    if not batch_id or not file_urls:
+        raise RuntimeError(f"MinerU remote upload-url response missing batch_id/file_urls: {submit_data}")
+
+    upload_url = file_urls[0]
+    log.info("[MinerU-Remote] uploading %s (batch_id=%s)", pdf_file.name, batch_id)
+    with pdf_file.open("rb") as f:
+        upload_resp = requests.put(upload_url, data=f, timeout=300)
+    upload_resp.raise_for_status()
+
+    poll_url = f"{config.base_url}/extract-results/batch/{batch_id}"
+    poll_headers = {
+        "Authorization": f"Bearer {config.api_key}",
+        "Accept": "*/*",
+    }
+    deadline = time.monotonic() + config.timeout_seconds
+    full_zip_url = ""
+    while time.monotonic() < deadline:
+        poll_resp = requests.get(poll_url, headers=poll_headers, timeout=30)
+        poll_resp.raise_for_status()
+        poll_data = poll_resp.json()
+        if poll_data.get("code") != 0:
+            _raise_mineru_api_error("MinerU remote poll", poll_data)
+
+        result_items = ((poll_data.get("data") or {}).get("extract_result")) or []
+        first_item = result_items[0] if result_items else {}
+        state = (first_item.get("state") or "").strip().lower()
+        if state == "done":
+            full_zip_url = (first_item.get("full_zip_url") or "").strip()
+            break
+        if state == "failed":
+            err_msg = (first_item.get("err_msg") or "unknown error").strip()
+            raise RuntimeError(f"MinerU remote task failed: {err_msg}")
+        time.sleep(config.poll_interval_seconds)
+
+    if not full_zip_url:
+        raise TimeoutError(f"MinerU remote poll timeout after {int(config.timeout_seconds)}s")
+
+    raw_dir = auto_dir / "_remote_raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    zip_path = raw_dir / "result.zip"
+    extract_dir = raw_dir / "extract"
+    extract_dir.mkdir(parents=True, exist_ok=True)
+
+    log.info("[MinerU-Remote] downloading result zip for %s", pdf_file.name)
+    zip_resp = requests.get(full_zip_url, timeout=120)
+    zip_resp.raise_for_status()
+    zip_path.write_bytes(zip_resp.content)
+
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        zf.extractall(extract_dir)
+
+    markdown_text = _copy_remote_result_tree(extract_dir, auto_dir, pdf_file.stem)
+    markdown_path.write_text(markdown_text, encoding="utf-8")
+    log.info("[MinerU-Remote] markdown generated: %s", markdown_path)
+    return markdown_text, str(auto_dir)
+
+
+# ---------------------------------------
+# 1. two_step_extract (sync)
+# ---------------------------------------
+def run_two_step_extract(image_path: str, port: int):
+    """同步调用 MinerU two_step_extract，处理单张图片并返回结构化结果。"""
+    image = Image.open(image_path)
+    client_cls = _require_mineru_client()
+    client = client_cls(
+        backend="http-client",
+        server_url=f"http://127.0.0.1:{port}"
+    )
+    return client.two_step_extract(image)
+
+
+# ---------------------------------------
+# 2. batch_two_step_extract (sync)
+# ---------------------------------------
+def run_batch_two_step_extract(image_paths: list[str], port: int):
+    """同步批量调用 MinerU two_step_extract，处理多张图片并返回结果列表。"""
+    images = [Image.open(p) for p in image_paths]
+    client_cls = _require_mineru_client()
+    client = client_cls(
+        backend="http-client",
+        server_url=f"http://127.0.0.1:{port}"
+    )
+    return client.batch_two_step_extract(images)
+
+
+# ---------------------------------------
+# 3. aio_two_step_extract (async)
+# ---------------------------------------
+async def run_aio_two_step_extract(image_path: str, port: int):
+    """异步调用 MinerU two_step_extract，处理单张图片并返回结构化结果。"""
+    image = Image.open(image_path)
+    client_cls = _require_mineru_client()
+    client = client_cls(
+        backend="http-client",
+        server_url=f"http://127.0.0.1:{port}"
+    )
+    return await client.aio_two_step_extract(image)
+
+
+# ---------------------------------------
+# 4. aio_batch_two_step_extract (async)
+# ---------------------------------------
+async def run_aio_batch_two_step_extract(image_paths: list[str], port: int):
+    """异步批量调用 MinerU two_step_extract，处理多张图片并返回结果列表。"""
+    images = [Image.open(p) for p in image_paths]
+    client_cls = _require_mineru_client()
+    client = client_cls(
+        backend="http-client",
+        server_url=f"http://127.0.0.1:{port}"
+    )
+    return await client.aio_batch_two_step_extract(images)
+
+
+# ---------------------------------------
+# 5. 根据 MinerU bbox & type 裁剪原图
+# ---------------------------------------
+def crop_mineru_blocks_by_type(
+    image_path: str,
+    blocks: List[Dict[str, Any]],
+    target_type: Optional[Union[str, Sequence[str]]] = None,
+    output_dir: str = "",
+    prefix: str = "",
+) -> List[str]:
+    """
+    根据 MinerU two_step_extract / aio_two_step_extract 的结构化结果，
+    按指定 type 的 bbox 从整张图片中裁剪子图并保存到输出目录。
+
+    参数:
+        image_path: 原始图片路径 (如技术路线图 PNG)
+        blocks: MinerU 返回的 list[dict] 结果
+        target_type: 需要裁剪的块类型，如 "title" / "text" / "image" / "footer"
+        output_dir: 输出目录路径，不存在会自动创建
+        prefix: 输出文件名前缀，可选
+
+    返回:
+        所有成功保存的裁剪图片的绝对路径列表
+    """
+    img = Image.open(image_path)
+    width, height = img.size
+
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    saved_paths: List[str] = []
+
+    # target_type 为 None 时不过滤，返回所有 block
+    if target_type is None:
+        target_types = None
+    elif isinstance(target_type, str):
+        target_types = {target_type}
+    else:
+        target_types = set(target_type)
+
+    for idx, block in enumerate(blocks):
+        block_type = block.get("type")
+        # 只有在显式指定了 target_type 时才进行过滤
+        if target_types is not None and block_type not in target_types:
+            continue
+
+        bbox = block.get("bbox")
+        if not bbox or len(bbox) != 4:
+            continue
+
+        x1_norm, y1_norm, x2_norm, y2_norm = bbox
+
+        # 将归一化坐标 [0,1] 转为像素坐标，并做边界裁剪
+        left = max(0, min(width, int(round(x1_norm * width))))
+        top = max(0, min(height, int(round(y1_norm * height))))
+        right = max(0, min(width, int(round(x2_norm * width))))
+        bottom = max(0, min(height, int(round(y2_norm * height))))
+
+        # 无效 bbox 跳过
+        if right <= left or bottom <= top:
+            continue
+
+        cropped = img.crop((left, top, right, bottom))
+
+        # 使用实际 block_type 命名，便于区分不同类型
+        safe_block_type = block_type or "unknown"
+        filename = f"{prefix}{safe_block_type}_{idx}.png"
+        out_path = out_dir / filename
+        cropped.save(out_path)
+
+        saved_paths.append(str(out_path.resolve()))
+
+    return saved_paths
+
+def run_mineru_pdf_extract(
+    pdf_path: str,
+    output_dir: str = "",
+    source: str = "modelscope",
+    mineru_executable: Optional[str] = None,
+):
+    """
+    使用 MinerU 命令行方式提取 PDF 中的结构化内容，
+
+    参数:
+        pdf_path: PDF 文件路径
+        output_dir: 输出目录路径，不存在会自动创建
+        source: 下载模型的源，可选 modelscope、huggingface
+        mineru_executable: mineru 可执行文件路径，
+            - 不传时：优先从环境变量 MINERU_CMD 中读取，
+              若没有则从 PATH 中查找 'mineru'
+            - 传入绝对路径时：直接使用该路径
+
+    返回:
+        解析的所有图片、markdown格式的内容
+    """
+    warnings.warn(
+        "run_mineru_pdf_extract (CLI mode) is deprecated. "
+        "Use `await run_mineru_pdf_extract_http(...)` instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+    # 1. 解析 mineru 可执行路径
+    if mineru_executable is None:
+        mineru_executable = (
+            os.environ.get("MINERU_CMD")  # 环境变量优先
+            or shutil.which("mineru")     # 当前 env 的命令
+        )
+        if mineru_executable is None:
+            raise RuntimeError(
+                "未找到 `mineru` 可执行文件，请确保：\n"
+                "1) 已在当前环境安装 MinerU，并且 `mineru` 在 PATH 中；或\n"
+                "2) 设置环境变量 MINERU_CMD 指向 mineru 可执行文件；或\n"
+                "3) 调用 run_mineru_pdf_extract 时显式传入 mineru_executable 参数。"
+            )
+
+    mineru_cmd = [
+        str(mineru_executable),
+        "-p",
+        str(pdf_path),
+        "-o",
+        str(output_dir),
+        "--source",
+        source,
+    ]
+
+    # 2. 可选：自动创建 output_dir
+    if output_dir:
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+    # 3. 简单的负载均衡 (Simple Load Balancing) for GPU
+    #    从环境变量 MINERU_DEVICES 中读取可用设备列表 (默认 "5,6")
+    #    随机选择一个设备 ID 分配给当前子进程
+    available_devices_str = os.environ.get("MINERU_DEVICES", "4,5,6")
+    # 清理并分割字符串，去除空白
+    available_devices = [d.strip() for d in available_devices_str.split(",") if d.strip()]
+    
+    env = os.environ.copy()
+    if available_devices:
+        selected_device = random.choice(available_devices)
+        env["CUDA_VISIBLE_DEVICES"] = selected_device
+        log.info(f"[MinerU] Assigned GPU: {selected_device} (from pool: {available_devices})")
+    else:
+        log.warning("[MinerU] No GPU devices configured in MINERU_DEVICES, using system default.")
+
+    # 4. 执行命令
+    subprocess.run(
+        mineru_cmd,
+        shell=False,
+        check=True,
+        text=True,
+        stderr=None,
+        stdout=None,
+        env=env,
+    )
+
+
+
+def _normalize_mineru_blocks(page_result: Any) -> List[Dict[str, Any]]:
+    """
+    兼容 MinerU HTTP 不同返回结构，统一提取 blocks 列表。
+    """
+    if isinstance(page_result, list):
+        return [b for b in page_result if isinstance(b, dict)]
+
+    if isinstance(page_result, dict):
+        for key in ("blocks", "layout", "items", "result", "data"):
+            value = page_result.get(key)
+            if isinstance(value, list):
+                return [b for b in value if isinstance(b, dict)]
+
+        pages = page_result.get("pages")
+        if isinstance(pages, list) and pages and isinstance(pages[0], dict):
+            first_page = pages[0]
+            for key in ("blocks", "layout", "items", "result", "data"):
+                value = first_page.get(key)
+                if isinstance(value, list):
+                    return [b for b in value if isinstance(b, dict)]
+    return []
+
+
+def _sort_blocks_for_reading(blocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    按 bbox 的上->下、左->右排序，提升 markdown 可读性。
+    """
+    def _key(block: Dict[str, Any]) -> tuple[float, float]:
+        bbox = block.get("bbox") or [1e9, 1e9, 1e9, 1e9]
+        if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
+            return (1e9, 1e9)
+        try:
+            return (float(bbox[1]), float(bbox[0]))
+        except Exception:
+            return (1e9, 1e9)
+
+    return sorted(blocks, key=_key)
+
+
+def _extract_block_text(block: Dict[str, Any]) -> str:
+    """
+    尝试从 block 中提取可用文本字段。
+    """
+    for key in ("text", "content", "value", "caption", "title"):
+        value = block.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _crop_block_to_image(
+    page_image_path: Union[str, Path],
+    bbox: Sequence[float],
+    output_path: Union[str, Path],
+) -> bool:
+    """
+    按 bbox 从页面图裁剪一个子图。
+    - 支持归一化 bbox([0,1]) 或像素 bbox。
+    """
+    if not bbox or len(bbox) != 4:
+        return False
+
+    out_path = Path(output_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with Image.open(page_image_path) as img:
+        width, height = img.size
+        x1, y1, x2, y2 = [float(v) for v in bbox]
+
+        if max(abs(x1), abs(y1), abs(x2), abs(y2)) <= 1.5:
+            left = int(round(x1 * width))
+            top = int(round(y1 * height))
+            right = int(round(x2 * width))
+            bottom = int(round(y2 * height))
+        else:
+            left = int(round(x1))
+            top = int(round(y1))
+            right = int(round(x2))
+            bottom = int(round(y2))
+
+        left = max(0, min(width, left))
+        top = max(0, min(height, top))
+        right = max(0, min(width, right))
+        bottom = max(0, min(height, bottom))
+
+        if right <= left or bottom <= top:
+            return False
+
+        cropped = img.crop((left, top, right, bottom))
+        cropped.save(out_path)
+    return True
+
+
+def _render_page_blocks_to_markdown(
+    page_index: int,
+    page_image_path: Union[str, Path],
+    blocks: List[Dict[str, Any]],
+    images_dir: Union[str, Path],
+) -> str:
+    """
+    将单页 MinerU blocks 转换为 markdown。
+    """
+    lines: List[str] = [f"## Page {page_index}"]
+    sorted_blocks = _sort_blocks_for_reading(blocks)
+    images_root = Path(images_dir)
+    images_root.mkdir(parents=True, exist_ok=True)
+
+    for block_idx, block in enumerate(sorted_blocks):
+        block_type = str(block.get("type") or "unknown").lower().strip()
+        text = _extract_block_text(block)
+        bbox = block.get("bbox")
+
+        if block_type in {"title", "heading", "section_title"} and text:
+            lines.append(f"# {text}")
+            continue
+
+        if text:
+            lines.append(text)
+
+        if block_type in {"image", "img", "figure", "table"}:
+            image_name = f"page_{page_index:04d}_blk_{block_idx:04d}.png"
+            image_path = images_root / image_name
+            try:
+                ok = _crop_block_to_image(page_image_path, bbox, image_path)
+            except Exception:
+                ok = False
+            if ok:
+                lines.append(f"![](images/{image_name})")
+
+    cleaned: List[str] = []
+    for line in lines:
+        line = (line or "").rstrip()
+        if not line:
+            if cleaned and cleaned[-1] == "":
+                continue
+            cleaned.append("")
+        else:
+            cleaned.append(line)
+
+    while cleaned and cleaned[-1] == "":
+        cleaned.pop()
+    return "\n\n".join(cleaned)
+
+
+async def run_mineru_pdf_extract_http(
+    pdf_path: str,
+    output_dir: str = "",
+    port: int = 8010,
+    dpi: int = 300,
+) -> tuple[str, str]:
+    """
+    使用 MinerU HTTP 接口提取 PDF 内容（HTTP-only 路径）：
+      PDF -> 按页转图片 -> batch two_step_extract -> blocks 转 markdown
+
+    输出目录结构与 CLI 模式对齐：
+      <output_dir>/<pdf_stem>/auto/<pdf_stem>.md
+      <output_dir>/<pdf_stem>/auto/images/*.png
+
+    Returns:
+      (markdown_text, auto_dir)
+    """
+    pdf_file = Path(pdf_path).expanduser().resolve()
+    if not pdf_file.exists() or not pdf_file.is_file():
+        raise FileNotFoundError(f"PDF file not found: {pdf_file}")
+
+    if output_dir:
+        output_root = Path(output_dir).expanduser().resolve()
+    else:
+        output_root = pdf_file.parent.resolve()
+    output_root.mkdir(parents=True, exist_ok=True)
+
+    pdf_stem = pdf_file.stem
+    auto_dir = (output_root / pdf_stem / "auto").resolve()
+    images_dir = auto_dir / "images"
+    pages_dir = auto_dir / "_pages"
+    auto_dir.mkdir(parents=True, exist_ok=True)
+    images_dir.mkdir(parents=True, exist_ok=True)
+    pages_dir.mkdir(parents=True, exist_ok=True)
+
+    markdown_path = auto_dir / f"{pdf_stem}.md"
+    if markdown_path.exists():
+        md = markdown_path.read_text(encoding="utf-8", errors="replace")
+        return md, str(auto_dir)
+
+    remote_config = _get_mineru_remote_config()
+    if _should_use_remote_mineru(remote_config):
+        log.info("[MinerU-Remote] extracting %s via official API", pdf_file.name)
+        return await asyncio.to_thread(
+            _run_remote_mineru_pdf_extract,
+            pdf_file,
+            auto_dir,
+            markdown_path,
+            remote_config,
+        )
+
+    try:
+        from pdf2image import convert_from_path
+    except Exception as e:
+        raise RuntimeError(
+            "pdf2image is required for MinerU HTTP PDF extraction. "
+            "Please install it and ensure poppler is available."
+        ) from e
+
+    page_images = convert_from_path(str(pdf_file), dpi=int(dpi))
+    page_image_paths: List[str] = []
+    for idx, page_img in enumerate(page_images, start=1):
+        page_path = pages_dir / f"page_{idx:04d}.png"
+        page_img.save(page_path, "PNG")
+        page_image_paths.append(str(page_path.resolve()))
+
+    if not page_image_paths:
+        markdown_path.write_text("", encoding="utf-8")
+        return "", str(auto_dir)
+
+    log.info(
+        f"[MinerU-HTTP] extracting {len(page_image_paths)} page images "
+        f"for {pdf_file.name} via port={port}"
+    )
+    page_results = await run_aio_batch_two_step_extract(page_image_paths, port=port)
+    if isinstance(page_results, dict):
+        page_results = [page_results]
+    if not isinstance(page_results, list):
+        raise RuntimeError(f"Unexpected MinerU HTTP result type: {type(page_results)}")
+
+    markdown_parts: List[str] = [f"# {pdf_stem}"]
+    for page_idx, page_img_path in enumerate(page_image_paths, start=1):
+        raw = page_results[page_idx - 1] if (page_idx - 1) < len(page_results) else []
+        blocks = _normalize_mineru_blocks(raw)
+        page_md = _render_page_blocks_to_markdown(
+            page_index=page_idx,
+            page_image_path=page_img_path,
+            blocks=blocks,
+            images_dir=images_dir,
+        )
+        if page_md.strip():
+            markdown_parts.append(page_md)
+
+    markdown_text = "\n\n".join(markdown_parts).strip() + "\n"
+    markdown_path.write_text(markdown_text, encoding="utf-8")
+    log.info(f"[MinerU-HTTP] markdown generated: {markdown_path}")
+    return markdown_text, str(auto_dir)
+
+
+def crop_mineru_blocks_with_meta(
+    image_path: str,
+    blocks: List[Dict[str, Any]],
+    target_type: Optional[Union[str, Sequence[str]]] = None,
+    output_dir: str = "",
+    prefix: str = "",
+) -> List[Dict[str, Any]]:
+    """
+    与 ``crop_mineru_blocks_by_type`` 类似，但返回包含元信息的列表，
+    方便后续根据 MinerU 的 bbox 在 PPT 中按比例还原布局。
+
+    返回的每个元素包含:
+        - block_index: 在原始 blocks 列表中的索引
+        - type: MinerU 块类型
+        - bbox: 原始归一化 bbox [x1, y1, x2, y2]
+        - png_path: 裁剪得到的小图 PNG 绝对路径
+    """
+    img = Image.open(image_path)
+    width, height = img.size
+
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    results: List[Dict[str, Any]] = []
+
+    # target_type 为 None 时不过滤，返回所有 block
+    if target_type is None:
+        target_types = None
+    elif isinstance(target_type, str):
+        target_types = {target_type}
+    else:
+        target_types = set(target_type)
+
+    for idx, block in enumerate(blocks):
+        block_type = block.get("type")
+        # 只有在显式指定了 target_type 时才进行过滤
+        if target_types is not None and block_type not in target_types:
+            continue
+
+        bbox = block.get("bbox")
+        if not bbox or len(bbox) != 4:
+            continue
+
+        x1_norm, y1_norm, x2_norm, y2_norm = bbox
+
+        # 将归一化坐标 [0,1] 转为像素坐标，并做边界裁剪
+        left = max(0, min(width, int(round(x1_norm * width))))
+        top = max(0, min(height, int(round(y1_norm * height))))
+        right = max(0, min(width, int(round(x2_norm * width))))
+        bottom = max(0, min(height, int(round(y2_norm * height))))
+
+        if right <= left or bottom <= top:
+            continue
+
+        cropped = img.crop((left, top, right, bottom))
+
+        safe_block_type = block_type or "unknown"
+        filename = f"{prefix}{safe_block_type}_{idx}.png"
+        out_path = out_dir / filename
+        cropped.save(out_path)
+
+        results.append(
+            {
+                "block_index": idx,
+                "type": block_type,
+                "bbox": bbox,
+                "png_path": str(out_path.resolve()),
+            }
+        )
+
+    return results
+
+
+def svg_to_emf(svg_path: str, emf_path: str, dpi: int = 600) -> str:
+    """
+    使用 Inkscape 将 SVG 文件转换为 EMF 矢量图，返回生成的 EMF 路径。
+    使用 Inkscape 将 SVG 转换为 EMF 矢量图。
+
+    依赖
+    ----
+    - 系统需安装 Inkscape，并且 `inkscape` 在 PATH 中可直接调用。
+
+    参数
+    ----
+    svg_path:
+        输入 SVG 文件路径。
+    emf_path:
+        输出 EMF 文件路径。
+
+    返回
+    ----
+    str
+        生成的 EMF 文件的绝对路径。
+
+    异常
+    ----
+    FileNotFoundError
+        当输入 SVG 文件不存在时。
+    RuntimeError
+        当 Inkscape 调用失败或未生成输出文件时。
+    """
+    svg_p = Path(svg_path)
+    if not svg_p.exists():
+        raise FileNotFoundError(f"输入 SVG 不存在: {svg_p}")
+
+    emf_p = Path(emf_path)
+    emf_p.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        # inkscape input.svg --export-filename=output.emf
+        result = subprocess.run(
+            [
+                "inkscape",
+                str(svg_p),
+                "--export-filename",
+                str(emf_p),
+                "--export-text-to-path",
+                f"--export-dpi={dpi}"
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError as e:
+        raise RuntimeError(
+            "调用 Inkscape 失败：系统中可能未安装 `inkscape` 可执行文件，"
+            "请先安装 Inkscape 并确保其在 PATH 中。"
+        ) from e
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Inkscape 转换失败，返回码 {result.returncode}：\n"
+            f"STDOUT:\n{result.stdout}\n\nSTDERR:\n{result.stderr}"
+        )
+
+    if not emf_p.exists():
+        raise RuntimeError(f"Inkscape 运行后未发现输出 EMF 文件: {emf_p}")
+
+    return str(emf_p.resolve())
+
+
+# ---------------------------------------
+# 6. 递归 MinerU 拆图 + 坐标映射 (HTTP 版)
+# ---------------------------------------
+def _crop_image_by_norm_bbox(
+    image_path: str,
+    bbox: Sequence[float],
+    output_dir: Union[str, Path],
+    prefix: str = "",
+    index: int = 0,
+) -> str:
+    """
+    按归一化 bbox [x1,y1,x2,y2] 从 image_path 裁剪出子图并保存，返回绝对路径。
+    """
+    img = Image.open(image_path)
+    width, height = img.size
+
+    x1_norm, y1_norm, x2_norm, y2_norm = bbox
+    left = max(0, min(width, int(round(x1_norm * width))))
+    top = max(0, min(height, int(round(y1_norm * height))))
+    right = max(0, min(width, int(round(x2_norm * width))))
+    bottom = max(0, min(height, int(round(y2_norm * height))))
+
+    if right <= left or bottom <= top:
+        raise ValueError(f"Invalid bbox after clamp: {bbox}")
+
+    cropped = img.crop((left, top, right, bottom))
+
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    stem = Path(image_path).stem
+    filename = f"{prefix}{stem}_{index}.png"
+    out_path = out_dir / filename
+    cropped.save(out_path)
+
+    return str(out_path.resolve())
+
+
+async def recursive_mineru_layout(
+    image_path: str,
+    port: int,
+    max_depth: int = 2,
+    current_depth: int = 0,
+    output_dir: Optional[Union[str, Path]] = None,
+    block_types_for_subimage: Optional[Sequence[str]] = None,
+) -> List[Dict[str, Any]]:
+    """
+    使用 MinerU HTTP two_step_extract，递归拆图并将所有最底层块映射到
+    最顶层图的归一化坐标系。
+
+    返回的每个元素形如:
+        {
+            "type": str,
+            "bbox": [x1, y1, x2, y2],   # 相对于最顶层图的归一化坐标
+            "png_path": str | None,     # 对应子图路径（图像/表格等）
+            "text": str | None,         # 文本内容（若有）
+            "depth": int,               # 所在递归深度
+        }
+    """
+    if current_depth > max_depth:
+        return []
+
+    # 默认在原图同目录下创建一个 mineru_recursive 子目录
+    if output_dir is None:
+        base = Path(image_path).with_suffix("")
+        output_dir = base.parent / f"{base.stem}_mineru_recursive"
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # 默认哪些类型会继续拆成子图
+    if block_types_for_subimage is None:
+        block_types_for_subimage = ["image", "img", "table", "figure"]
+
+    # 1. 当前层 MinerU 调用
+    blocks = await run_aio_two_step_extract(image_path=image_path, port=port)
+
+    leaf_items: List[Dict[str, Any]] = []
+
+    # blocks 结构假定为 List[Dict]，包含 type / bbox / text 等
+    for idx, blk in enumerate(blocks):
+        blk_type = blk.get("type")
+        bbox = blk.get("bbox")
+        if not bbox or len(bbox) != 4:
+            continue
+
+        # 保证归一化 bbox 在 [0,1] 内，大致裁剪
+        x1, y1, x2, y2 = bbox
+        x1 = max(0.0, min(1.0, float(x1)))
+        y1 = max(0.0, min(1.0, float(y1)))
+        x2 = max(0.0, min(1.0, float(x2)))
+        y2 = max(0.0, min(1.0, float(y2)))
+        if x2 <= x1 or y2 <= y1:
+            continue
+        norm_bbox = [x1, y1, x2, y2]
+
+        # 如果是需要继续拆的图块类型，裁剪子图并递归
+        if blk_type in block_types_for_subimage and current_depth < max_depth:
+            try:
+                sub_img_path = _crop_image_by_norm_bbox(
+                    image_path=image_path,
+                    bbox=norm_bbox,
+                    output_dir=out_dir / "sub_images",
+                    prefix=f"depth{current_depth}_blk{idx}_",
+                    index=idx,
+                )
+            except Exception:
+                # 裁剪失败则当成叶子块处理
+                leaf_items.append(
+                    {
+                        "type": blk_type,
+                        "bbox": norm_bbox,
+                        "png_path": None,
+                        "text": blk.get("text") or blk.get("content"),
+                        "depth": current_depth,
+                    }
+                )
+                continue
+
+            # 子图内部是完整的 [0,1] 坐标系，需要映射回当前图的 norm_bbox
+            sub_items = await recursive_mineru_layout(
+                image_path=sub_img_path,
+                port=port,
+                max_depth=max_depth,
+                current_depth=current_depth + 1,
+                output_dir=out_dir,
+                block_types_for_subimage=block_types_for_subimage,
+            )
+
+            pw = norm_bbox[2] - norm_bbox[0]
+            ph = norm_bbox[3] - norm_bbox[1]
+            for si in sub_items:
+                sb = si.get("bbox")
+                if not sb or len(sb) != 4:
+                    continue
+                sx1, sy1, sx2, sy2 = sb
+                nx1 = norm_bbox[0] + sx1 * pw
+                ny1 = norm_bbox[1] + sy1 * ph
+                nx2 = norm_bbox[0] + sx2 * pw
+                ny2 = norm_bbox[1] + sy2 * ph
+                si["bbox"] = [nx1, ny1, nx2, ny2]
+                leaf_items.append(si)
+        else:
+            # 文本或其他不再下钻的类型，直接当作叶子
+            leaf_items.append(
+                {
+                    "type": blk_type,
+                    "bbox": norm_bbox,
+                    "png_path": None,
+                    "text": blk.get("text") or blk.get("content"),
+                    "depth": current_depth,
+                }
+            )
+
+    return leaf_items
+
+
+def _shrink_markdown(md: str, max_h1: int = 6, max_chars: int = 10_000) -> str:
+    """
+    Shrink a long markdown string before passing to downstream LLM agents.
+
+    Default strategy:
+    - pick content under the first `max_h1` level-1 headings (lines starting with '# ')
+    - if picked content shorter than `max_chars`, append remaining original content
+      (in original order) until reaching `max_chars`
+    - fallback to pure char truncation if no H1 found
+
+    Notes:
+    - This is a best-effort heuristic (no heavy markdown parser required).
+    """
+    if not md:
+        return ""
+
+    if max_chars is not None and max_chars > 0 and len(md) <= max_chars:
+        return md
+
+    # find H1 headings (allow leading spaces; require '# ' style)
+    h1_re = re.compile(r"^\s*#\s+.+$")
+    lines = md.splitlines(keepends=True)
+    h1_indices = [i for i, line in enumerate(lines) if h1_re.match(line)]
+
+    # no H1 -> fallback to char truncation
+    if not h1_indices:
+        if max_chars and max_chars > 0:
+            return md[:max_chars]
+        return md
+
+    # build sections for first max_h1 headings
+    picked_parts: List[str] = []
+    for j, start_i in enumerate(h1_indices[:max_h1]):
+        end_i = h1_indices[j + 1] if (j + 1) < len(h1_indices) else len(lines)
+        picked_parts.append("".join(lines[start_i:end_i]))
+
+    picked = "".join(picked_parts)
+
+    # If picked already too long, truncate
+    if max_chars and max_chars > 0 and len(picked) >= max_chars:
+        return picked[:max_chars]
+
+    # Otherwise, append original content (skipping already picked substrings by simple rule:
+    # we only append from the beginning of the doc, but avoid duplicating the picked segments
+    # by appending only those parts not present in picked when scanning in order).
+    #
+    # Practical approach: take the full md, then append characters from full md that are
+    # not already in picked by position; easiest is to append from original start,
+    # but that may duplicate. Instead, we fill from the original md excluding
+    # the picked H1 blocks.
+    keep = picked
+    if not (max_chars and max_chars > 0):
+        return keep
+
+    # mark picked line ranges to exclude when appending
+    exclude = [False] * len(lines)
+    for j, start_i in enumerate(h1_indices[:max_h1]):
+        end_i = h1_indices[j + 1] if (j + 1) < len(h1_indices) else len(lines)
+        for i in range(start_i, end_i):
+            exclude[i] = True
+
+    # append non-excluded lines in original order until max_chars
+    for i, line in enumerate(lines):
+        if exclude[i]:
+            continue
+        if len(keep) >= max_chars:
+            break
+        remain = max_chars - len(keep)
+        keep += line[:remain]
+
+    return keep

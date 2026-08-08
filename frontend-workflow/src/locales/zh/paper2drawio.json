@@ -1,0 +1,88 @@
+{
+  "title": "AI 图表生成",
+  "subtitle": "从论文或文本描述生成 draw.io 图表",
+  "subpages": {
+    "ai": {
+      "badge": "AI → DRAWIO",
+      "title": "AI 驱动 DrawIO 图表生成",
+      "subtitle": "输入文本或论文内容，直接生成可编辑的 DrawIO 图表。",
+      "hintTitle": "使用说明 / Guide",
+      "hintZh": "支持文本与 PDF 输入，适合流程图、架构图、时序图等。",
+      "hintEn": "Supports text and PDF. Best for flowcharts, architecture, and sequence diagrams."
+    }
+  },
+  "apiConfig": "API 配置",
+  "apiUrl": "API 地址",
+  "buyLink": "点击购买",
+  "apiKey": "API 密钥",
+  "model": "模型",
+  "modelRace": "并发抢答模式",
+  "modelRaceHint": "对当前配置的多个候选模型并发生成，谁先产出可解析 XML 就直接采用；每个模型仍保留自身重试。",
+  "inputMode": "输入模式",
+  "textInput": "文本输入",
+  "uploadPdf": "上传 PDF",
+  "textPlaceholder": "输入要生成图表的内容描述...",
+  "uploadPlaceholder": "点击上传 PDF 文件",
+  "diagramType": "图表类型",
+  "diagramOptions": "生成设置",
+  "diagramLanguage": "输出语言",
+  "vlmValidation": "启用 VLM 布局校验",
+  "vlmValidationHint": "将图渲染成 PNG 后用视觉模型检测重叠与连线问题，失败会自动重生成（最多 3 次）",
+  "auto": "自动识别",
+  "flowchart": "流程图",
+  "architecture": "架构图",
+  "sequence": "时序图",
+  "mindmap": "思维导图",
+  "er": "ER 图",
+  "generate": "生成图表",
+  "generating": "生成中...",
+  "chatEdit": "对话编辑",
+  "chatPlaceholder": "输入编辑指令...",
+  "preview": "图表预览",
+  "export": "导出",
+  "previewPlaceholder": "生成图表后在此预览",
+  "diagramUpdated": "图表已更新",
+  "uploadHint": "支持 PDF 格式，最大 50MB",
+  "modelParams": {
+    "title": "模型结构图参数",
+    "imageModelLabel": "图像生成模型",
+    "languageLabel": "语言",
+    "language": {
+      "zh": "中文",
+      "en": "英文"
+    },
+    "styleLabel": "风格",
+    "style": {
+      "cartoon": "卡通",
+      "realistic": "写实"
+    },
+    "complexityLabel": "复杂度",
+    "complexity": {
+      "easy": "简单",
+      "mid": "中等",
+      "hard": "复杂"
+    }
+  },
+  "examples": {
+    "sectionTitle": "使用示例",
+    "feishuLink": "查看详细教程",
+    "sectionSubtitle": "参考示例快速上手",
+    "cards": {
+      "pdfToDiagramTitle": "PDF 转图表",
+      "pdfToDiagramDesc": "上传论文 PDF，自动生成专业图表",
+      "textToDiagramTitle": "文本转图表",
+      "textToDiagramDesc": "输入文本描述，快速生成可视化图表"
+    }
+  },
+  "cases": {
+    "title": "流程图 / 架构图案例",
+    "subtitle": "下面示例支持在线编辑与导出",
+    "feishu": "查看飞书文档",
+    "items": {
+      "case1Title": "流程图示例",
+      "case1Desc": "从文本或 PDF 直接生成可编辑流程图",
+      "case2Title": "架构图示例",
+      "case2Desc": "适用于系统架构与模块关系展示"
+    }
+  }
+}

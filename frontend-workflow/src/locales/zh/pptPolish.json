@@ -1,0 +1,145 @@
+{
+  "subtitle": "PPT → BEAUTIFIED PPT",
+  "title": "PptPolish",
+  "desc": "上传原始 PPT 文件，AI 智能分析内容结构，一键美化生成专业演示文稿。",
+  "descHighlight": "通过左右对比，实时掌控美化效果！",
+  "steps": {
+    "upload": "上传文件",
+    "beautify": "逐页美化",
+    "complete": "完成下载"
+  },
+  "upload": {
+    "title": "上传 PPT / PDF",
+    "dragText": "拖拽 PPT/PDF 文件到此处",
+    "supportText": "支持 PPT / PPTX / PDF（16:9 幻灯片）",
+    "fileTip": "请上传 PPT/PPTX 或每页为 16:9 幻灯片的 PDF。PDF 建议每页只有一张幻灯片图像。",
+    "button": "选择文件",
+    "fileInfo": "✓ {{name}}",
+    "modeInfo": "🎨 美化模式：将优化原有 PPT 样式",
+    "config": {
+      "title": "配置",
+      "apiUrl": "模型 API URL",
+      "buyLink": "点击购买",
+      "apiKey": "API Key （sk-开头）",
+      "apiKeyPlaceholder": "sk-...",
+      "model": "模型名称",
+      "customModelTip": "手动输入模型名称（需与所选 API 服务商支持的模型名一致）",
+      "genModel": "图像生成模型",
+      "language": "生成语言",
+      "styleTitle": "风格配置",
+      "renderTitle": "渲染分辨率",
+      "renderTip": "分辨率越高越清晰，但耗时/内存更高（4K 建议小页数）",
+      "renderOptions": {
+        "auto": "自动（默认）",
+        "1080p": "1080p",
+        "2k": "2K（推荐）",
+        "4k": "4K（更慢）"
+      },
+      "styleMode": {
+        "preset": "预设风格",
+        "reference": "参考图片"
+      },
+      "stylePreset": "选择风格",
+      "presets": {
+        "modern": "现代简约",
+        "business": "商务专业",
+        "academic": "学术报告",
+        "creative": "创意设计"
+      },
+      "promptLabel": "风格提示词（必填）",
+      "promptPlaceholder": "例如：使用紫色系配色，保持学术风格...",
+      "promptCardsTitle": "风格提示词卡片",
+      "promptCardsTip": "点击卡片自动填入",
+      "promptCardsUse": "点击使用该提示词",
+      "referenceLabel": "上传参考风格图片",
+      "referenceUploaded": "已上传参考图片",
+      "referenceUpload": "点击上传参考图片",
+      "start": "开始解析",
+      "parsing": "解析中...",
+      "tip": "提示：如果长时间无响应或生成失败，可能是 API 服务商不稳定。建议稍后再试，或尝试更换模型/服务商。"
+    }
+  },
+  "progress": {
+    "init": "正在初始化...",
+    "uploading": "正在上传文件...",
+    "analyzing": "正在分析页面结构...",
+    "extracting": "正在提取内容...",
+    "identifying": "正在识别图片...",
+    "planning": "正在生成美化方案...",
+    "done": "解析完成！"
+  },
+  "outline": {
+    "title": "确认 Outline",
+    "subtitle": "检查并调整页面结构，可编辑、排序或删除页面",
+    "edit": {
+      "titlePlaceholder": "页面标题",
+      "layoutPlaceholder": "布局描述",
+      "pointPlaceholder": "要点",
+      "addPoint": "+ 添加要点",
+      "save": "保存",
+      "cancel": "取消"
+    },
+    "back": "返回上传",
+    "confirm": "确认并开始美化"
+  },
+  "beautify": {
+    "initTitle": "正在生成初始 PPT",
+    "initDesc": "请稍候，正在处理您的 PPT 文件...",
+    "loadingTitle": "正在生成初始 PPT 和预览图",
+    "loadingDesc": "这可能需要几分钟时间，请耐心等待...",
+    "title": "逐页美化",
+    "pageInfo": "第 {{current}} / {{total}} 页：{{title}}",
+    "modeInfo": "🎨 美化模式 - 优化原有 PPT 样式",
+    "original": "原始 PPT 渲染",
+    "result": "美化结果",
+    "processing": "正在美化中...",
+    "waiting": "等待生成",
+    "regeneratePlaceholder": "输入微调 Prompt，然后点击重新生成...",
+    "regenerate": "重新生成",
+    "back": "返回上传",
+    "prev": "上一页",
+    "next": "确认并继续"
+  },
+  "complete": {
+    "title": "美化完成！",
+    "overview": "处理结果概览",
+    "page": "第 {{index}} 页",
+    "status": "已美化",
+    "generateFinal": "生成最终文件",
+    "generating": "正在生成最终文件...",
+    "downloadPptx": "下载 PPTX",
+    "downloadPdf": "下载 PDF",
+    "new": "处理新的文档"
+  },
+  "demo": {
+    "more": "常见问题与更多案例",
+    "group1": {
+      "title": "PPT 增色美化",
+      "desc": "基于原有 PPT 内容，智能调整风格、配色与视觉层次，让演示更具专业感与吸引力",
+      "original": "原始 PPT",
+      "result": "增色后"
+    },
+    "group2": {
+      "title": "PPT 润色拓展",
+      "desc": "将纯文字或简易空白 PPT 智能润色拓展，自动生成精美排版与视觉元素，一键变身专业演示",
+      "original": "原始 PPT",
+      "result": "润色后"
+    }
+  },
+  "errors": {
+    "format": "仅支持 PPT/PPTX/PDF 格式",
+    "size": "文件大小超过 50MB 限制",
+    "selectFile": "请先选择 PPT/PPTX/PDF 文件",
+    "config": "请先配置模型 API URL 和 API Key",
+    "prompt": "请输入风格提示词",
+    "reference": "请上传参考图片",
+    "quota": "当前点数不足，请先获取兑换码并到账户页兑换加点。",
+    "validating": "正在验证模型连接...",
+    "serverBusy": "服务器繁忙，请稍后再试",
+    "noResultPath": "缺少 result_path",
+    "emptyResult": "解析结果为空",
+    "noPages": "没有可美化的页面",
+    "noOutline": "没有 outline 数据",
+    "downloadFail": "下载链接不存在"
+  }
+}
