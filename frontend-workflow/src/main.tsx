@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
+import App from './NewApp';
 import { AuthProvider } from './components/AuthProvider';
 import { RuntimeConfigProvider } from './components/RuntimeConfigProvider';
 import { AuthGate } from './components/auth';

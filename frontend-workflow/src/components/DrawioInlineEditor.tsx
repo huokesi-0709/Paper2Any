@@ -296,20 +296,25 @@ const DrawioInlineEditor: React.FC<DrawioInlineEditorProps> = ({
   }, [drawioReady, xmlContent, animateDrawioLoad]);
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.25)]">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div className="bento-card scan-line p-5">
+      {/* Toolbar */}
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
         <div>
-          <h3 className="text-sm font-semibold text-white">{title}</h3>
-          <p className="text-xs text-slate-400">{subtitle}</p>
+          <h3 className="text-sm font-display font-bold text-lab-primary flex items-center gap-2">
+            <span className="w-1 h-4 bg-neon-cyan rounded-full" style={{ boxShadow: '0 0 8px rgba(0,229,255,0.6)' }} />
+            {title}
+          </h3>
+          <p className="text-xs text-slate-400 mt-0.5 font-mono">{subtitle}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className={`text-[11px] ${drawioReady ? 'text-emerald-300' : 'text-slate-500'}`}>
+          <span className={`text-[11px] font-mono flex items-center gap-1.5 ${drawioReady ? 'text-emerald-300' : 'text-slate-500'}`}>
+            <span className={`inline-block w-2 h-2 rounded-full ${drawioReady ? 'bg-emerald-400' : 'bg-slate-600'} ${drawioReady ? 'animate-pulse' : ''}`} style={drawioReady ? { boxShadow: '0 0 6px rgba(52,211,153,0.6)' } : {}} />
             {drawioReady ? '就绪 / Ready' : (loadingLabel ?? '加载中 / Loading')}
           </span>
           <select
             value={exportFormat}
             onChange={(event) => setExportFormat(event.target.value as 'drawio' | 'png' | 'svg')}
-            className="rounded-lg border border-white/10 bg-white/10 px-2 py-1 text-[11px] text-white outline-none focus:ring-2 focus:ring-white/20"
+            className="neon-select text-[11px] py-1 px-2"
           >
             <option value="drawio">.drawio</option>
             <option value="png">.png</option>
@@ -319,23 +324,25 @@ const DrawioInlineEditor: React.FC<DrawioInlineEditorProps> = ({
             <input
               value={exportFilename}
               onChange={(event) => setExportFilename(event.target.value)}
-              className="rounded-lg border border-white/10 bg-white/10 px-2 py-1 pr-10 text-[11px] text-white outline-none focus:ring-2 focus:ring-white/20"
+              className="neon-input text-[11px] py-1 px-2 pr-10"
               placeholder="diagram"
             />
-            <span className="pointer-events-none absolute right-2 text-[10px] text-slate-400">.{exportFormat}</span>
+            <span className="pointer-events-none absolute right-2 text-[10px] text-neon-cyan/60 font-mono">.{exportFormat}</span>
           </div>
           <button
             type="button"
             onClick={handleExport}
             disabled={isExporting || !xmlContent}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs text-white hover:bg-white/20 transition-all disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-neon-outline text-[11px] py-1.5 px-3"
           >
-            {isExporting ? <span className="h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white" /> : <Download size={14} />}
+            {isExporting ? <span className="h-3 w-3 animate-spin rounded-full border border-neon-cyan/30 border-t-neon-cyan" /> : <Download size={14} />}
             导出 / Export
           </button>
         </div>
       </div>
-      <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-[#0b0f17]" style={{ height }}>
+
+      {/* Iframe container */}
+      <div className="mt-2 overflow-hidden rounded-xl border border-border-medium bg-[#060914]" style={{ height }}>
         <iframe
           ref={iframeRef}
           src="https://embed.diagrams.net/?embed=1&spin=1&proto=json&autosave=1&saveAndExit=0&noSaveBtn=1&noExitBtn=1&sidebar=0&layers=0&toolbar=0&menubar=0&status=0&format=0"

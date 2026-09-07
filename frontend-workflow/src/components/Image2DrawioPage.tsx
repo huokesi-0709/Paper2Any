@@ -39,11 +39,6 @@ const DRAWIO_ANIMATE_LARGE_BATCH = 5;
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 const FEISHU_DOC_URL = 'https://wcny4qa9krto.feishu.cn/wiki/VXKiwYndwiWAVmkFU6kcqsTenWh';
 
-const panelClass =
-  'rounded-2xl bg-white/5 border border-white/10 p-4 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.25)]';
-const inputClass =
-  'w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-slate-500 outline-none transition focus:border-amber-400/60 focus:ring-2 focus:ring-amber-500/20';
-
 const Image2DrawioPage = () => {
   const { t } = useTranslation(['image2drawio', 'common']);
   const { user, refreshQuota } = useAuthStore();
@@ -69,6 +64,7 @@ const Image2DrawioPage = () => {
   const genFigModelOptions = withModelOptions(IMAGE2DRAWIO_GEN_FIG_MODELS, genFigModel);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const generationRequestRef = useRef(false);
   const lastLoadedXmlRef = useRef('');
   const isAnimatingRef = useRef(false);
   const animationTokenRef = useRef(0);
@@ -183,22 +179,25 @@ const Image2DrawioPage = () => {
   }, [postToDrawio]);
 
   const handleGenerate = async () => {
+    if (generationRequestRef.current) return;
+
     if (!selectedFile) {
       setError(t('errors.selectFile'));
       return;
     }
 
-    const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
-    if (quota.remaining <= 0) {
-      setError(t('errors.quotaFull'));
-      return;
-    }
-
+    generationRequestRef.current = true;
     setIsProcessing(true);
     setError(null);
-    setStatusMessage(t('status.uploading'));
+    setStatusMessage(t('status.checkingQuota'));
 
     try {
+      const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
+      if (quota.remaining <= 0) {
+        throw new Error(t('errors.quotaFull'));
+      }
+
+      setStatusMessage(t('status.uploading'));
       const formData = new FormData();
       formData.append('image_file', selectedFile);
       if (userApiConfigRequired) {
@@ -232,7 +231,7 @@ const Image2DrawioPage = () => {
 
       setXmlContent(data.xml_content);
       setFilePath(data.file_path || '');
-      setStatusMessage(t('status.complete'));
+      setStatusMessage(data.fallback_used ? t('status.fallback') : t('status.complete'));
 
       await recordUsage(user?.id || null, 'image2drawio', { isAnonymous: user?.is_anonymous || false });
       if (refreshQuota) refreshQuota();
@@ -240,6 +239,7 @@ const Image2DrawioPage = () => {
       const message = err instanceof Error ? err.message : t('errors.apiFail');
       setError(message);
     } finally {
+      generationRequestRef.current = false;
       setIsProcessing(false);
     }
   };
@@ -496,27 +496,25 @@ const Image2DrawioPage = () => {
   }, [drawioReady, xmlContent, animateDrawioLoad]);
 
   return (
-    <div className="relative w-full h-full overflow-y-auto bg-[#0c0f12] text-slate-100">
-      <div className="pointer-events-none absolute -top-24 right-[-10%] h-72 w-72 rounded-full bg-amber-500/10 blur-[120px]" />
-      <div className="pointer-events-none absolute bottom-[-30%] left-[-5%] h-80 w-80 rounded-full bg-lime-500/10 blur-[140px]" />
-
-      <div className="relative mx-auto w-full max-w-[1400px] px-6 pt-8 pb-8">
+    <div className="page-shell">
+      <div className="page-container">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
-              <span className={`h-1.5 w-1.5 rounded-full ${drawioReady ? 'bg-emerald-400' : 'bg-slate-500'}`} />
-              image2drawio
+            <div className="inline-flex items-center gap-2 rounded-full border border-border-medium bg-white px-3 py-1 text-xs font-medium text-lab-muted">
+              <span className={`h-1.5 w-1.5 rounded-full ${drawioReady ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'bg-slate-500'}`} />
+              {t('badge')}
             </div>
-            <h1 className="text-2xl font-semibold text-white">{t('title')}</h1>
-            <p className="text-sm text-slate-400">{t('subtitle')}</p>
+            <h1 className="font-display text-4xl font-extrabold tracking-[-0.035em] text-lab-primary">{t('title')}</h1>
+            <p className="text-base leading-7 text-lab-secondary">{t('subtitle')}</p>
           </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)] mt-6" style={{ minHeight: '720px' }}>
           <div className="flex flex-col gap-4">
-            <div className={panelClass}>
-              <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
-                <UploadCloud className="text-amber-300" size={18} />
+            {/* Upload Panel */}
+            <div className="bento-card scan-line p-5">
+              <h3 className="text-sm font-display font-bold text-lab-primary mb-3 flex items-center gap-2">
+                <UploadCloud className="text-neon-cyan" size={18} />
                 {t('upload.title')}
               </h3>
               <div
@@ -530,26 +528,26 @@ const Image2DrawioPage = () => {
                 }}
                 onDrop={handleDrop}
                 className={`flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed px-4 py-6 text-center transition-all ${
-                  isDragOver ? 'border-amber-400/80 bg-amber-400/10' : 'border-white/10 bg-white/5'
+                  isDragOver ? 'border-neon-cyan/60 bg-neon-cyan/10' : 'border-border-medium bg-surface-base/30'
                 }`}
               >
                 {selectedFile ? (
                   <>
-                    <FileImage className="h-10 w-10 text-amber-300" />
-                    <div className="text-sm text-slate-200">{selectedFile.name}</div>
+                    <FileImage className="h-10 w-10 text-neon-cyan" />
+                    <div className="text-sm text-lab-primary">{selectedFile.name}</div>
                     <div className="text-xs text-slate-500">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</div>
                     <button
                       onClick={() => setSelectedFile(null)}
-                      className="text-xs text-amber-300 hover:text-amber-200"
+                      className="text-xs text-neon-cyan hover:text-neon-cyan/80"
                     >
                       {t('actions.clear')}
                     </button>
                   </>
                 ) : (
                   <>
-                    <UploadCloud className="h-10 w-10 text-amber-300" />
-                    <p className="text-sm text-slate-300">{t('upload.drag')}</p>
-                    <label className="px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-lime-500 text-white text-xs font-semibold cursor-pointer hover:from-amber-400 hover:to-lime-400 transition-all">
+                    <UploadCloud className="h-10 w-10 text-neon-cyan" />
+                    <p className="text-sm text-lab-secondary">{t('upload.drag')}</p>
+                    <label className="btn-neon glow text-xs cursor-pointer">
                       {t('upload.button')}
                       <input type="file" accept="image/png,image/jpeg,image/jpg" className="hidden" onChange={handleFileChange} />
                     </label>
@@ -559,51 +557,52 @@ const Image2DrawioPage = () => {
               </div>
             </div>
 
-            <div className={panelClass}>
-              <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
-                <Sparkles className="text-amber-300" size={18} />
+            {/* Config Panel */}
+            <div className="bento-card scan-line p-5">
+              <h3 className="text-sm font-display font-bold text-lab-primary mb-3 flex items-center gap-2">
+                <Sparkles className="text-neon-purple" size={18} />
                 {t('config.title')}
               </h3>
-                <div className="space-y-3">
-                  {userApiConfigRequired ? (
-                    <>
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs text-slate-400">{t('config.apiUrl')}</label>
-                        <QRCodeTooltip>
-                          <a
-                            href={getPurchaseUrl(apiUrl)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="whitespace-nowrap text-[10px] text-amber-300 hover:text-amber-200 hover:underline px-1"
-                          >
-                            {t('config.buyLink')}
-                          </a>
-                        </QRCodeTooltip>
-                      </div>
-                      <select
-                        value={apiUrl}
-                        onChange={(e) => setApiUrl(e.target.value)}
-                        className={inputClass}
-                      >
-                        {API_URL_OPTIONS.map((url: string) => (
-                          <option key={url} value={url}>{url}</option>
-                        ))}
-                      </select>
+              <div className="space-y-3">
+                {userApiConfigRequired ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs text-slate-400">{t('config.apiUrl')}</label>
+                      <QRCodeTooltip>
+                        <a
+                          href={getPurchaseUrl(apiUrl)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="whitespace-nowrap text-[10px] text-neon-cyan hover:text-neon-cyan/80 hover:underline px-1"
+                        >
+                          {t('config.buyLink')}
+                        </a>
+                      </QRCodeTooltip>
+                    </div>
+                    <select
+                      value={apiUrl}
+                      onChange={(e) => setApiUrl(e.target.value)}
+                      className="neon-select w-full"
+                    >
+                      {API_URL_OPTIONS.map((url: string) => (
+                        <option key={url} value={url}>{url}</option>
+                      ))}
+                    </select>
 
-                      <label className="block text-xs text-slate-400 flex items-center gap-1">
-                        <Key size={12} /> {t('config.apiKey')}
-                      </label>
-                      <input
-                        type="password"
-                        value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
-                        placeholder="sk-..."
-                        className={inputClass}
-                      />
-                    </>
-                  ) : (
-                    <ManagedApiNotice />
-                  )}
+                    <label className="block text-xs text-slate-400 flex items-center gap-1">
+                      <Key size={12} /> {t('config.apiKey')}
+                    </label>
+                    <input
+                      type="password"
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      placeholder="sk-..."
+                      className="neon-input w-full"
+                    />
+                  </>
+                ) : (
+                  <ManagedApiNotice />
+                )}
 
                 <label className="block text-xs text-slate-400 flex items-center gap-1 mb-1">
                   <ImageIcon size={12} /> {t('config.genModel')}
@@ -612,81 +611,94 @@ const Image2DrawioPage = () => {
                   value={genFigModel}
                   onChange={(e) => setGenFigModel(e.target.value)}
                   disabled={!userApiConfigRequired}
-                  className={`${inputClass} disabled:opacity-50 disabled:cursor-not-allowed`}
+                  className="neon-select w-full disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {genFigModelOptions.map((option) => (
                     <option key={option} value={option}>{option}</option>
                   ))}
                 </select>
                 {!userApiConfigRequired && (
-                  <p className="mt-2 text-[11px] leading-5 text-emerald-100/70">Free 模式下由后端统一选择 DrawIO 转换使用的视觉模型。</p>
+                  <p className="mt-2 text-[11px] leading-5 text-emerald-700">Free 模式下由后端统一选择 DrawIO 转换使用的视觉模型。</p>
                 )}
               </div>
             </div>
 
+            {/* Error */}
             {error && (
-              <div className="flex items-center gap-2 text-sm text-red-300 bg-red-500/10 border border-red-500/40 rounded-lg px-4 py-3">
+              <div className="status-error flex items-center gap-2 text-sm">
                 <AlertCircle size={16} />
                 <span>{error}</span>
               </div>
             )}
 
+            {/* Status */}
             {statusMessage && !error && (
-              <div className="flex items-center gap-2 text-sm text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-3">
+              <div className="status-warning flex items-center gap-2 text-sm">
                 {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
                 <span>{statusMessage}</span>
               </div>
             )}
 
+            {/* Generate Button */}
             <button
+              type="button"
               onClick={handleGenerate}
               disabled={isProcessing}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-lime-500 text-white text-sm font-semibold hover:from-amber-400 hover:to-lime-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_10px_30px_rgba(217,119,6,0.25)]"
+              aria-busy={isProcessing}
+              className="btn-neon glow w-full py-3"
             >
-              {isProcessing ? t('actions.processing') : t('actions.generate')}
+              {isProcessing && <Loader2 size={18} className="animate-spin" aria-hidden="true" />}
+              <span aria-live="polite">
+                {isProcessing ? t('actions.processing') : t('actions.generate')}
+              </span>
             </button>
           </div>
 
+          {/* Right column: Preview + XML */}
           <div className="flex flex-col gap-4">
-            <div className="flex flex-col h-full rounded-3xl bg-white/5 border border-white/10 p-4 md:p-6 backdrop-blur-xl shadow-[0_25px_70px_rgba(0,0,0,0.35)]">
+            {/* Preview Panel */}
+            <div className="bento-card scan-line p-4 md:p-6">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-                  <Wand2 className="text-amber-300" size={18} />
+                <h3 className="text-sm font-display font-bold text-lab-primary flex items-center gap-2">
+                  <Wand2 className="text-neon-purple" size={18} />
                   {t('preview.title')}
                 </h3>
                 {xmlContent && (
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex items-center rounded-full bg-white/5 border border-white/10 p-1">
+                    {/* Export format tabs */}
+                    <div className="flex items-center gap-1 rounded-full border border-border-medium bg-surface-base/40 p-1">
                       {(['drawio', 'svg', 'png'] as const).map(format => (
                         <button
                           key={format}
                           onClick={() => setExportFormat(format)}
                           className={`px-3 py-1 text-xs rounded-full transition ${
                             exportFormat === format
-                              ? 'bg-white/20 text-white'
-                              : 'text-slate-400 hover:text-white'
+                              ? 'bg-neon-cyan/20 text-neon-cyan shadow-[0_0_10px_rgba(34,211,238,0.3)]'
+                              : 'text-lab-muted hover:text-blue-700'
                           }`}
                         >
                           {format.toUpperCase()}
                         </button>
                       ))}
                     </div>
-                    <div className="flex items-center rounded-xl bg-white/5 border border-white/10 px-3 py-2">
+                    {/* Filename input */}
+                    <div className="flex items-center rounded-xl border border-border-medium bg-surface-base/40 px-3 py-2">
                       <input
                         type="text"
                         value={exportFilename}
                         onChange={e => setExportFilename(e.target.value)}
-                        className="w-24 bg-transparent text-xs text-white placeholder-slate-500 outline-none"
+                        className="w-24 bg-transparent text-xs text-lab-primary placeholder-slate-400 outline-none"
                         placeholder="diagram"
                       />
                       <span className="ml-2 text-xs text-slate-400">.{exportFormat}</span>
                     </div>
+                    {/* Export button */}
                     <button
                       onClick={handleExport}
                       disabled={isExporting || isProcessing}
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 text-white text-xs font-semibold hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      className="toolbar-btn toolbar-btn-label"
                     >
-                      {isExporting ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Download size={14} />}
+                      {isExporting ? <div className="w-4 h-4 border-2 border-neon-cyan/30 border-t-neon-cyan rounded-full animate-spin" /> : <Download size={14} />}
                       {t('actions.download')}
                     </button>
                     {filePath && (
@@ -697,7 +709,7 @@ const Image2DrawioPage = () => {
                             : filePath;
                           window.open(`${API_BASE}/outputs/${relative}`, '_blank');
                         }}
-                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 text-white text-xs font-semibold hover:bg-white/20 transition-all"
+                        className="toolbar-btn toolbar-btn-label"
                       >
                         <ExternalLink size={14} />
                         {t('actions.open')}
@@ -706,7 +718,8 @@ const Image2DrawioPage = () => {
                   </div>
                 )}
               </div>
-              <div className={`mt-4 flex-1 bg-[#0b0f17] rounded-2xl border border-white/10 min-h-[420px] lg:min-h-[720px] overflow-hidden ${xmlContent ? 'relative block' : 'flex items-center justify-center'}`}>
+              {/* DrawIO iframe area */}
+              <div className={`mt-4 flex-1 bg-[#060914] rounded-2xl border border-border-medium min-h-[420px] lg:min-h-[720px] overflow-hidden ${xmlContent ? 'relative block' : 'flex items-center justify-center'}`}>
                 {xmlContent ? (
                   <iframe
                     ref={iframeRef}
@@ -715,24 +728,25 @@ const Image2DrawioPage = () => {
                     title="draw.io editor"
                   />
                 ) : (
-                  <div className="text-center animate-fade-in">
-                    <FileImage className="w-12 h-12 mx-auto text-slate-500 mb-3" />
-                    <p className="text-sm text-slate-400">{t('preview.placeholder')}</p>
+                  <div className="empty-state">
+                    <FileImage className="w-12 h-12 mx-auto text-neon-cyan/30 mb-3" />
+                    <p className="text-sm text-slate-500">{t('preview.placeholder')}</p>
                   </div>
                 )}
               </div>
             </div>
 
-            <div className={panelClass}>
+            {/* XML Panel */}
+            <div className="bento-card scan-line p-5">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-                  <Wand2 className="text-amber-300" size={18} />
+                <h3 className="text-sm font-display font-bold text-lab-primary flex items-center gap-2">
+                  <Wand2 className="text-neon-purple" size={18} />
                   {t('xml.title')}
                 </h3>
                 <button
                   onClick={handleCopyXml}
                   disabled={!xmlContent}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 text-xs text-slate-200 hover:bg-white/10 disabled:opacity-50"
+                  className="toolbar-btn toolbar-btn-label text-xs"
                 >
                   <Copy size={12} />
                   {copySuccess || t('actions.copy')}
@@ -742,7 +756,7 @@ const Image2DrawioPage = () => {
                 value={xmlContent}
                 readOnly
                 placeholder={t('xml.placeholder')}
-                className="w-full h-48 rounded-xl bg-[#0b0f17] border border-white/10 px-3 py-2 text-xs text-slate-200 outline-none"
+                className="neon-textarea w-full h-48"
               />
             </div>
           </div>

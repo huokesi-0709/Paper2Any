@@ -1,14 +1,13 @@
 /**
  * FilesPage component showing user's generated files.
- *
- * Displays files in a table with download and delete actions.
+ * Redesigned with Neon Lab dark theme.
  */
 
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { getFileRecords, deleteFileRecord, FileRecord } from "../services/fileService";
 import { downloadSecureAsset } from "../services/secureAssetService";
-import { FileText, Download, Trash2, RefreshCw, Loader2 } from "lucide-react";
+import { FileText, Download, Trash2, RefreshCw, Loader2, FolderOpen } from "lucide-react";
 
 function formatSize(bytes: number | null | undefined): string {
   if (!bytes) return "-";
@@ -52,13 +51,12 @@ export function FilesPage() {
 
   const handleDownload = async (file: FileRecord) => {
     if (!file.download_url) return;
-
     setDownloading(file.id || file.file_name);
     try {
       await downloadSecureAsset(file.download_url, file.file_name);
     } catch (e) {
       console.error("Failed to download file:", e);
-      alert("下载失败");
+      alert("Download failed");
     } finally {
       setDownloading(null);
     }
@@ -66,7 +64,6 @@ export function FilesPage() {
 
   const handleDelete = async (id: string, fileName: string) => {
     if (!confirm(t("filesPage.actions.confirmDelete", { fileName }))) return;
-
     setDeleting(id);
     try {
       const success = await deleteFileRecord(id);
@@ -84,113 +81,113 @@ export function FilesPage() {
   };
 
   return (
-    <div className="h-full overflow-auto">
-      <div className="p-6 max-w-5xl mx-auto">
+    <div className="page-shell overflow-y-auto">
+      <div className="bg-grid-dense pointer-events-none absolute inset-0 opacity-50" />
+      <div className="page-container relative">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-xl font-bold text-white">{t("filesPage.title")}</h1>
+        <div className="section-header flex-row items-center justify-between" style={{ flexDirection: "row" as const }}>
+          <div>
+            <div className="badge">
+              <FolderOpen size={12} />
+              {t("filesPage.title")}
+            </div>
+            <h1 className="title mt-2 font-display text-4xl font-extrabold tracking-[-0.035em] text-lab-primary">
+              {t("filesPage.title")}
+            </h1>
+          </div>
           <button
             onClick={loadFiles}
             disabled={loading}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
+            className="toolbar-btn"
+            style={{ width: "2.5rem", height: "2.5rem" }}
           >
             <RefreshCw
               size={18}
-              className={`text-gray-400 ${loading ? "animate-spin" : ""}`}
+              className={loading ? "animate-spin" : ""}
             />
           </button>
         </div>
 
         {/* Content */}
         {loading && files.length === 0 ? (
-          <div className="text-center py-12">
-            <Loader2
-              size={32}
-              className="animate-spin text-primary-500 mx-auto"
-            />
-            <p className="text-gray-400 mt-3">{t("filesPage.loading")}</p>
+          <div className="empty-state" style={{ minHeight: "300px" }}>
+            <Loader2 size={36} className="animate-spin text-neon-cyan" />
+            <div className="title">{t("filesPage.loading")}</div>
           </div>
         ) : files.length === 0 ? (
-          <div className="text-center py-12 glass-dark rounded-xl border border-white/10">
-            <FileText className="mx-auto text-gray-600 mb-4" size={48} />
-            <p className="text-gray-400">{t("filesPage.empty.title")}</p>
-            <p className="text-gray-500 text-sm mt-1">
-              {t("filesPage.empty.desc")}
-            </p>
+          <div className="neon-panel p-8">
+            <div className="empty-state">
+              <FolderOpen size={48} className="icon text-neon-cyan" />
+              <div className="title">{t("filesPage.empty.title")}</div>
+              <div className="desc">{t("filesPage.empty.desc")}</div>
+            </div>
           </div>
         ) : (
-          <div className="glass-dark rounded-xl border border-white/10 overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="text-left text-sm text-gray-500 border-b border-white/10">
-                  <th className="px-4 py-3 font-medium">{t("filesPage.table.fileName")}</th>
-                  <th className="px-4 py-3 font-medium">{t("filesPage.table.size")}</th>
-                  <th className="px-4 py-3 font-medium">{t("filesPage.table.date")}</th>
-                  <th className="px-4 py-3 font-medium">{t("filesPage.table.type")}</th>
-                  <th className="px-4 py-3 font-medium w-24"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {files.map((file) => (
-                  <tr
-                    key={file.id}
-                    className="border-b border-white/5 hover:bg-white/5 transition-colors"
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <FileText size={18} className="text-primary-400" />
-                        <span className="text-white truncate max-w-[200px]">
-                          {file.file_name}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-400 text-sm">
-                      {formatSize(file.file_size)}
-                    </td>
-                    <td className="px-4 py-3 text-gray-400 text-sm">
-                      {formatDate(file.created_at, i18n.language)}
-                    </td>
-                    <td className="px-4 py-3">
-                      {file.workflow_type && (
-                        <span className="px-2 py-0.5 text-xs rounded-full bg-primary-500/20 text-primary-300">
-                          {file.workflow_type}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        {file.download_url && (
+          <div className="neon-panel overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="file-table">
+                <thead>
+                  <tr>
+                    <th>{t("filesPage.table.fileName")}</th>
+                    <th>{t("filesPage.table.size")}</th>
+                    <th>{t("filesPage.table.date")}</th>
+                    <th>{t("filesPage.table.type")}</th>
+                    <th style={{ width: "6rem" }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {files.map((file) => (
+                    <tr key={file.id}>
+                      <td>
+                        <div className="flex items-center gap-3">
+                          <FileText size={16} className="text-neon-cyan" />
+                          <span className="text-white truncate" style={{ maxWidth: "200px" }}>
+                            {file.file_name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="text-lab-muted">{formatSize(file.file_size)}</td>
+                      <td className="text-lab-muted">{formatDate(file.created_at, i18n.language)}</td>
+                      <td>
+                        {file.workflow_type && (
+                          <span className="neon-badge">{file.workflow_type}</span>
+                        )}
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-1">
+                          {file.download_url && (
+                            <button
+                              onClick={() => handleDownload(file)}
+                              disabled={downloading === (file.id || file.file_name)}
+                              className="toolbar-btn"
+                              title={t("filesPage.actions.download")}
+                            >
+                              {downloading === (file.id || file.file_name) ? (
+                                <Loader2 size={14} className="animate-spin" />
+                              ) : (
+                                <Download size={14} />
+                              )}
+                            </button>
+                          )}
                           <button
-                            onClick={() => handleDownload(file)}
-                            disabled={downloading === (file.id || file.file_name)}
-                            className="p-1.5 hover:bg-primary-500/20 rounded text-primary-400 transition-colors"
-                            title={t("filesPage.actions.download")}
+                            onClick={() => file.id && handleDelete(file.id, file.file_name)}
+                            disabled={!file.id || deleting === file.id}
+                            className="toolbar-btn hover:!border-red-500 hover:!text-red-400"
+                            title={t("filesPage.actions.delete")}
                           >
-                            {downloading === (file.id || file.file_name) ? (
-                              <Loader2 size={16} className="animate-spin" />
+                            {deleting === file.id ? (
+                              <Loader2 size={14} className="animate-spin" />
                             ) : (
-                              <Download size={16} />
+                              <Trash2 size={14} />
                             )}
                           </button>
-                        )}
-                        <button
-                          onClick={() => file.id && handleDelete(file.id, file.file_name)}
-                          disabled={!file.id || deleting === file.id}
-                          className="p-1.5 hover:bg-red-500/20 rounded text-red-400 transition-colors disabled:opacity-50"
-                          title={t("filesPage.actions.delete")}
-                        >
-                          {deleting === file.id ? (
-                            <Loader2 size={16} className="animate-spin" />
-                          ) : (
-                            <Trash2 size={16} />
-                          )}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

@@ -111,7 +111,6 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
       : PAPER2FIGURE_MODEL_ARCH_MODELS;
   const modelOptions = withModelOptions(baseModelOptions, model);
 
-  // 配色方案下拉框状态
   const [paletteDropdownOpen, setPaletteDropdownOpen] = useState(false);
   const paletteDropdownRef = useRef<HTMLDivElement>(null);
   const [templatePreview, setTemplatePreview] = useState<{ src: string; label: string } | null>(null);
@@ -127,21 +126,30 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const getAccentClass = () => {
+    if (graphType === 'model_arch') return 'from-neon-cyan to-neon-purple';
+    if (graphType === 'tech_route') return 'from-neon-purple to-neon-pink';
+    return 'from-neon-pink to-neon-cyan';
+  };
+
   return (
-    <div className="glass rounded-xl border border-white/10 p-5 flex flex-col gap-4 text-sm">
+    <div className="bento-card p-5 scan-line">
+      {/* Top accent line */}
+      <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-neon-cyan/30 to-transparent" />
+
       <button
         type="button"
         onClick={() => setShowAdvanced(v => !v)}
-        className="flex items-center justify-between gap-2 mb-1 w-full text-left"
+        className="flex items-center justify-between gap-2 mb-2 w-full text-left"
       >
         <div className="flex items-center gap-2">
-          <Settings2 size={16} className="text-primary-300" />
-          <span className="text-white font-medium">{t('advanced.title')}</span>
+          <Settings2 size={16} className="text-neon-cyan" />
+          <span className="font-mono text-sm font-semibold text-lab-primary">{t('advanced.title')}</span>
         </div>
         {showAdvanced ? (
-          <ChevronUp size={16} className="text-gray-400" />
+          <ChevronUp size={16} className="text-lab-muted" />
         ) : (
-          <ChevronDown size={16} className="text-gray-400" />
+          <ChevronDown size={16} className="text-lab-muted" />
         )}
       </button>
 
@@ -150,14 +158,14 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
           {showApiConfig ? (
             <>
               <div>
-                <label className="block text-xs text-gray-400 mb-1">{t('advanced.apiUrlLabel')}</label>
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-lab-muted mb-1">
+                  {t('advanced.apiUrlLabel')}
+                </label>
                 <div className="flex items-center gap-2">
                   <select
                     value={llmApiUrl}
-                    onChange={e => {
-                      setLlmApiUrl(e.target.value);
-                    }}
-                    className="flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    onChange={e => setLlmApiUrl(e.target.value)}
+                    className="flex-1 rounded-bento-sm border border-border-medium bg-surface-base/60 px-3 py-2 text-xs text-lab-primary outline-none focus:ring-1 focus:ring-neon-cyan/40 font-mono"
                   >
                     {API_URL_OPTIONS.map((url: string) => (
                       <option key={url} value={url}>{url}</option>
@@ -168,7 +176,7 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                       href={getPurchaseUrl(llmApiUrl)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="whitespace-nowrap text-[10px] text-primary-300 hover:text-primary-200 hover:underline px-2"
+                      className="whitespace-nowrap text-[10px] text-neon-cyan hover:text-blue-800 hover:underline px-2 font-mono"
                     >
                       {t('advanced.buyLink')}
                     </a>
@@ -177,7 +185,7 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs text-gray-400 mb-1">
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-lab-muted mb-1">
                   {t('advanced.apiKeyLabel')}
                 </label>
                 <input
@@ -185,7 +193,7 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                   value={apiKey}
                   onChange={e => setApiKey(e.target.value)}
                   placeholder={t('advanced.apiKeyPlaceholder')}
-                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  className="w-full rounded-bento-sm border border-border-medium bg-surface-base/60 px-3 py-2 text-xs text-lab-primary outline-none focus:ring-1 focus:ring-neon-cyan/40 font-mono"
                 />
               </div>
             </>
@@ -194,47 +202,39 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
           )}
 
           <div>
-            <label className="block text-xs text-gray-400 mb-1">{t('advanced.modelLabel')}</label>
+            <label className="block text-[11px] font-mono uppercase tracking-wider text-lab-muted mb-1">
+              {t('advanced.modelLabel')}
+            </label>
             <select
               value={model}
               onChange={e => setModel(e.target.value)}
               disabled={!showApiConfig || llmApiUrl === 'http://123.129.219.111:3000/v1'}
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full rounded-bento-sm border border-border-medium bg-surface-base/60 px-3 py-2 text-xs text-lab-primary outline-none focus:ring-1 focus:ring-neon-cyan/40 disabled:opacity-50 font-mono"
             >
-              {graphType === 'tech_route' ? (
-                <>
-                  {modelOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option === defaultModelForType ? `${option}（默认）` : option}
-                    </option>
-                  ))}
-                </>
-              ) : (
-                <>
-                  {modelOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option === defaultModelForType ? `${option}（默认）` : option}
-                    </option>
-                  ))}
-                </>
-              )}
+              {modelOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option === defaultModelForType ? `${option} (Default)` : option}
+                </option>
+              ))}
             </select>
             {llmApiUrl === 'http://123.129.219.111:3000/v1' && (
-               <p className="text-[10px] text-gray-500 mt-1">{t('advanced.modelOnlyHint')}</p>
+              <p className="text-[10px] text-lab-dim mt-1 font-mono">{t('advanced.modelOnlyHint')}</p>
             )}
             {!showApiConfig && (
-               <p className="text-[10px] text-gray-500 mt-1">Free 模式下由后端统一选择绘图模型。</p>
+              <p className="text-[10px] text-lab-dim mt-1 font-mono">Free mode uses a backend-selected model.</p>
             )}
           </div>
 
           {graphType === 'model_arch' ? (
             <>
               <div>
-                <label className="block text-xs text-gray-400 mb-1">{t('advanced.figureComplexLabel')}</label>
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-lab-muted mb-1">
+                  {t('advanced.figureComplexLabel')}
+                </label>
                 <select
                   value={figureComplex}
                   onChange={e => setFigureComplex(e.target.value as FigureComplex)}
-                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  className="w-full rounded-bento-sm border border-border-medium bg-surface-base/60 px-3 py-2 text-xs text-lab-primary outline-none focus:ring-1 focus:ring-neon-cyan/40 font-mono"
                 >
                   <option value="easy">{t('advanced.figureComplex.easy')}</option>
                   <option value="mid">{t('advanced.figureComplex.mid')}</option>
@@ -242,22 +242,26 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-gray-400 mb-1">{t('advanced.languageLabel')}</label>
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-lab-muted mb-1">
+                  {t('advanced.languageLabel')}
+                </label>
                 <select
                   value={language}
                   onChange={e => setLanguage(e.target.value as Language)}
-                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  className="w-full rounded-bento-sm border border-border-medium bg-surface-base/60 px-3 py-2 text-xs text-lab-primary outline-none focus:ring-1 focus:ring-neon-cyan/40 font-mono"
                 >
                   <option value="zh">{t('advanced.language.zh')}</option>
                   <option value="en">{t('advanced.language.en')}</option>
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-gray-400 mb-1">{t('advanced.resolutionLabel')}</label>
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-lab-muted mb-1">
+                  {t('advanced.resolutionLabel')}
+                </label>
                 <select
                   value={resolution}
                   onChange={e => setResolution(e.target.value as '2K' | '4K')}
-                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  className="w-full rounded-bento-sm border border-border-medium bg-surface-base/60 px-3 py-2 text-xs text-lab-primary outline-none focus:ring-1 focus:ring-neon-cyan/40 font-mono"
                 >
                   <option value="2K">{t('advanced.resolution.2k')}</option>
                   <option value="4K">{t('advanced.resolution.4k')}</option>
@@ -266,11 +270,13 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
             </>
           ) : (
             <div>
-              <label className="block text-xs text-gray-400 mb-1">{t('advanced.languageLabel')}</label>
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-lab-muted mb-1">
+                {t('advanced.languageLabel')}
+              </label>
               <select
                 value={language}
                 onChange={e => setLanguage(e.target.value as Language)}
-                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                className="w-full rounded-bento-sm border border-border-medium bg-surface-base/60 px-3 py-2 text-xs text-lab-primary outline-none focus:ring-1 focus:ring-neon-cyan/40 font-mono"
               >
                 <option value="zh">{t('advanced.language.zh')}</option>
                 <option value="en">{t('advanced.language.en')}</option>
@@ -278,14 +284,16 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
             </div>
           )}
 
-          {/* 技术路线图不显示风格选择 */}
+          {/* Style selector (not shown for tech_route) */}
           {graphType !== 'tech_route' && (
             <div>
-              <label className="block text-xs text-gray-400 mb-1">{t('advanced.styleLabel')}</label>
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-lab-muted mb-1">
+                {t('advanced.styleLabel')}
+              </label>
               <select
                 value={style}
                 onChange={e => setStyle(e.target.value as StyleType)}
-                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                className="w-full rounded-bento-sm border border-border-medium bg-surface-base/60 px-3 py-2 text-xs text-lab-primary outline-none focus:ring-1 focus:ring-neon-cyan/40 font-mono"
               >
                 <option value="cartoon">{t('advanced.style.cartoon')}</option>
                 {graphType !== 'exp_data' && <option value="realistic">{t('advanced.style.realistic')}</option>}
@@ -300,9 +308,12 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
             </div>
           )}
 
+          {/* Tech Route template selector */}
           {graphType === 'tech_route' && (
             <div className="space-y-2">
-              <label className="block text-xs text-gray-400">{t('techRoute.templateLabel')}</label>
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-lab-muted">
+                {t('techRoute.templateLabel')}
+              </label>
               <div className="grid grid-cols-2 gap-2">
                 {TECH_ROUTE_TEMPLATES.map((tpl) => {
                   const isActive = techRouteTemplate === tpl.id;
@@ -311,14 +322,14 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                       key={tpl.id || 'auto'}
                       type="button"
                       onClick={() => setTechRouteTemplate(tpl.id)}
-                      className={`rounded-lg border text-left transition-all ${
+                      className={`rounded-bento-sm border text-left transition-all overflow-hidden ${
                         isActive
-                          ? 'border-primary-400/80 bg-primary-500/10'
-                          : 'border-white/10 bg-black/20 hover:bg-white/5'
+                          ? `border-neon-purple/40 bg-neon-purple-dim`
+                          : 'border-border-subtle bg-surface-base/40 hover:bg-white/5'
                       }`}
                     >
                       <div className="p-2">
-                        <div className="relative overflow-hidden rounded-md border border-white/10 bg-black/30 h-20 flex items-center justify-center group">
+                        <div className="relative overflow-hidden rounded-bento-sm border border-border-subtle bg-surface-base/60 h-20 flex items-center justify-center group">
                           {tpl.preview ? (
                             <img
                               src={tpl.preview}
@@ -326,7 +337,7 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            <div className="text-[10px] text-gray-400 px-2 text-center">
+                            <div className="text-[10px] text-lab-dim px-2 text-center">
                               {t('techRoute.templateAuto')}
                             </div>
                           )}
@@ -337,35 +348,39 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                                 e.stopPropagation();
                                 setTemplatePreview({ src: tpl.preview, label: t(tpl.labelKey) });
                               }}
-                              className="absolute bottom-1 right-1 text-[9px] px-1.5 py-0.5 rounded-full bg-black/70 text-white border border-white/20 opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="absolute bottom-1 right-1 text-[9px] px-1.5 py-0.5 rounded-full bg-surface-base/70 text-white border border-border-subtle opacity-0 group-hover:opacity-100 transition-opacity"
                             >
                               {t('techRoute.templateZoom')}
                             </button>
                           )}
                           {isActive && (
-                            <span className="absolute top-1 right-1 text-[9px] px-1.5 py-0.5 rounded-full bg-primary-500/80 text-white">
+                            <span className="absolute top-1 right-1 text-[9px] px-1.5 py-0.5 rounded-full bg-neon-purple/70 text-white font-mono">
                               {t('techRoute.templateSelected')}
                             </span>
                           )}
                         </div>
-                        <div className="mt-1 text-[10px] text-gray-200">{t(tpl.labelKey)}</div>
+                        <div className={`mt-1 text-[10px] ${isActive ? 'text-neon-purple font-medium' : 'text-lab-secondary'}`}>
+                          {t(tpl.labelKey)}
+                        </div>
                       </div>
                     </button>
                   );
                 })}
               </div>
-              <p className="text-[10px] text-gray-500">{t('techRoute.templateHint')}</p>
+              <p className="text-[10px] text-lab-dim font-mono">{t('techRoute.templateHint')}</p>
             </div>
           )}
 
+          {/* Tech Route color palette selector */}
           {graphType === 'tech_route' && (
             <div ref={paletteDropdownRef} className="relative">
-              <label className="block text-xs text-gray-400 mb-1">{t('techRoute.paletteLabel')}</label>
-              {/* 自定义下拉框触发器 */}
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-lab-muted mb-1">
+                {t('techRoute.paletteLabel')}
+              </label>
               <button
                 type="button"
                 onClick={() => setPaletteDropdownOpen(!paletteDropdownOpen)}
-                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 flex items-center justify-between"
+                className="w-full rounded-bento-sm border border-border-medium bg-surface-base/60 px-3 py-2 text-xs text-lab-primary outline-none focus:ring-1 focus:ring-neon-cyan/40 flex items-center justify-between font-mono"
               >
                 <div className="flex items-center gap-2">
                   <span>{selectedPalette.label}</span>
@@ -383,9 +398,8 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                 </div>
                 <ChevronDown size={14} className={`transition-transform ${paletteDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
-              {/* 下拉选项列表 */}
               {paletteDropdownOpen && (
-                <div className="absolute z-50 w-full mt-1 rounded-lg border border-white/10 bg-gray-900 shadow-lg max-h-48 overflow-y-auto">
+                <div className="absolute z-50 w-full mt-1 rounded-bento-sm border border-border-subtle bg-surface-card shadow-bento max-h-48 overflow-y-auto">
                   {TECH_ROUTE_PALETTES.map(palette => (
                     <button
                       key={palette.id || 'none'}
@@ -394,8 +408,8 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                         setTechRoutePalette(palette.id);
                         setPaletteDropdownOpen(false);
                       }}
-                      className={`w-full px-3 py-2 text-xs text-left flex items-center gap-2 hover:bg-white/10 transition-colors ${
-                        techRoutePalette === palette.id ? 'bg-primary-500/20 text-primary-300' : 'text-gray-200'
+                      className={`w-full px-3 py-2 text-xs text-left flex items-center gap-2 hover:bg-white/5 transition-colors ${
+                        techRoutePalette === palette.id ? 'bg-neon-cyan-dim text-neon-cyan' : 'text-lab-secondary'
                       }`}
                     >
                       <span className="flex-shrink-0">{palette.label}</span>
@@ -418,17 +432,19 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
             </div>
           )}
 
-          {/* 技术路线图参考图上传 */}
+          {/* Tech Route reference image upload */}
           {graphType === 'tech_route' && (
             <div className="mt-3">
-              <label className="block text-xs text-gray-400 mb-1">参考图（可选）</label>
-              <div className="border border-dashed border-white/20 rounded-lg p-3">
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-lab-muted mb-1">
+                Reference Image (Optional)
+              </label>
+              <div className="border border-dashed border-border-medium rounded-bento-sm p-3">
                 {referenceImagePreview ? (
                   <div className="relative">
                     <img
                       src={referenceImagePreview}
-                      alt="参考图预览"
-                      className="max-h-32 rounded mx-auto"
+                      alt="Reference Preview"
+                      className="max-h-32 rounded-bento-sm mx-auto"
                     />
                     <button
                       type="button"
@@ -436,15 +452,15 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                         setReferenceImage(null);
                         setReferenceImagePreview(null);
                       }}
-                      className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 rounded-full p-1 transition-colors"
+                      className="absolute top-1 right-1 bg-neon-pink/80 hover:bg-neon-pink rounded-full p-1 transition-colors"
                     >
                       <X size={12} className="text-white" />
                     </button>
                   </div>
                 ) : (
                   <label className="flex flex-col items-center cursor-pointer py-2">
-                    <ImageIcon size={24} className="text-gray-500 mb-1" />
-                    <span className="text-xs text-gray-500">点击上传参考图</span>
+                    <ImageIcon size={24} className="text-lab-dim mb-1" />
+                    <span className="text-[11px] text-lab-dim font-mono">Upload reference image</span>
                     <input
                       type="file"
                       accept="image/png,image/jpeg,image/jpg,image/webp"
@@ -452,11 +468,10 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) {
-                          // 验证文件类型，拒绝 SVG
                           const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
                           if (!allowedTypes.includes(file.type)) {
-                            alert('仅支持 PNG、JPG、WebP 格式的图片，不支持 SVG 格式');
-                            e.target.value = ''; // 清空文件选择
+                            alert('Only PNG, JPG, WebP images are supported. SVG is not allowed.');
+                            e.target.value = '';
                             return;
                           }
                           setReferenceImage(file);
@@ -467,49 +482,48 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                   </label>
                 )}
               </div>
-              <p className="text-[10px] text-gray-500 mt-1">
-                上传参考图后，AI将分析其布局风格生成类似的技术路线图
+              <p className="text-[10px] text-lab-dim mt-1 font-mono">
+                Upload a reference image to guide the layout style of the generated diagram.
               </p>
             </div>
           )}
         </div>
       )}
 
-      <div className="mt-auto space-y-2 pt-2">
+      <div className="mt-auto space-y-3 pt-3">
         <button
           type="button"
           onClick={handleSubmit}
           disabled={isLoading || isValidating || isSubmitLocked}
-          className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary-500 hover:bg-primary-600 disabled:bg-primary-500/60 disabled:cursor-not-allowed text-white text-sm font-medium py-2.5 transition-colors glow"
+          className={`w-full inline-flex items-center justify-center gap-2 rounded-bento-sm bg-gradient-to-r ${getAccentClass()} text-white text-sm font-mono font-semibold py-2.5 transition-all disabled:opacity-60 disabled:cursor-not-allowed glow`}
         >
           {(isLoading || isValidating || isSubmitLocked) ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
           <span>{(isLoading || isValidating || isSubmitLocked) ? t('submit.buttonLoading') : t('submit.buttonIdle')}</span>
         </button>
 
-        <div className="flex items-start gap-2 text-xs text-gray-400 bg-white/5 border border-white/10 rounded-lg px-3 py-2">
-          <Info size={14} className="mt-0.5 text-gray-500 flex-shrink-0" />
-          <p>{t('submit.hintText')}</p>
+        <div className="flex items-start gap-2 text-xs text-lab-secondary bg-neon-cyan-dim border border-neon-cyan/20 rounded-bento-sm px-3 py-2">
+          <Info size={14} className="mt-0.5 text-neon-cyan flex-shrink-0" />
+          <p className="font-mono">{t('submit.hintText')}</p>
         </div>
 
-        {/* 改进的生成进度显示 */}
+        {/* Generation progress */}
         {isLoading && !error && !successMessage && (
-          <div className="flex flex-col gap-3 mt-2 text-xs rounded-lg border border-primary-400/40 bg-primary-500/10 px-3 py-3">
-            <div className="flex items-center gap-2 text-primary-200">
+          <div className="flex flex-col gap-3 mt-2 text-xs rounded-bento-sm border border-neon-cyan/30 bg-neon-cyan-dim px-3 py-3">
+            <div className="flex items-center gap-2 text-neon-cyan">
               <Loader2 size={14} className="animate-spin" />
-              <span className="font-medium">{GENERATION_STAGES[currentStage].message}</span>
+              <span className="font-medium font-mono">{GENERATION_STAGES[currentStage].message}</span>
             </div>
-            
-            {/* 阶段指示器 */}
+
             <div className="flex gap-1">
               {GENERATION_STAGES.map((stage, index) => (
                 <div
                   key={stage.id}
                   className={`flex-1 h-1.5 rounded-full transition-all duration-500 ${
                     index < currentStage
-                      ? 'bg-primary-400'
+                      ? 'bg-neon-cyan'
                       : index === currentStage
-                      ? 'bg-gradient-to-r from-primary-400 to-primary-400/40'
-                      : 'bg-primary-950/60'
+                      ? 'bg-gradient-neon opacity-60'
+                      : 'bg-border-subtle'
                   }`}
                   style={{
                     width: index === currentStage ? `${stageProgress}%` : undefined,
@@ -518,35 +532,34 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
               ))}
             </div>
 
-            {/* 阶段详细信息 */}
-            <div className="space-y-1.5 text-[11px] text-primary-200/80">
+            <div className="space-y-1.5 text-[11px] text-lab-secondary/80">
               <div className="flex items-center gap-1.5">
-                <div className={`w-1.5 h-1.5 rounded-full ${currentStage >= 0 ? 'bg-primary-400 animate-pulse' : 'bg-primary-950/60'}`} />
-                <span className={currentStage >= 0 ? 'text-primary-200 font-medium' : ''}>
+                <div className={`w-1.5 h-1.5 rounded-full ${currentStage >= 0 ? 'bg-neon-cyan animate-pulse' : 'bg-border-subtle'}`} />
+                <span className={currentStage >= 0 ? 'text-neon-cyan font-medium' : ''} font-mono>
                   {t('progress.stage1')}
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className={`w-1.5 h-1.5 rounded-full ${currentStage >= 1 ? 'bg-primary-400 animate-pulse' : 'bg-primary-950/60'}`} />
-                <span className={currentStage >= 1 ? 'text-primary-200 font-medium' : ''}>
+                <div className={`w-1.5 h-1.5 rounded-full ${currentStage >= 1 ? 'bg-neon-cyan animate-pulse' : 'bg-border-subtle'}`} />
+                <span className={currentStage >= 1 ? 'text-neon-cyan font-medium' : ''} font-mono>
                   {t('progress.stage2')}
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className={`w-1.5 h-1.5 rounded-full ${currentStage >= 2 ? 'bg-primary-400 animate-pulse' : 'bg-primary-950/60'}`} />
-                <span className={currentStage >= 2 ? 'text-primary-200 font-medium' : ''}>
+                <div className={`w-1.5 h-1.5 rounded-full ${currentStage >= 2 ? 'bg-neon-cyan animate-pulse' : 'bg-border-subtle'}`} />
+                <span className={currentStage >= 2 ? 'text-neon-cyan font-medium' : ''} font-mono>
                   {t('progress.stage3')}
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className={`w-1.5 h-1.5 rounded-full ${currentStage >= 3 ? 'bg-primary-400 animate-pulse' : 'bg-primary-950/60'}`} />
-                <span className={currentStage >= 3 ? 'text-primary-200 font-medium' : ''}>
+                <div className={`w-1.5 h-1.5 rounded-full ${currentStage >= 3 ? 'bg-neon-cyan animate-pulse' : 'bg-border-subtle'}`} />
+                <span className={currentStage >= 3 ? 'text-neon-cyan font-medium' : ''} font-mono>
                   {t('progress.stage4')}
                 </span>
               </div>
             </div>
 
-            <p className="text-[11px] text-primary-200/70 pt-1 border-t border-primary-400/20">
+            <p className="text-[11px] text-lab-dim pt-1 border-t border-neon-cyan/10 font-mono">
               {t('progress.eta')}
             </p>
           </div>
@@ -564,7 +577,7 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
               a.click();
               a.remove();
             }}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-400/60 text-emerald-300 text-xs py-2 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
+            className="w-full inline-flex items-center justify-center gap-2 rounded-bento-sm border border-emerald-400/40 text-emerald-300 text-xs py-2 bg-emerald-500/10 hover:bg-emerald-500/20 transition-all font-mono"
           >
             <CheckCircle2 size={14} />
             <span>{t('download.reDownload', { filename: lastFilename })}</span>
@@ -582,11 +595,12 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                     if (!bwPath) return;
                     try {
                       const response = await fetch(bwPath);
-                      const blob = await response.blob();
+                      const svgText = await response.text();
+                      const blob = new Blob([svgText], { type: 'image/svg+xml' });
                       const blobUrl = URL.createObjectURL(blob);
                       const a = document.createElement('a');
                       a.href = blobUrl;
-                      a.download = bwPath.split('/').pop() || 'technical_route_bw.svg';
+                      a.download = bwPath.split('/').pop() || 'tech_route_bw.svg';
                       document.body.appendChild(a);
                       a.click();
                       a.remove();
@@ -595,14 +609,14 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                       window.open(bwPath, '_blank');
                     }
                   }}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-sky-400/60 text-sky-300 text-xs py-2 bg-sky-500/10 hover:bg-sky-500/20 transition-colors"
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-bento-sm border border-neon-cyan/40 text-neon-cyan text-xs py-2 bg-neon-cyan-dim hover:bg-neon-cyan-dim/30 transition-all font-mono"
                 >
                   <ImageIcon size={14} />
-                  <span>黑白 SVG 源文件下载</span>
+                  <span>BW SVG Download</span>
                 </button>
-                <div className="text-[11px] text-gray-300 bg-black/30 border border-white/10 rounded-md px-2 py-1.5">
-                  <div className="font-semibold text-gray-200">黑白 SVG 链接：</div>
-                  <div className="mt-1 break-all text-sky-300 select-all cursor-text font-mono text-[10px] leading-tight p-1 bg-black/20 rounded">
+                <div className="text-[11px] text-lab-secondary bg-surface-base/60 border border-border-subtle rounded-bento-sm px-2 py-1.5">
+                  <div className="font-semibold text-lab-primary font-mono">BW SVG Link:</div>
+                  <div className="mt-1 break-all text-neon-cyan select-all cursor-text font-mono text-[10px] leading-tight p-1 bg-surface-base/80 rounded">
                     {svgBwPath || svgPath}
                   </div>
                 </div>
@@ -616,11 +630,12 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                   onClick={async () => {
                     try {
                       const response = await fetch(svgColorPath);
-                      const blob = await response.blob();
+                      const svgText = await response.text();
+                      const blob = new Blob([svgText], { type: 'image/svg+xml' });
                       const blobUrl = URL.createObjectURL(blob);
                       const a = document.createElement('a');
                       a.href = blobUrl;
-                      a.download = svgColorPath.split('/').pop() || 'technical_route_color.svg';
+                      a.download = svgColorPath.split('/').pop() || 'tech_route_color.svg';
                       document.body.appendChild(a);
                       a.click();
                       a.remove();
@@ -629,14 +644,14 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                       window.open(svgColorPath, '_blank');
                     }
                   }}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-amber-400/60 text-amber-300 text-xs py-2 bg-amber-500/10 hover:bg-amber-500/20 transition-colors"
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-bento-sm border border-neon-pink/40 text-neon-pink text-xs py-2 bg-neon-pink-dim hover:bg-neon-pink-dim/30 transition-all font-mono"
                 >
                   <ImageIcon size={14} />
-                  <span>彩色 SVG 源文件下载</span>
+                  <span>Color SVG Download</span>
                 </button>
-                <div className="text-[11px] text-gray-300 bg-black/30 border border-white/10 rounded-md px-2 py-1.5">
-                  <div className="font-semibold text-gray-200">彩色 SVG 链接：</div>
-                  <div className="mt-1 break-all text-amber-300 select-all cursor-text font-mono text-[10px] leading-tight p-1 bg-black/20 rounded">
+                <div className="text-[11px] text-lab-secondary bg-surface-base/60 border border-border-subtle rounded-bento-sm px-2 py-1.5">
+                  <div className="font-semibold text-lab-primary font-mono">Color SVG Link:</div>
+                  <div className="mt-1 break-all text-neon-pink select-all cursor-text font-mono text-[10px] leading-tight p-1 bg-surface-base/80 rounded">
                     {svgColorPath}
                   </div>
                 </div>
@@ -646,47 +661,47 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
         )}
 
         {isValidating && (
-          <div className="flex items-start gap-2 text-xs text-blue-300 bg-blue-500/10 border border-blue-500/40 rounded-lg px-3 py-2 mt-1 animate-pulse">
+          <div className="flex items-start gap-2 text-xs text-neon-cyan bg-neon-cyan-dim border border-neon-cyan/30 rounded-bento-sm px-3 py-2 mt-1 animate-pulse">
             <Loader2 size={14} className="mt-0.5 animate-spin" />
-            <p>{t('validating.apiKey')}</p>
+            <p className="font-mono">{t('validating.apiKey')}</p>
           </div>
         )}
 
         {error && (
-          <div className="flex items-start gap-2 text-xs text-red-300 bg-red-500/10 border border-red-500/40 rounded-lg px-3 py-2 mt-1">
+          <div className="flex items-start gap-2 text-xs text-neon-pink bg-neon-pink-dim border border-neon-pink/30 rounded-bento-sm px-3 py-2 mt-1">
             <AlertCircle size={14} className="mt-0.5" />
-            <p>{error}</p>
+            <p className="font-mono">{error}</p>
           </div>
         )}
 
         {successMessage && !error && (
-          <div className="flex items-start gap-2 text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-500/40 rounded-lg px-3 py-2 mt-1">
+          <div className="flex items-start gap-2 text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-400/30 rounded-bento-sm px-3 py-2 mt-1">
             <CheckCircle2 size={14} className="mt-0.5" />
-            <p>{successMessage}</p>
+            <p className="font-mono">{successMessage}</p>
           </div>
         )}
       </div>
 
       {templatePreview && (
         <div
-          className="fixed inset-0 z-[999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6"
+          className="fixed inset-0 z-[999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6"
           onClick={() => setTemplatePreview(null)}
         >
           <div
-            className="max-w-4xl w-full bg-black/80 border border-white/10 rounded-xl p-4"
+            className="max-w-4xl w-full bg-surface-card border border-border-subtle rounded-bento-sm p-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-3">
-              <div className="text-sm text-gray-200">{templatePreview.label}</div>
+              <div className="text-sm text-lab-primary font-mono">{templatePreview.label}</div>
               <button
                 type="button"
                 onClick={() => setTemplatePreview(null)}
-                className="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-gray-200"
+                className="text-xs px-2 py-1 rounded-bento-sm bg-surface-base/60 hover:bg-white/5 text-lab-secondary"
               >
                 {t('techRoute.templateClose')}
               </button>
             </div>
-            <div className="w-full max-h-[70vh] overflow-auto rounded-lg border border-white/10 bg-black/40">
+            <div className="w-full max-h-[70vh] overflow-auto rounded-bento-sm border border-border-subtle bg-surface-base/60">
               <img
                 src={templatePreview.src}
                 alt={templatePreview.label}

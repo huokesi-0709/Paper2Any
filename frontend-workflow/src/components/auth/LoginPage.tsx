@@ -42,33 +42,33 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
       icon: Sparkles,
       title: t('features.paper2figure.title'),
       desc: t('features.paper2figure.desc'),
-      color: "text-purple-400",
-      bg: "bg-purple-500/10",
-      border: "border-purple-500/20"
+      color: "text-neon-cyan",
+      bg: "bg-neon-cyan/10",
+      border: "border-neon-cyan/30"
     },
     {
       icon: FileText,
       title: t('features.paper2ppt.title'),
       desc: t('features.paper2ppt.desc'),
-      color: "text-blue-400",
-      bg: "bg-blue-500/10",
-      border: "border-blue-500/20"
+      color: "text-neon-purple",
+      bg: "bg-neon-purple/10",
+      border: "border-neon-purple/30"
     },
     {
       icon: Presentation,
       title: t('features.pdf2ppt.title'),
       desc: t('features.pdf2ppt.desc'),
-      color: "text-pink-400",
-      bg: "bg-pink-500/10",
-      border: "border-pink-500/20"
+      color: "text-neon-pink",
+      bg: "bg-neon-pink/10",
+      border: "border-neon-pink/30"
     },
     {
       icon: Palette,
       title: t('features.pptPolish.title'),
       desc: t('features.pptPolish.desc'),
-      color: "text-emerald-400",
-      bg: "bg-emerald-500/10",
-      border: "border-emerald-500/20"
+      color: "text-neon-cyan",
+      bg: "bg-neon-cyan/10",
+      border: "border-neon-cyan/30"
     }
   ];
 
@@ -113,11 +113,11 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#050512] p-4 relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-surface-base p-4 relative overflow-hidden">
       {/* 动态背景装饰 */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-600/20 rounded-full blur-[120px] animate-pulse"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-600/20 rounded-full blur-[120px] animate-pulse delay-1000"></div>
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-neon-cyan/10 rounded-full blur-[120px] animate-pulse"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-neon-purple/10 rounded-full blur-[120px] animate-pulse delay-1000"></div>
       </div>
 
       <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-center relative z-10">
@@ -125,10 +125,10 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
         {/* 左侧：功能展示区 */}
         <div className="hidden lg:flex flex-col justify-center space-y-8 pr-8">
           <div>
-            <h1 className="text-5xl font-bold text-white mb-4 leading-tight">
-              {t('heroTitlePrefix')} <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">Any</span>
+            <h1 className="text-5xl font-display font-bold text-lab-primary mb-4 leading-tight">
+              {t('heroTitlePrefix')} <span className="text-neon-cyan">Any</span>
             </h1>
-            <p className="text-gray-400 text-lg max-w-md">
+            <p className="text-lab-secondary text-lg max-w-md">
               {t('heroDesc')}
             </p>
           </div>
@@ -139,23 +139,23 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
                 key={idx}
                 className={`transform transition-all duration-500 border rounded-xl p-4 flex items-center gap-4 ${
                   idx === featureIndex 
-                    ? `scale-105 ${feature.bg} ${feature.border} shadow-lg shadow-purple-900/20 translate-x-4` 
-                    : 'bg-white/5 border-white/5 opacity-60 hover:opacity-80 hover:translate-x-2'
+                    ? `scale-105 ${feature.bg} ${feature.border} shadow-[0_0_20px_rgba(34,211,238,0.15)] translate-x-4`
+                    : 'border-slate-200 bg-white/70 opacity-80 hover:opacity-100 hover:translate-x-2'
                 }`}
                 onClick={() => setFeatureIndex(idx)}
               >
-                <div className={`p-3 rounded-lg ${idx === featureIndex ? 'bg-white/10' : 'bg-white/5'}`}>
+                <div className="rounded-lg bg-white p-3 shadow-sm">
                   <feature.icon className={feature.color} size={24} />
                 </div>
                 <div>
-                  <h3 className={`font-semibold text-lg ${idx === featureIndex ? 'text-white' : 'text-gray-300'}`}>
+                  <h3 className={`font-display font-bold text-lg ${idx === featureIndex ? 'text-lab-primary' : 'text-slate-700'}`}>
                     {feature.title}
                   </h3>
-                  <p className="text-sm text-gray-400">{feature.desc}</p>
+                  <p className="text-sm text-lab-secondary">{feature.desc}</p>
                 </div>
                 {idx === featureIndex && (
                   <div className="ml-auto">
-                    <ArrowRight className="text-white/50 animate-bounce-x" size={20} />
+                    <ArrowRight className="text-neon-cyan animate-bounce-x" size={20} />
                   </div>
                 )}
               </div>
@@ -164,47 +164,41 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
         </div>
 
         {/* 右侧：登录表单 */}
-        <div className="glass-dark p-8 md:p-10 rounded-2xl w-full border border-white/10 shadow-2xl backdrop-blur-xl bg-black/40">
+        <div className="bento-card scan-line p-8 md:p-10 w-full">
           <div className="lg:hidden mb-8 text-center">
-             <h2 className="text-3xl font-bold text-white mb-2">{t('title')}</h2>
-             <p className="text-gray-400 text-sm">{t('subtitle')}</p>
+             <h2 className="text-3xl font-display font-bold text-lab-primary mb-2">{t('title')}</h2>
+             <p className="text-lab-secondary text-sm">{t('subtitle')}</p>
           </div>
 
-          <h2 className="text-2xl font-bold text-white mb-2">{t('welcome')}</h2>
-          <p className="text-gray-400 mb-6 text-sm">{t('loginSubtitle')}</p>
+          <h2 className="text-2xl font-display font-bold text-lab-primary mb-2">{t('welcome')}</h2>
+          <p className="text-lab-secondary mb-6 text-sm">{t('loginSubtitle')}</p>
 
           {error && (
-            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-3 text-red-300 animate-in fade-in slide-in-from-top-2">
+            <div className="status-error mb-6 flex items-start gap-3">
               <AlertCircle size={20} className="mt-0.5 shrink-0" />
               <span className="text-sm leading-relaxed">{error}</span>
             </div>
           )}
 
           {/* Tab 切换 */}
-          <div className="flex mb-6 p-1 bg-white/5 rounded-xl">
+          <div className="auth-method-switch mb-6" role="group" aria-label={t('loginMethodLabel')}>
             <button
               type="button"
               onClick={() => setLoginMethod("phone")}
-              className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
-                loginMethod === "phone"
-                  ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg"
-                  : "text-gray-400 hover:text-white"
-              }`}
+              className={`neon-tab ${loginMethod === "phone" ? "neon-tab-active" : ""}`}
+              aria-pressed={loginMethod === "phone"}
             >
               <Phone size={16} />
-              <span>手机号登录</span>
+              <span>{t('phoneTab')}</span>
             </button>
             <button
               type="button"
               onClick={() => setLoginMethod("email")}
-              className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
-                loginMethod === "email"
-                  ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg"
-                  : "text-gray-400 hover:text-white"
-              }`}
+              className={`neon-tab ${loginMethod === "email" ? "neon-tab-active" : ""}`}
+              aria-pressed={loginMethod === "email"}
             >
               <Mail size={16} />
-              <span>邮箱登录</span>
+              <span>{t('emailTab')}</span>
             </button>
           </div>
 
@@ -214,38 +208,40 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
               {/* 第一行：手机号 + 发送按钮 */}
               <div className="flex gap-3">
                 <div className="flex-1 space-y-1.5">
-                  <label className="block text-xs font-medium text-gray-400 ml-1">手机号</label>
+                  <label htmlFor="login-phone" className="block text-xs font-medium text-lab-secondary ml-1">{t('phoneLabel')}</label>
                   <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Phone className="text-gray-500 group-focus-within:text-purple-400 transition-colors" size={18} />
+                    <div className="pointer-events-none absolute inset-y-0 left-4 z-10 flex items-center">
+                      <Phone className="text-slate-500 group-focus-within:text-neon-cyan transition-colors" size={18} />
                     </div>
                     <input
+                      id="login-phone"
                       type="tel"
+                      inputMode="tel"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
-                      placeholder="输入手机号"
+                      className="neon-input neon-input-with-icon"
+                      placeholder={t('phonePlaceholder')}
                       disabled={loading}
                     />
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-medium text-transparent ml-1">-</label>
+                  <span className="block text-xs font-medium text-transparent ml-1" aria-hidden="true">-</span>
                   <button
                     type="button"
                     onClick={handleSendSms}
                     disabled={sendingSms || !phone.trim()}
-                    className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all whitespace-nowrap flex items-center justify-center gap-2 min-w-[120px]"
+                    className="btn-neon px-6 py-2.5 disabled:opacity-40 whitespace-nowrap flex items-center justify-center gap-2 min-w-[120px]"
                   >
                     {sendingSms ? (
                       <>
                         <Loader2 size={18} className="animate-spin" />
-                        <span>发送中</span>
+                        <span>{t('sendingCode')}</span>
                       </>
                     ) : smsStep === "sent" ? (
-                      <span>重新发送</span>
+                      <span>{t('resendCode')}</span>
                     ) : (
-                      <span>发送验证码</span>
+                      <span>{t('sendCode')}</span>
                     )}
                   </button>
                 </div>
@@ -253,22 +249,23 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
 
               {/* 发送成功提示 */}
               {smsSent && (
-                <div className="flex items-center gap-2 text-sm text-green-300 bg-green-500/10 border border-green-500/30 rounded-lg px-3 py-2">
+                <div className="status-success flex items-center gap-2 text-sm">
                   <CheckCircle2 size={16} className="shrink-0" />
-                  <span>验证码已发送，请查收短信</span>
+                  <span>{t('codeSent')}</span>
                 </div>
               )}
 
-              {/* 第二行：验证码输入框（始终显示） */}
+              {/* 第二行：验证码输入框 */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-gray-400 ml-1">验证码</label>
+                <label htmlFor="login-sms-code" className="block text-xs font-medium text-lab-secondary ml-1">{t('codeLabel')}</label>
                 <input
+                  id="login-sms-code"
                   type="text"
                   inputMode="numeric"
                   value={smsCode}
                   onChange={(e) => setSmsCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all tracking-widest text-center text-lg"
-                  placeholder="输入 6 位验证码"
+                  className="neon-input w-full tracking-widest text-center text-lg"
+                  placeholder={t('codePlaceholder')}
                   disabled={sendingSms || loading || smsStep === "idle"}
                   maxLength={6}
                 />
@@ -279,16 +276,16 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
                 type="button"
                 onClick={handleVerifySms}
                 disabled={loading || smsCode.trim().length < 4 || smsStep === "idle"}
-                className="w-full py-3.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-purple-900/30 flex items-center justify-center gap-2"
+                className="btn-neon glow w-full py-3.5 disabled:opacity-40 flex items-center justify-center gap-2"
               >
                 {loading && smsStep === "sent" ? (
                   <>
                     <Loader2 size={20} className="animate-spin" />
-                    <span>登录中...</span>
+                    <span>{t('loggingIn')}</span>
                   </>
                 ) : (
                   <>
-                    <span>登录</span>
+                    <span>{t('loginButton')}</span>
                     <ArrowRight size={18} />
                   </>
                 )}
@@ -300,16 +297,17 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
           {loginMethod === "email" && (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-gray-400 ml-1">{t('emailLabel')}</label>
+                <label htmlFor="login-email" className="block text-xs font-medium text-lab-secondary ml-1">{t('emailLabel')}</label>
                 <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Mail className="text-gray-500 group-focus-within:text-purple-400 transition-colors" size={18} />
+                  <div className="pointer-events-none absolute inset-y-0 left-4 z-10 flex items-center">
+                    <Mail className="text-slate-500 group-focus-within:text-neon-cyan transition-colors" size={18} />
                   </div>
                   <input
+                    id="login-email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
+                    className="neon-input neon-input-with-icon"
                     placeholder={t('emailPlaceholder')}
                     required
                     disabled={loading}
@@ -318,16 +316,17 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-gray-400 ml-1">{t('passwordLabel')}</label>
+                <label htmlFor="login-password" className="block text-xs font-medium text-lab-secondary ml-1">{t('passwordLabel')}</label>
                 <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Lock className="text-gray-500 group-focus-within:text-purple-400 transition-colors" size={18} />
+                  <div className="pointer-events-none absolute inset-y-0 left-4 z-10 flex items-center">
+                    <Lock className="text-slate-500 group-focus-within:text-neon-cyan transition-colors" size={18} />
                   </div>
                   <input
+                    id="login-password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
+                    className="neon-input neon-input-with-icon"
                     placeholder={t('passwordPlaceholder')}
                     required
                     disabled={loading}
@@ -338,7 +337,7 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-purple-900/30 flex items-center justify-center gap-2"
+                className="btn-neon glow w-full py-3.5 disabled:opacity-40 flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>
@@ -356,11 +355,11 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
           )}
 
           <div className="mt-8 text-center">
-            <p className="text-gray-400 text-sm">
+            <p className="text-lab-secondary text-sm">
               {t('noAccount')}{" "}
               <button
                 onClick={onSwitchToRegister}
-                className="text-purple-400 hover:text-purple-300 font-medium hover:underline transition-colors"
+                className="text-neon-cyan hover:text-neon-cyan/80 font-medium hover:underline transition-colors"
               >
                 {t('registerLink')}
               </button>

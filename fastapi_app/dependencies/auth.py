@@ -4,7 +4,7 @@ JWT Authentication dependency for FastAPI.
 Validates Supabase JWT tokens and extracts user information.
 """
 import os
-from typing import Optional
+from typing import Any, Dict, Optional
 from fastapi import Header, HTTPException
 from supabase import create_client, Client
 
@@ -37,11 +37,24 @@ def is_auth_configured() -> bool:
 class AuthUser:
     """Authenticated user information."""
     
-    def __init__(self, user_id: str, email: Optional[str], phone: Optional[str], is_anonymous: bool = False):
+    def __init__(
+        self,
+        user_id: str,
+        email: Optional[str],
+        phone: Optional[str],
+        is_anonymous: bool = False,
+        app_metadata: Optional[Dict[str, Any]] = None,
+    ):
         self.id = user_id
         self.email = email
         self.phone = phone
         self.is_anonymous = is_anonymous
+        self.app_metadata = dict(app_metadata or {})
+
+    @property
+    def is_billing_exempt(self) -> bool:
+        """Whether an administrator has exempted this account from point billing."""
+        return self.app_metadata.get("billing_exempt") is True
     
     @property
     def identifier(self) -> str:
@@ -101,6 +114,7 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> AuthU
             email=user.email,
             phone=user.phone,
             is_anonymous=bool(getattr(user, "is_anonymous", False)),
+            app_metadata=getattr(user, "app_metadata", None),
         )
         
     except HTTPException:

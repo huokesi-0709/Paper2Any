@@ -5,21 +5,37 @@
     "subtitle": "Upload paper PDF / images, or paste text directly to generate editable scientific figure PPTX that you can further edit, add/remove content and adjust layout."
   },
   "subpages": {
+    "modelArch": {
+      "badge": "MODEL ARCHITECTURE",
+      "title": "Model Architecture Diagram",
+      "subtitle": "Extract model modules and connections from a paper PDF or text to create a clear, editable architecture diagram.",
+      "hintTitle": "Usage guide",
+      "hintZh": "支持 PDF 与文本输入。建议保留模型名称、模块层级和关键数据流。",
+      "hintEn": "Supports PDF and text. Keep model names, module hierarchy, and key data flows."
+    },
     "techExp": {
       "badge": "TECH ROUTE + EXP DATA",
       "title": "Technical Route & Experimental Charts",
       "subtitle": "Focus on methods and results: generate editable tech-route and experimental charts in one flow.",
-      "hintTitle": "Usage / 使用说明",
+      "hintTitle": "Usage guide",
       "hintZh": "支持 PDF 与文本输入，生成技术路线图或者美观的实验数据图。",
       "hintEn": "Supports PDF and text. Generate the technical route first, then add experimental charts."
     },
+    "expData": {
+      "badge": "EXPERIMENTAL DATA",
+      "title": "Experimental Data Charts",
+      "subtitle": "Extract metrics, groups, and results from a paper to generate editable charts for presentation.",
+      "hintTitle": "Usage guide",
+      "hintZh": "请上传包含实验结果的 PDF，系统会识别关键数据并生成可编辑图表。",
+      "hintEn": "Upload a PDF containing experimental results to generate editable charts from key data."
+    },
     "modelDrawio": {
-      "badge": "MODEL → DRAWIO / PPT",
-      "title": "Model Diagram · DrawIO & PPT",
-      "subtitle": "Generate a model diagram, then convert it to editable DrawIO or PPTX.",
-      "hintTitle": "Usage / 使用说明",
-      "hintZh": "流程：配置模型 → 生成图片 → 提示词微调 → 选择转 DrawIO 或 PPT。",
-      "hintEn": "Flow: configure → generate → prompt refine → convert to DrawIO or PPT.",
+      "badge": "MODEL → DRAWIO",
+      "title": "Model Diagram · DrawIO",
+      "subtitle": "Generate a model diagram, then convert it to editable DrawIO.",
+      "hintTitle": "Usage guide",
+      "hintZh": "流程：配置模型 → 生成图片 → 提示词微调 → 转成 DrawIO 编辑。",
+      "hintEn": "Flow: configure → generate → prompt refine → convert to DrawIO.",
       "drawioButton": "Convert to DrawIO Editor"
     }
   },
@@ -30,6 +46,7 @@
     "exp_data": "Experimental data chart"
   },
   "uploadTabs": {
+    "label": "Input mode",
     "file": "File",
     "fileSub": "PDF",
     "text": "Text",
@@ -38,6 +55,8 @@
     "imageSub": "Image"
   },
   "upload": {
+    "fileTypePdfOnly": "PDF only",
+    "fileTypePdfImage": "PDF or image",
     "fileDragTitleFile": "Drag PDF here or click to select",
     "fileDragTitleImage": "Drag image here or click to select",
     "fileHint": "Single file recommended < 20MB.",
@@ -100,6 +119,9 @@
     "reDownload": "Download again: {{filename}}"
   },
   "techRoute": {
+    "previewTitle": "Technical Route Preview",
+    "previewLoadFailed": "Image failed to load",
+    "previewOpenNewTab": "Open in a new tab",
     "pptDownload": "Download technical roadmap PPT: {{filename}}",
     "pptCopyHintTitle": "If download fails, copy the link below into your browser:",
     "svgDownload": "Download SVG source file: {{filename}}",
@@ -138,7 +160,8 @@
   },
   "success": {
     "pptGenerated": "PPTX generated, downloading...",
-    "techRouteGenerated": "Technical roadmap generated. You can download PPT / SVG or directly preview PNG."
+    "techRouteGenerated": "Technical roadmap generated. You can download PPT / SVG or directly preview PNG.",
+    "previewGenerated": "Model diagram preview generated. Download the image or convert it to DrawIO for editing."
   },
   "examples": {
     "sectionTitle": "Examples: from Paper to PPTX",

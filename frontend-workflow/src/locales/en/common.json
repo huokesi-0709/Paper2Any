@@ -8,6 +8,12 @@
     "githubProject": "GitHub Open Source",
     "exploreMore": "🚀 Explore more AI data processing tools",
     "quotaRemaining": "Remaining: {{remaining}}/{{limit}}",
+    "managedApiNotice": {
+      "title": "Managed model enabled",
+      "descriptionWithPurchase": "This workspace uses platform-managed models, so no API URL or API key is required. Actions consume points; if your balance is low, get a redeem code from the purchase page and add it in Account.",
+      "descriptionWithoutPurchase": "This workspace uses platform-managed models, so no API URL or API key is required. Actions consume points; if your balance is low, redeem a code in Account before continuing.",
+      "purchaseLink": "Get a redeem code"
+    },
     "nav": {
       "home": "Overview",
       "paper2figure": "Research Figure Generator",
@@ -205,6 +211,78 @@
           "title": "History Files Hub",
           "description": "Revisit all generated outputs, download them again, and continue work without losing previous artifacts.",
           "badge": "Workspace"
+        }
+      }
+    },
+    "workspace": {
+      "breadcrumbLabel": "Page path",
+      "guest": "Guest",
+      "guestDescription": "Not signed in",
+      "refreshQuota": "Refresh points",
+      "quotaUnlimited": "Unlimited",
+      "quotaPoints": "{{count}} pts",
+      "userMenuLabel": "Open user menu",
+      "accountSettings": "Account settings",
+      "signOut": "Sign out",
+      "signIn": "Sign in / Register",
+      "featurePage": "Feature page",
+      "footerVersion": "Research Workspace v2.0",
+      "managedBilling": "Managed billing",
+      "groups": {
+        "home": "Home",
+        "drawing": "Research figures",
+        "tools": "Creation tools",
+        "data": "Files & data"
+      },
+      "nav": {
+        "home": {
+          "title": "Overview",
+          "description": "Platform overview and quick access"
+        },
+        "model": {
+          "title": "Model diagram generator",
+          "description": "Generate neural-network architecture diagrams from papers or text"
+        },
+        "tech": {
+          "title": "Technical route generator",
+          "description": "Generate SVG and PPT technical routes with multiple color themes"
+        },
+        "experiment": {
+          "title": "Experiment figure generator",
+          "description": "Turn papers or text into experimental result visualizations"
+        },
+        "flow": {
+          "title": "Flow / architecture diagrams",
+          "description": "Generate editable DrawIO diagrams from text or PDFs"
+        },
+        "imagePlayground": {
+          "title": "Image model playground",
+          "description": "Generate image batches across multiple models in parallel"
+        },
+        "mindmap": {
+          "title": "Mind map",
+          "description": "Create interactive mind maps from text or papers"
+        },
+        "image2drawio": {
+          "title": "Image to DrawIO",
+          "description": "Convert images into editable DrawIO diagrams"
+        },
+        "files": {
+          "title": "History files",
+          "description": "Browse, download, and manage generated files"
+        }
+      },
+      "home": {
+        "badge": "Research creation workspace",
+        "title": "Paper2Any Workspace",
+        "subtitle": "Create research figures, AI visuals, mind maps, and manage outputs in one focused workspace.",
+        "allFeatures": "All tools",
+        "navigation": "Browse by workflow",
+        "stats": {
+          "workflows": "Workflows",
+          "stages": "Generation stages",
+          "batch": "Batch outputs",
+          "agent": "Unified agent"
         }
       }
     },

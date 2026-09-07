@@ -1,4 +1,5 @@
 {
+  "badge": "IMAGE TO DRAWIO",
   "title": "Image2DrawIO",
   "subtitle": "Upload any diagram image and get an editable DrawIO file.",
   "upload": {
@@ -33,9 +34,11 @@
     "clear": "Clear"
   },
   "status": {
+    "checkingQuota": "Checking quota...",
     "uploading": "Uploading image...",
     "processing": "Analyzing and converting...",
-    "complete": "Conversion complete"
+    "complete": "Conversion complete",
+    "fallback": "Complex icons could not be separated; visual fidelity was preserved with editable text"
   },
   "errors": {
     "selectFile": "Please select an image",

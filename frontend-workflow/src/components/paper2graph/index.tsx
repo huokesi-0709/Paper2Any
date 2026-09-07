@@ -95,9 +95,8 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
   
   // State from original file
   const [uploadMode, setUploadMode] = useState<UploadMode>('file');
-  const [graphStep, setGraphStep] = useState<'input' | 'preview' | 'done'>('input');
+  const [graphStep, setGraphStep] = useState<'input' | 'preview'>('input');
   const [previewImgUrl, setPreviewImgUrl] = useState<string | null>(null);
-  const [pptUrl, setPptUrl] = useState<string | null>(null);
   const [editPrompt, setEditPrompt] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileKind, setFileKind] = useState<FileKind>(null);
@@ -695,7 +694,6 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
         }
 
         const normalizedAllOutputFiles = (data.all_output_files ?? []).map((item) => normalizePaper2FigureAsset(item));
-        const normalizedPptFilename = normalizePaper2FigureAsset(data.ppt_filename);
         setAllOutputFiles(normalizedAllOutputFiles);
         
         console.log('[Paper2Figure] All output files:', normalizedAllOutputFiles);
@@ -723,22 +721,11 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
           mainImg = mainImg.replace(/^http:/, 'https:');
         }
 
-        setSuccessMessage(t('success.previewGenerated', '模型结构图预览已生成，请确认并转为 PPT'));
+        setSuccessMessage(t('success.previewGenerated', '模型结构图预览已生成，可下载图片或转为 DrawIO 编辑'));
         await recordUsage(user?.id || null, 'paper2figure', { isAnonymous: user?.is_anonymous || false });
         refreshQuota();
 
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        let pptUrlCandidate: string | null = null;
-        if (normalizedPptFilename) {
-          pptUrlCandidate = normalizedPptFilename;
-        } else {
-          const pptx = files.find(f => /\.pptx$/i.test(f));
-          if (pptx) pptUrlCandidate = pptx;
-        }
-
         setPreviewImgUrl(mainImg);
-        // Step 1 结束，暂不设置 pptUrl，因为 PPT 还没生成
-        setPptUrl(null);
         setGraphStep('preview');
       } catch (err) {
         const message = err instanceof Error ? err.message : t('errors.serverBusy');
@@ -1004,11 +991,10 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
   };
 
   return (
-    <div className="w-full h-full flex flex-col bg-[var(--bg-dark)]">
+    <div className="page-shell">
       {showBannerProp && <Banner show={showBanner} onClose={() => setShowBanner(false)} stars={stars} />}
 
-      <div className="flex-1 flex flex-col items-center justify-start px-6 pt-20 pb-10 overflow-auto">
-        <div className="w-full max-w-5xl animate-fade-in">
+      <div className="page-container animate-fade-in pt-20 pb-10">
           <Header
             badge={header?.badge}
             title={header?.title}
@@ -1090,8 +1076,6 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
             graphStep={graphStep}
             previewImgUrl={previewImgUrl}
             setPreviewImgUrl={setPreviewImgUrl}
-            pptUrl={pptUrl}
-            setPptUrl={setPptUrl}
             setGraphStep={setGraphStep}
             editPrompt={editPrompt}
             setEditPrompt={setEditPrompt}
@@ -1116,7 +1100,7 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
           />
 
           {enableDrawio && drawioError && (
-            <div className="mb-6 rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
+            <div className="mb-6 neon-result border-neon-pink/30 bg-neon-pink/10 p-4 text-sm text-rose-200 rounded-xl">
               {drawioError}
             </div>
           )}
@@ -1124,16 +1108,19 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
           {enableDrawio && drawioXml && (
             <div className="mb-10">
               {drawioXml === emptyDrawioXml ? (
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.25)]">
+                <div className="bento-card scan-line p-4">
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div>
-                      <h3 className="text-sm font-semibold text-white">DrawIO 在线编辑 / Editor</h3>
-                      <p className="text-xs text-slate-400">可直接在下方编辑图形，支持复制或下载 .drawio / Edit below and download .drawio</p>
+                      <h3 className="text-sm font-display font-bold text-white flex items-center gap-2">
+                        <span className="w-1 h-4 bg-neon-pink rounded-full" style={{ boxShadow: '0 0 8px rgba(255,0,212,0.6)' }} />
+                        DrawIO 在线编辑 / Editor
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5 font-mono">可直接在下方编辑图形，支持复制或下载 .drawio / Edit below and download .drawio</p>
                     </div>
-                    <span className="text-[11px] text-slate-500">等待生成 / Pending</span>
+                    <span className="text-[11px] text-slate-500 font-mono">等待生成 / Pending</span>
                   </div>
                   <div
-                    className="mt-4 flex flex-col items-center justify-center rounded-2xl border border-white/10 bg-[#0b0f17]"
+                    className="mt-4 flex flex-col items-center justify-center rounded-xl border border-border-medium bg-[#060914]"
                     style={{ height: '560px' }}
                   >
                     <svg className="w-16 h-16 text-slate-600 mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1144,7 +1131,7 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
                       <line x1="10" y1="6.5" x2="14" y2="6.5" />
                       <line x1="6.5" y1="10" x2="6.5" y2="14" />
                     </svg>
-                    <p className="text-sm text-slate-500">请先上传论文并生成模型架构图</p>
+                    <p className="text-sm text-slate-500 font-mono">请先上传论文并生成模型架构图</p>
                     <p className="text-xs text-slate-600 mt-1">Upload a paper and generate the model architecture first</p>
                   </div>
                 </div>
@@ -1171,45 +1158,6 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
           {showExamples && <ExamplesSection visibleTypes={exampleTypes ?? allowedGraphTypes} />}
         </div>
       </div>
-
-      <style>{`
-        @keyframes shimmer {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(100%); }
-        }
-        .animate-shimmer {
-          animation: shimmer 3s infinite;
-        }
-        .animate-shimmer-fast {
-          animation: shimmer 1.5s infinite;
-        }
-        @keyframes fade-in {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fade-in {
-          animation: fade-in 0.5s ease-out;
-        }
-        .gradient-border {
-          background: linear-gradient(135deg, rgba(0, 112, 243, 0.4) 0%, rgba(0, 200, 255, 0.4) 100%);
-          padding: 2px;
-          border-radius: 0.75rem;
-        }
-        .glass {
-          background: rgba(255, 255, 255, 0.03);
-          backdrop-filter: blur(10px);
-        }
-        .glow {
-          box-shadow: 0 0 20px rgba(0, 112, 243, 0.3);
-        }
-        .demo-input-placeholder {
-          min-height: 80px;
-        }
-        .demo-output-placeholder {
-          min-height: 80px;
-        }
-      `}</style>
-    </div>
   );
 };
 

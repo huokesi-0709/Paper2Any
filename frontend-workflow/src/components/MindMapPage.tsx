@@ -390,33 +390,34 @@ export default function MindMapPage() {
   };
 
   return (
-    <div className="h-full overflow-y-auto overflow-x-hidden">
-      <div className="mx-auto flex min-h-full w-full max-w-[1600px] flex-col gap-6 px-5 pb-12 pt-6 md:px-8">
-        <section className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(135deg,rgba(9,12,24,0.92),rgba(18,27,41,0.78))] p-6 shadow-[0_40px_120px_rgba(0,0,0,0.45)] backdrop-blur-2xl md:p-8">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_22%,rgba(34,211,238,0.18),transparent_24%),radial-gradient(circle_at_82%_30%,rgba(167,139,250,0.18),transparent_28%),radial-gradient(circle_at_50%_80%,rgba(59,130,246,0.12),transparent_32%)]" />
+    <div className="page-shell overflow-y-auto overflow-x-hidden">
+      <div className="page-container flex flex-col gap-6 pb-12 pt-6">
+        {/* Hero Section */}
+        <section className="bento-card scan-line p-6 md:p-8">
           <div className="relative grid gap-6 lg:grid-cols-[1.02fr_0.98fr]">
             <div className="space-y-5">
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/25 bg-cyan-300/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-cyan-100/85">
+              <div className="inline-flex items-center gap-2 rounded-full border border-neon-cyan/25 bg-neon-cyan/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-neon-cyan">
                 <BrainCircuit size={14} />
                 <span>{t('hero.badge')}</span>
               </div>
               <div className="space-y-3">
-                <h1 className="text-4xl font-semibold tracking-tight text-white md:text-5xl">{t('hero.title')}</h1>
-                <p className="max-w-3xl text-base leading-7 text-white/65 md:text-lg">{t('hero.description')}</p>
+                <h1 className="font-display text-4xl font-extrabold tracking-[-0.035em] text-lab-primary md:text-5xl">{t('hero.title')}</h1>
+                <p className="max-w-3xl text-base leading-7 text-lab-secondary md:text-lg">{t('hero.description')}</p>
               </div>
-              <div className="rounded-2xl border border-emerald-300/15 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-100/90">
-                <div className="text-sm font-medium text-emerald-50">{t('pricing.title')}</div>
-                <div className="mt-1 text-xs leading-6 text-emerald-50/85">{t('pricing.description')}</div>
-                <div className="mt-1 text-xs leading-6 text-emerald-50/80">
+              {/* Pricing info */}
+              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/5 px-4 py-3 text-sm text-emerald-200/90">
+                <div className="text-sm font-medium text-emerald-100">{t('pricing.title')}</div>
+                <div className="mt-1 text-xs leading-6 text-emerald-100/80">{t('pricing.description')}</div>
+                <div className="mt-1 text-xs leading-6 text-emerald-100/70">
                   {t('pricing.preview', { points: estimatedPoints })}
                 </div>
-                <div className="mt-2 grid gap-1 text-xs leading-5 text-emerald-50/75">
+                <div className="mt-2 grid gap-1 text-xs leading-5 text-emerald-100/65">
                   <span>{t('pricing.tierSummary')}</span>
                   <span>{t('pricing.depthSummary')}</span>
                   <span>{t('pricing.previewNote', { points: estimatedPoints })}</span>
                 </div>
                 {chargeInfo ? (
-                  <div className="mt-3 rounded-2xl border border-emerald-200/15 bg-black/15 px-3 py-2 text-xs leading-6 text-emerald-50/90">
+                  <div className="mt-3 rounded-2xl border border-emerald-400/15 bg-[#060914] px-3 py-2 text-xs leading-6 text-emerald-100/85">
                     {t('pricing.actual', {
                       nodes: chargeInfo.nodeCount,
                       depth: chargeInfo.depth,
@@ -427,58 +428,61 @@ export default function MindMapPage() {
                 {runtimeConfig.points_purchase_url ? (
                   <>
                     {' '}
-                    <a href={runtimeConfig.points_purchase_url} target="_blank" rel="noreferrer" className="font-semibold text-white underline decoration-emerald-200/60 underline-offset-4">
+                    <a href={runtimeConfig.points_purchase_url} target="_blank" rel="noreferrer" className="font-semibold text-white underline decoration-emerald-300/60 underline-offset-4">
                       {runtimeConfig.points_purchase_url}
                     </a>
                   </>
                 ) : null}
               </div>
               {status ? (
-                <div className="rounded-2xl border border-cyan-300/15 bg-cyan-300/10 px-4 py-3 text-sm text-cyan-100/90">{status}</div>
+                <div className="status-success flex items-center gap-2 text-sm">{status}</div>
               ) : null}
               {error ? (
-                <div className="rounded-2xl border border-rose-300/15 bg-rose-300/10 px-4 py-3 text-sm text-rose-100/90">{error}</div>
+                <div className="status-error flex items-center gap-2 text-sm">{error}</div>
               ) : null}
             </div>
+            {/* Stats Cards */}
             <div className="grid gap-4 sm:grid-cols-3">
-              <div className="rounded-[26px] border border-white/10 bg-white/5 p-4 backdrop-blur-xl">
-                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">{t('stats.nodes')}</div>
-                <div className="mt-3 text-3xl font-semibold text-white">{metrics.nodes}</div>
+              <div className="bento-card scan-line p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t('stats.nodes')}</div>
+                <div className="mt-3 text-3xl font-display font-bold text-white">{metrics.nodes}</div>
               </div>
-              <div className="rounded-[26px] border border-white/10 bg-white/5 p-4 backdrop-blur-xl">
-                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">{t('stats.depth')}</div>
-                <div className="mt-3 text-3xl font-semibold text-white">{metrics.depth}</div>
+              <div className="bento-card scan-line p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t('stats.depth')}</div>
+                <div className="mt-3 text-3xl font-display font-bold text-white">{metrics.depth}</div>
               </div>
-              <div className="rounded-[26px] border border-white/10 bg-white/5 p-4 backdrop-blur-xl">
-                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">{t('stats.branches')}</div>
-                <div className="mt-3 text-3xl font-semibold text-white">{metrics.branches}</div>
+              <div className="bento-card scan-line p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t('stats.branches')}</div>
+                <div className="mt-3 text-3xl font-display font-bold text-white">{metrics.branches}</div>
               </div>
-              <div className="sm:col-span-3 rounded-[26px] border border-white/10 bg-[linear-gradient(135deg,rgba(14,165,233,0.14),rgba(59,130,246,0.06))] p-5 backdrop-blur-xl">
-                <div className="flex flex-wrap items-center gap-3 text-sm text-white/80">
-                  <span className="rounded-full border border-white/12 bg-black/20 px-3 py-1">React Flow</span>
-                  <span className="rounded-full border border-white/12 bg-black/20 px-3 py-1">{t('editor.techRoute')}</span>
-                  <span className="rounded-full border border-white/12 bg-black/20 px-3 py-1">{t('editor.treeJson')}</span>
-                  <span className="rounded-full border border-white/12 bg-black/20 px-3 py-1">{t('editor.costBadge', { points: estimatedPoints })}</span>
+              <div className="sm:col-span-3 bento-card scan-line p-5">
+                <div className="flex flex-wrap items-center gap-3 text-sm text-slate-300">
+                  <span className="neon-chip">React Flow</span>
+                  <span className="neon-chip">{t('editor.techRoute')}</span>
+                  <span className="neon-chip">{t('editor.treeJson')}</span>
+                  <span className="neon-chip">{t('editor.costBadge', { points: estimatedPoints })}</span>
                 </div>
               </div>
             </div>
           </div>
         </section>
 
+        {/* Main Layout: Input | Editor | Details */}
         <section className="grid gap-6 2xl:grid-cols-[420px_minmax(0,1fr)_360px]">
-          <div className="space-y-5 rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
+          {/* Input Panel */}
+          <div className="bento-card scan-line p-5 space-y-5">
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setInputMode('files')}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition-all ${inputMode === 'files' ? 'border border-cyan-300/30 bg-cyan-300/20 text-cyan-100' : 'border border-white/10 bg-white/5 text-white/60 hover:bg-white/10'}`}
+                className={`neon-tab ${inputMode === 'files' ? 'neon-tab-active' : ''}`}
               >
                 {t('input.filesTab')}
               </button>
               <button
                 type="button"
                 onClick={() => setInputMode('text')}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition-all ${inputMode === 'text' ? 'border border-cyan-300/30 bg-cyan-300/20 text-cyan-100' : 'border border-white/10 bg-white/5 text-white/60 hover:bg-white/10'}`}
+                className={`neon-tab ${inputMode === 'text' ? 'neon-tab-active' : ''}`}
               >
                 {t('input.textTab')}
               </button>
@@ -489,12 +493,12 @@ export default function MindMapPage() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex min-h-[180px] w-full flex-col items-center justify-center gap-4 rounded-[26px] border border-dashed border-white/15 bg-black/20 px-6 py-8 text-center transition-all hover:border-cyan-300/30 hover:bg-cyan-300/5"
+                  className="empty-state flex min-h-[180px] w-full cursor-pointer flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-border-medium bg-surface-base/30 px-6 py-8 text-center transition-all hover:border-neon-cyan/40 hover:bg-neon-cyan/5"
                 >
-                  <UploadCloud className="text-cyan-300" size={30} />
+                  <UploadCloud className="text-neon-cyan" size={30} />
                   <div className="space-y-2">
                     <div className="text-base font-medium text-white">{t('input.dropzone')}</div>
-                    <div className="text-sm text-white/50">{t('input.subtitle')}</div>
+                    <div className="text-sm text-slate-400">{t('input.subtitle')}</div>
                   </div>
                 </button>
                 <input
@@ -506,16 +510,16 @@ export default function MindMapPage() {
                   onChange={(event) => appendFiles(event.target.files)}
                 />
                 {files.length > 0 ? (
-                  <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/75">
+                  <div className="rounded-2xl border border-border-medium bg-surface-base/30 px-4 py-3 text-sm text-slate-300">
                     <div>{t('input.picked', { count: files.length })}</div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {files.map((file) => (
-                        <span key={`${file.name}-${file.size}-${file.lastModified}`} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">
+                        <span key={`${file.name}-${file.size}-${file.lastModified}`} className="neon-chip text-xs">
                           {file.name}
                         </span>
                       ))}
                     </div>
-                    <button type="button" className="mt-3 text-xs font-medium text-cyan-200 hover:text-cyan-100" onClick={() => setFiles([])}>
+                    <button type="button" className="mt-3 text-xs font-medium text-neon-cyan hover:text-neon-cyan/80" onClick={() => setFiles([])}>
                       {t('input.clear')}
                     </button>
                   </div>
@@ -526,60 +530,61 @@ export default function MindMapPage() {
                 value={textContent}
                 onChange={(event) => setTextContent(event.target.value)}
                 placeholder={t('input.textPlaceholder')}
-                className="min-h-[240px] w-full rounded-[26px] border border-white/10 bg-black/20 px-4 py-4 text-sm leading-7 text-white outline-none transition-all placeholder:text-white/30 focus:border-cyan-300/25 focus:bg-black/28"
+                className="neon-textarea min-h-[240px] w-full"
               />
             )}
 
-            <div className="space-y-4 rounded-[26px] border border-white/10 bg-black/20 p-4">
+            {/* Settings */}
+            <div className="space-y-4 rounded-2xl border border-border-medium bg-surface-base/30 p-4">
               <div>
-                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/45">{t('settings.model')}</div>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t('settings.model')}</div>
                 <select
                   value={model}
                   onChange={(event) => setModel(event.target.value)}
                   disabled={!userApiConfigRequired}
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-white outline-none focus:border-cyan-300/35"
+                  className="neon-select w-full"
                 >
                   {MINDMAP_MODELS.map((item) => (
-                    <option key={item} value={item} className="bg-slate-950">
+                    <option key={item} value={item} className="bg-[#060914]">
                       {item}
                     </option>
                   ))}
                 </select>
                 {!userApiConfigRequired ? (
-                  <p className="mt-2 text-[11px] leading-5 text-emerald-100/70">Free 模式下由后端统一选择思维导图模型。</p>
+                  <p className="mt-2 text-[11px] leading-5 text-emerald-200/70">Free 模式下由后端统一选择思维导图模型。</p>
                 ) : null}
               </div>
 
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                 <div>
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/45">{t('settings.style')}</div>
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t('settings.style')}</div>
                   <select
                     value={mindmapStyle}
                     onChange={(event) => setMindmapStyle(event.target.value as MindMapStyle)}
-                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-white outline-none focus:border-cyan-300/35"
+                    className="neon-select w-full"
                   >
-                    <option value="default" className="bg-slate-950">{t('settings.styleDefault')}</option>
-                    <option value="flowchart" className="bg-slate-950">{t('settings.styleFlowchart')}</option>
-                    <option value="tree" className="bg-slate-950">{t('settings.styleTree')}</option>
+                    <option value="default" className="bg-[#060914]">{t('settings.styleDefault')}</option>
+                    <option value="flowchart" className="bg-[#060914]">{t('settings.styleFlowchart')}</option>
+                    <option value="tree" className="bg-[#060914]">{t('settings.styleTree')}</option>
                   </select>
                 </div>
                 <div>
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/45">{t('settings.language')}</div>
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t('settings.language')}</div>
                   <select
                     value={language}
                     onChange={(event) => setLanguage(event.target.value as OutputLanguage)}
-                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-white outline-none focus:border-cyan-300/35"
+                    className="neon-select w-full"
                   >
-                    <option value="zh" className="bg-slate-950">中文</option>
-                    <option value="en" className="bg-slate-950">English</option>
+                    <option value="zh" className="bg-[#060914]">中文</option>
+                    <option value="en" className="bg-[#060914]">English</option>
                   </select>
                 </div>
               </div>
 
               <div>
-                <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.22em] text-white/45">
+                <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
                   <span>{t('settings.depth')}</span>
-                  <span className="text-cyan-200">{maxDepth}</span>
+                  <span className="text-neon-cyan">{maxDepth}</span>
                 </div>
                 <input
                   type="range"
@@ -587,27 +592,27 @@ export default function MindMapPage() {
                   max={6}
                   value={maxDepth}
                   onChange={(event) => setMaxDepth(Number(event.target.value))}
-                  className="w-full accent-cyan-300"
+                  className="w-full accent-cyan-400"
                 />
               </div>
 
               {userApiConfigRequired ? (
                 <div className="space-y-3">
                   <div>
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/45">{t('settings.apiUrl')}</div>
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t('settings.apiUrl')}</div>
                     <input
                       value={apiUrl}
                       onChange={(event) => setApiUrl(event.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-white outline-none focus:border-cyan-300/35"
+                      className="neon-input w-full"
                     />
                   </div>
                   <div>
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/45">{t('settings.apiKey')}</div>
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t('settings.apiKey')}</div>
                     <input
                       type="password"
                       value={apiKey}
                       onChange={(event) => setApiKey(event.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-white outline-none focus:border-cyan-300/35"
+                      className="neon-input w-full"
                     />
                   </div>
                 </div>
@@ -619,58 +624,59 @@ export default function MindMapPage() {
                 type="button"
                 onClick={handleGenerate}
                 disabled={isGenerating}
-                className="flex w-full items-center justify-center gap-2 rounded-[22px] bg-[linear-gradient(135deg,#0ea5e9,#2563eb)] px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_44px_rgba(14,165,233,0.35)] transition-all hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
+                className="btn-neon glow w-full py-3"
               >
                 {isGenerating ? <Loader2 size={18} className="animate-spin" /> : <BrainCircuit size={18} />}
                 <span>{isGenerating ? t('actions.generating') : t('actions.generate')}</span>
               </button>
-              <div className="text-xs leading-6 text-white/45">
+              <div className="text-xs leading-6 text-slate-400">
                 {t('pricing.ruleSummary')}
               </div>
             </div>
           </div>
 
-          <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
+          {/* Editor Panel */}
+          <div className="bento-card scan-line p-5">
             <div className="mb-4 flex items-center justify-between gap-4">
               <div>
-                <div className="text-lg font-semibold text-white">{t('editor.title')}</div>
-                <div className="text-sm text-white/55">{t('editor.subtitle')}</div>
+                <div className="text-lg font-display font-bold text-white">{t('editor.title')}</div>
+                <div className="text-sm text-slate-400">{t('editor.subtitle')}</div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <button type="button" onClick={() => reactFlowRef.current?.fitView({ padding: 0.18, duration: 300 })} className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/75 hover:bg-white/10">
+                <button type="button" onClick={() => reactFlowRef.current?.fitView({ padding: 0.18, duration: 300 })} className="toolbar-btn toolbar-btn-label text-xs">
                   {t('actions.fitView')}
                 </button>
-                <button type="button" onClick={handleCopyOutline} disabled={!tree} className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/75 hover:bg-white/10 disabled:opacity-40">
-                  <Copy size={14} className="mr-1 inline" />
+                <button type="button" onClick={handleCopyOutline} disabled={!tree} className="toolbar-btn toolbar-btn-label text-xs disabled:opacity-40">
+                  <Copy size={14} />
                   {t('actions.copyOutline')}
                 </button>
-                <button type="button" onClick={handleDownloadJson} disabled={!tree} className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/75 hover:bg-white/10 disabled:opacity-40">
-                  <Download size={14} className="mr-1 inline" />
+                <button type="button" onClick={handleDownloadJson} disabled={!tree} className="toolbar-btn toolbar-btn-label text-xs disabled:opacity-40">
+                  <Download size={14} />
                   {t('actions.downloadJson')}
                 </button>
                 <button
                   type="button"
                   onClick={handleDownloadSvg}
                   disabled={!tree || isExporting !== null}
-                  className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/75 hover:bg-white/10 disabled:opacity-40"
+                  className="toolbar-btn toolbar-btn-label text-xs disabled:opacity-40"
                 >
-                  <Download size={14} className="mr-1 inline" />
+                  <Download size={14} />
                   {isExporting === 'svg' ? t('actions.exportingSvg') : t('actions.downloadSvg')}
                 </button>
                 <button
                   type="button"
                   onClick={handleDownloadPng}
                   disabled={!tree || isExporting !== null}
-                  className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/75 hover:bg-white/10 disabled:opacity-40"
+                  className="toolbar-btn toolbar-btn-label text-xs disabled:opacity-40"
                 >
-                  <Download size={14} className="mr-1 inline" />
+                  <Download size={14} />
                   {isExporting === 'png' ? t('actions.exportingPng') : t('actions.downloadPng')}
                 </button>
               </div>
             </div>
 
             {tree ? (
-              <div className="h-[760px] overflow-hidden rounded-[26px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.12),transparent_35%),linear-gradient(180deg,rgba(3,7,18,0.96),rgba(15,23,42,0.92))]">
+              <div className="h-[760px] overflow-hidden rounded-2xl border border-border-medium bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_35%),linear-gradient(180deg,rgba(6,9,20,0.98),rgba(15,23,42,0.92))]">
                 <ReactFlow
                   nodes={flow.nodes}
                   edges={flow.edges}
@@ -686,31 +692,33 @@ export default function MindMapPage() {
                   elementsSelectable
                   proOptions={{ hideAttribution: true }}
                 >
-                  <MiniMap nodeColor="#38bdf8" maskColor="rgba(2,6,23,0.45)" />
+                  <MiniMap nodeColor="#22d3ee" maskColor="rgba(6,9,20,0.45)" />
                   <Controls />
                   <Background gap={22} size={1} color="rgba(148,163,184,0.18)" />
                 </ReactFlow>
               </div>
             ) : (
-              <div className="flex h-[760px] flex-col items-center justify-center rounded-[26px] border border-dashed border-white/12 bg-black/20 px-6 text-center">
-                <FileText size={34} className="text-cyan-300/75" />
-                <div className="mt-5 text-lg font-semibold text-white">{t('editor.emptyTitle')}</div>
-                <div className="mt-2 max-w-lg text-sm leading-7 text-white/55">{t('editor.emptyDesc')}</div>
+              <div className="empty-state h-[760px] flex flex-col">
+                <FileText size={34} className="text-neon-cyan/50" />
+                <div className="mt-5 text-lg font-display font-bold text-white">{t('editor.emptyTitle')}</div>
+                <div className="mt-2 max-w-lg text-sm leading-7 text-slate-400">{t('editor.emptyDesc')}</div>
               </div>
             )}
           </div>
 
-          <div className="space-y-5 rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
+          {/* Details Panel */}
+          <div className="bento-card scan-line p-5 space-y-5">
             <div>
-              <div className="text-lg font-semibold text-white">{t('details.title')}</div>
-              <div className="text-sm text-white/55">{t('details.subtitle')}</div>
+              <div className="text-lg font-display font-bold text-white">{t('details.title')}</div>
+              <div className="text-sm text-slate-400">{t('details.subtitle')}</div>
             </div>
 
-            <div className="space-y-3 rounded-[24px] border border-white/10 bg-black/20 p-4">
+            {/* Node Editor */}
+            <div className="space-y-3 rounded-2xl border border-border-medium bg-surface-base/30 p-4">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-medium text-white">{t('details.selectedNode')}</div>
                 {selectedNode && selectedNode.id !== tree?.id ? (
-                  <button type="button" onClick={handleDeleteNode} className="rounded-full border border-rose-300/15 bg-rose-300/10 p-2 text-rose-100 hover:bg-rose-300/15">
+                  <button type="button" onClick={handleDeleteNode} className="rounded-full border border-neon-pink/20 bg-neon-pink/10 p-2 text-neon-pink hover:bg-neon-pink/20">
                     <Trash2 size={14} />
                   </button>
                 ) : null}
@@ -718,55 +726,57 @@ export default function MindMapPage() {
               {selectedNode ? (
                 <div className="space-y-3">
                   <div>
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/45">{t('details.label')}</div>
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t('details.label')}</div>
                     <input
                       value={selectedNode.label}
                       onChange={(event) => updateSelectedNode({ label: event.target.value })}
-                      className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-white outline-none focus:border-cyan-300/35"
+                      className="neon-input w-full"
                     />
                   </div>
                   <div>
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/45">{t('details.summary')}</div>
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t('details.summary')}</div>
                     <textarea
                       value={selectedNode.summary || ''}
                       onChange={(event) => updateSelectedNode({ summary: event.target.value })}
-                      className="min-h-[110px] w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm leading-6 text-white outline-none focus:border-cyan-300/35"
+                      className="neon-textarea min-h-[110px] w-full"
                     />
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <button type="button" onClick={handleAddChild} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm font-medium text-white/80 hover:bg-white/10">
-                      <Plus size={15} className="mr-1 inline" />
+                    <button type="button" onClick={handleAddChild} className="toolbar-btn toolbar-btn-label text-sm">
+                      <Plus size={15} />
                       {t('actions.addChild')}
                     </button>
-                    <button type="button" onClick={handleAddSibling} disabled={!selectedNodeId || selectedNodeId === tree?.id} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm font-medium text-white/80 hover:bg-white/10 disabled:opacity-40">
-                      <Split size={15} className="mr-1 inline" />
+                    <button type="button" onClick={handleAddSibling} disabled={!selectedNodeId || selectedNodeId === tree?.id} className="toolbar-btn toolbar-btn-label text-sm disabled:opacity-40">
+                      <Split size={15} />
                       {t('actions.addSibling')}
                     </button>
                   </div>
                 </div>
               ) : (
-                <div className="text-sm leading-6 text-white/55">{t('details.empty')}</div>
+                <div className="text-sm leading-6 text-slate-400">{t('details.empty')}</div>
               )}
             </div>
 
-            <div className="space-y-3 rounded-[24px] border border-white/10 bg-black/20 p-4">
+            {/* Highlights */}
+            <div className="space-y-3 rounded-2xl border border-border-medium bg-surface-base/30 p-4">
               <div className="text-sm font-medium text-white">{t('details.highlights')}</div>
               {highlights.length > 0 ? (
                 <div className="space-y-2">
                   {highlights.map((item, index) => (
-                    <div key={`${item}-${index}`} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm leading-6 text-white/72">
+                    <div key={`${item}-${index}`} className="rounded-2xl border border-border-medium bg-surface-base/20 px-3 py-3 text-sm leading-6 text-slate-300">
                       {item}
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-sm leading-6 text-white/55">{t('details.highlightsEmpty')}</div>
+                <div className="text-sm leading-6 text-slate-400">{t('details.highlightsEmpty')}</div>
               )}
             </div>
 
-            <div className="space-y-3 rounded-[24px] border border-white/10 bg-black/20 p-4">
+            {/* Source */}
+            <div className="space-y-3 rounded-2xl border border-border-medium bg-surface-base/30 p-4">
               <div className="text-sm font-medium text-white">{t('details.source')}</div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-xs leading-6 text-white/60">
+              <div className="rounded-2xl border border-border-medium bg-surface-base/20 px-3 py-3 text-xs leading-6 text-slate-400">
                 {mindmapFileUrl || t('details.sourceEmpty')}
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
@@ -774,17 +784,17 @@ export default function MindMapPage() {
                   type="button"
                   onClick={handleSave}
                   disabled={!tree || !mindmapFileUrl || isSaving}
-                  className="rounded-2xl bg-[linear-gradient(135deg,#14b8a6,#0ea5e9)] px-3 py-3 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(20,184,166,0.25)] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="btn-neon glow flex items-center justify-center gap-1 text-sm disabled:opacity-50"
                 >
-                  {isSaving ? <Loader2 size={15} className="mr-1 inline animate-spin" /> : <Save size={15} className="mr-1 inline" />}
+                  {isSaving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
                   {isSaving ? t('actions.saving') : t('actions.save')}
                 </button>
                 {mindmapFileUrl ? (
-                  <a href={mindmapFileUrl} target="_blank" rel="noreferrer" className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-center text-sm font-medium text-white/80 hover:bg-white/10">
+                  <a href={mindmapFileUrl} target="_blank" rel="noreferrer" className="toolbar-btn toolbar-btn-label text-center text-sm font-medium">
                     {t('actions.openFile')}
                   </a>
                 ) : (
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-center text-sm font-medium text-white/35">
+                  <div className="rounded-2xl border border-border-medium bg-surface-base/20 px-3 py-3 text-center text-sm font-medium text-slate-500">
                     {t('actions.openFile')}
                   </div>
                 )}

@@ -6,6 +6,8 @@ export interface QuotaInfo {
   limit: number;
   remaining: number;
   isAuthenticated: boolean;
+  isUnlimited: boolean;
+  billingExempt?: boolean;
   billingMode?: string;
 }
 
@@ -32,6 +34,7 @@ function buildUnlimitedQuota(): QuotaInfo {
     limit: Number.MAX_SAFE_INTEGER,
     remaining: Number.MAX_SAFE_INTEGER,
     isAuthenticated: false,
+    isUnlimited: true,
     billingMode: getRuntimeConfigSync().billing_mode,
   };
 }
@@ -42,6 +45,7 @@ function buildUnavailableQuota(): QuotaInfo {
     limit: 0,
     remaining: 0,
     isAuthenticated: false,
+    isUnlimited: false,
     billingMode: getRuntimeConfigSync().billing_mode,
   };
 }
@@ -89,6 +93,8 @@ function normalizeQuotaResponse(data: any): QuotaInfo {
     limit: Number(data.limit || 0),
     remaining: Number(data.remaining || 0),
     isAuthenticated: Boolean(data.is_authenticated),
+    isUnlimited: Boolean(data.is_unlimited),
+    billingExempt: Boolean(data.billing_exempt),
     billingMode: data.billing_mode || getRuntimeConfigSync().billing_mode,
   };
 }

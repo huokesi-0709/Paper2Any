@@ -5,21 +5,37 @@
     "subtitle": "上传论文 PDF / 图片，或直接粘贴文字，一键生成可编辑的 科研绘图PPTX，方便你继续修改、增删和排版。"
   },
   "subpages": {
+    "modelArch": {
+      "badge": "模型结构图",
+      "title": "模型结构图生成",
+      "subtitle": "从论文 PDF 或文本中提炼模型模块与连接关系，生成清晰、可编辑的结构图。",
+      "hintTitle": "使用说明",
+      "hintZh": "支持 PDF 与文本输入。建议保留模型名称、模块层级和关键数据流。",
+      "hintEn": "Supports PDF and text. Keep model names, module hierarchy, and key data flows."
+    },
     "techExp": {
-      "badge": "TECH ROUTE + EXP DATA",
+      "badge": "技术路线 · 实验数据",
       "title": "技术路线图 & 实验数据图",
       "subtitle": "聚焦方法路线与实验结果，一页生成可编辑的技术路线图与实验数据图。",
-      "hintTitle": "使用说明 / Guide",
+      "hintTitle": "使用说明",
       "hintZh": "支持 PDF 与文本输入，生成技术路线图或者美观的实验数据图。",
       "hintEn": "Supports PDF and text. Generate the technical route first, then add experimental charts."
     },
+    "expData": {
+      "badge": "实验数据图",
+      "title": "实验数据图生成",
+      "subtitle": "从论文实验部分提取指标、分组和结果，生成适合汇报与编辑的数据图表。",
+      "hintTitle": "使用说明",
+      "hintZh": "请上传包含实验结果的 PDF，系统会识别关键数据并生成可编辑图表。",
+      "hintEn": "Upload a PDF containing experimental results to generate editable charts from key data."
+    },
     "modelDrawio": {
-      "badge": "MODEL → DRAWIO / PPT",
-      "title": "模型结构图 · DrawIO & PPT",
-      "subtitle": "先生成模型结构图，再一键转成可编辑 DrawIO 或 PPTX。",
-      "hintTitle": "使用说明 / Guide",
-      "hintZh": "流程：配置模型 → 生成图片 → 提示词微调 → 选择转 DrawIO 或 PPT。",
-      "hintEn": "Flow: configure → generate → prompt refine → convert to DrawIO or PPT.",
+      "badge": "模型结构 · DRAWIO",
+      "title": "模型结构图 · DrawIO",
+      "subtitle": "先生成模型结构图，再一键转成可编辑 DrawIO。",
+      "hintTitle": "使用说明",
+      "hintZh": "流程：配置模型 → 生成图片 → 提示词微调 → 转成 DrawIO 编辑。",
+      "hintEn": "Flow: configure → generate → prompt refine → convert to DrawIO.",
       "drawioButton": "转成 DrawIO 在线编辑"
     }
   },
@@ -30,14 +46,17 @@
     "exp_data": "实验数据图"
   },
   "uploadTabs": {
+    "label": "输入方式",
     "file": "文件",
-    "fileSub": "PDF",
+    "fileSub": "PDF 文件",
     "text": "文本",
-    "textSub": "Text Content",
+    "textSub": "文本内容",
     "image": "图片",
     "imageSub": "Image"
   },
   "upload": {
+    "fileTypePdfOnly": "仅支持 PDF",
+    "fileTypePdfImage": "支持 PDF 或图片",
     "fileDragTitleFile": "拖拽 PDF 到此处，或点击选择文件",
     "fileDragTitleImage": "拖拽图片到此处，或点击选择文件",
     "fileHint": "单个文件建议小于 20MB。",
@@ -100,6 +119,9 @@
     "reDownload": "重新下载：{{filename}}"
   },
   "techRoute": {
+    "previewTitle": "技术路线图预览",
+    "previewLoadFailed": "图片加载失败",
+    "previewOpenNewTab": "在新标签页打开",
     "pptDownload": "下载技术路线图 PPT：{{filename}}",
     "pptCopyHintTitle": "如果下载失败，请复制下面链接到浏览器地址栏打开：",
     "svgDownload": "下载 SVG 源文件：{{filename}}",
@@ -139,7 +161,7 @@
   "success": {
     "pptGenerated": "PPTX 已生成，正在下载...",
     "techRouteGenerated": "技术路线图已生成，可下载 PPT / SVG 或直接预览 PNG",
-    "previewGenerated": "模型结构图预览已生成，请确认并转为 PPT"
+    "previewGenerated": "模型结构图预览已生成，可下载图片或转为 DrawIO 编辑"
   },
   "examples": {
     "sectionTitle": "示例：从 Paper 到 PPTX",

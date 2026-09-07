@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Flame, Sparkles, Copy, Download, Loader2 } from 'lucide-react';
+import { Flame, Sparkles, Copy, Download, Loader2, Cpu, Wand2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import ManagedApiNotice from './ManagedApiNotice';
@@ -16,20 +16,8 @@ type TemplateKey = 'research' | 'cs' | 'bio';
 type ChipKey = 'method' | 'model' | 'pipeline' | 'result' | 'cover';
 type ImageTextLanguage = 'en' | 'zh';
 type ImageAspectRatio =
-  | '1:1'
-  | '2:3'
-  | '3:2'
-  | '3:4'
-  | '4:3'
-  | '4:5'
-  | '5:4'
-  | '9:16'
-  | '16:9'
-  | '21:9'
-  | '1:4'
-  | '4:1'
-  | '1:8'
-  | '8:1';
+  | '1:1' | '2:3' | '3:2' | '3:4' | '4:3' | '4:5' | '5:4'
+  | '9:16' | '16:9' | '21:9' | '1:4' | '4:1' | '1:8' | '8:1';
 type ImageResolution = '1K' | '2K' | '4K';
 type GptImageSize = '1024x1024' | '1536x1024' | '1024x1536' | '2048x2048' | '2048x1152' | '1152x2048';
 type GptImageQuality = 'auto' | 'low' | 'medium' | 'high';
@@ -53,31 +41,36 @@ const GPT_IMAGE_SIZES: GptImageSize[] = ['1024x1024', '1536x1024', '1024x1536', 
 const GPT_IMAGE_QUALITIES: GptImageQuality[] = ['auto', 'low', 'medium', 'high'];
 const BATCH_COUNT_OPTIONS: BatchCount[] = [1, 2, 4, 8, 16];
 
-const MODEL_META: Record<string, { titleKey: string; descKey: string; accent: string }> = {
+const MODEL_META: Record<string, { titleKey: string; descKey: string; accent: string; glow: string }> = {
   'qwen-image-3.0-pro': {
     titleKey: 'models.qwenImage3Pro',
     descKey: 'models.qwenImage3ProDesc',
-    accent: 'from-sky-500 to-emerald-500',
+    accent: 'from-sky-500/20 to-emerald-500/20',
+    glow: 'group-hover:shadow-[0_0_30px_rgba(14,165,233,0.15)]',
   },
   'gemini-3.1-flash-image-preview': {
     titleKey: 'models.gemini31',
     descKey: 'models.gemini31Desc',
-    accent: 'from-cyan-500 to-sky-500',
+    accent: 'from-cyan-500/20 to-sky-500/20',
+    glow: 'group-hover:shadow-[0_0_30px_rgba(6,182,212,0.15)]',
   },
   'gemini-3-pro-image-preview': {
     titleKey: 'models.geminiPro',
     descKey: 'models.geminiProDesc',
-    accent: 'from-fuchsia-500 to-rose-500',
+    accent: 'from-fuchsia-500/20 to-rose-500/20',
+    glow: 'group-hover:shadow-[0_0_30px_rgba(217,70,239,0.15)]',
   },
   'gpt-image-2': {
     titleKey: 'models.gptImage2',
     descKey: 'models.gptImage2Desc',
-    accent: 'from-amber-500 to-orange-500',
+    accent: 'from-amber-500/20 to-orange-500/20',
+    glow: 'group-hover:shadow-[0_0_30px_rgba(245,158,11,0.15)]',
   },
   'gpt-image-2-all': {
     titleKey: 'models.gptImage2All',
     descKey: 'models.gptImage2AllDesc',
-    accent: 'from-emerald-500 to-lime-500',
+    accent: 'from-emerald-500/20 to-lime-500/20',
+    glow: 'group-hover:shadow-[0_0_30px_rgba(16,185,129,0.15)]',
   },
 };
 
@@ -124,7 +117,6 @@ function buildPrompt(
     extraInstructions.trim() ? `Extra instructions:\n${extraInstructions.trim()}` : '',
     'Output a single high-quality research visual. Avoid watermarks, broken typography, and cluttered composition.',
   ];
-
   return sections.filter(Boolean).join('\n\n');
 }
 
@@ -226,54 +218,25 @@ export default function ImagePlaygroundPage() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const data = {
-      selectedModel,
-      templateKey,
-      selectedChips,
-      paperContent,
-      extraInstructions,
-      textLanguage,
-      batchCount,
-      aspectRatio,
-      resolution,
-      gptSize,
-      gptQuality,
-      apiUrl,
-      apiKey,
-    };
+    const data = { selectedModel, templateKey, selectedChips, paperContent, extraInstructions, textLanguage, batchCount, aspectRatio, resolution, gptSize, gptQuality, apiUrl, apiKey };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      if (user?.id && apiUrl && apiKey) {
-        saveApiSettings(user.id, { apiUrl, apiKey });
-      }
+      if (user?.id && apiUrl && apiKey) saveApiSettings(user.id, { apiUrl, apiKey });
     } catch (err) {
       console.error('Failed to persist image playground settings', err);
     }
   }, [selectedModel, templateKey, selectedChips, paperContent, extraInstructions, textLanguage, batchCount, aspectRatio, resolution, gptSize, gptQuality, apiUrl, apiKey, user?.id]);
 
   useEffect(() => {
-    if (selectedModel === 'gemini-3-pro-image-preview' && !GEMINI_PRO_ASPECT_RATIOS.includes(aspectRatio)) {
-      setAspectRatio('16:9');
-    }
-    if (selectedModel.startsWith('qwen-image') && !QWEN_RESOLUTIONS.includes(resolution)) {
-      setResolution('2K');
-    } else if (!GEMINI_RESOLUTIONS.includes(resolution)) {
-      setResolution('2K');
-    }
-    if (!GPT_IMAGE_SIZES.includes(gptSize)) {
-      setGptSize('2048x1152');
-    }
-    if (!GPT_IMAGE_QUALITIES.includes(gptQuality)) {
-      setGptQuality('medium');
-    }
+    if (selectedModel === 'gemini-3-pro-image-preview' && !GEMINI_PRO_ASPECT_RATIOS.includes(aspectRatio)) setAspectRatio('16:9');
+    if (selectedModel.startsWith('qwen-image') && !QWEN_RESOLUTIONS.includes(resolution)) setResolution('2K');
+    else if (!GEMINI_RESOLUTIONS.includes(resolution)) setResolution('2K');
+    if (!GPT_IMAGE_SIZES.includes(gptSize)) setGptSize('2048x1152');
+    if (!GPT_IMAGE_QUALITIES.includes(gptQuality)) setGptQuality('medium');
   }, [selectedModel, aspectRatio, resolution, gptSize, gptQuality]);
 
   const toggleChip = (chipKey: ChipKey) => {
-    setSelectedChips((current) => (
-      current.includes(chipKey)
-        ? current.filter((item) => item !== chipKey)
-        : [...current, chipKey]
-    ));
+    setSelectedChips((current) => current.includes(chipKey) ? current.filter((item) => item !== chipKey) : [...current, chipKey]);
   };
 
   const handleGenerate = async () => {
@@ -284,56 +247,28 @@ export default function ImagePlaygroundPage() {
     setResultZipFileName('image-playground-batch.zip');
     setResultSuccessCount(0);
     setResultBatchCount(0);
-
-    if (!user) {
-      setError(t('errors.loginRequired'));
-      return;
-    }
-    if (!paperContent.trim()) {
-      setError(t('errors.promptRequired'));
-      return;
-    }
-    if (userApiConfigRequired && (!apiUrl.trim() || !apiKey.trim())) {
-      setError(t('errors.apiRequired'));
-      return;
-    }
-
+    if (!user) { setError(t('errors.loginRequired')); return; }
+    if (!paperContent.trim()) { setError(t('errors.promptRequired')); return; }
+    if (userApiConfigRequired && (!apiUrl.trim() || !apiKey.trim())) { setError(t('errors.apiRequired')); return; }
     const quota = await checkQuota(user.id || null);
     if (quota.remaining < totalCost) {
-      setError(
-        quota.isAuthenticated
-          ? buildInsufficientPointsMessage(totalCost, quota.remaining, t('hero.title'))
-          : buildQuotaExhaustedMessage(runtimeConfig.points_purchase_url),
-      );
+      setError(quota.isAuthenticated ? buildInsufficientPointsMessage(totalCost, quota.remaining, t('hero.title')) : buildQuotaExhaustedMessage(runtimeConfig.points_purchase_url));
       return;
     }
-
     setIsGenerating(true);
     try {
       const response = await backendFetch('/api/v1/image-playground/generate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Workflow-Amount': String(totalCost),
-        },
+        headers: { 'Content-Type': 'application/json', 'X-Workflow-Amount': String(totalCost) },
         body: JSON.stringify({
-          prompt: promptPreview,
-          model: selectedModel,
-          template_key: templateKey,
-          domain_key: templateKey,
-          batch_count: batchCount,
+          prompt: promptPreview, model: selectedModel, template_key: templateKey, domain_key: templateKey, batch_count: batchCount,
           ...(supportsAspectControls ? { aspect_ratio: aspectRatio, resolution } : {}),
           ...(supportsGptImage2Controls ? { size: gptSize, quality: gptQuality } : {}),
           ...(userApiConfigRequired ? { chat_api_url: apiUrl.trim(), api_key: apiKey.trim() } : {}),
         }),
       });
-
       const data = await response.json().catch(() => null);
-      if (!response.ok) {
-        setError(data?.detail || t('errors.requestFailed'));
-        return;
-      }
-
+      if (!response.ok) { setError(data?.detail || t('errors.requestFailed')); return; }
       const normalizedImages = normalizeResultImages(data);
       setResultImages(normalizedImages);
       setResultSuccessCount(Number(data?.success_count) || normalizedImages.length);
@@ -351,46 +286,47 @@ export default function ImagePlaygroundPage() {
   };
 
   const handleCopyPrompt = async () => {
-    try {
-      await navigator.clipboard.writeText(lastPrompt || promptPreview);
-    } catch {
-      setError(t('errors.copyFailed'));
-    }
+    try { await navigator.clipboard.writeText(lastPrompt || promptPreview); } catch { setError(t('errors.copyFailed')); }
   };
 
   return (
-    <div className="h-full overflow-y-auto overflow-x-hidden">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 px-5 pb-14 pt-6 md:px-8 lg:px-10">
-        <section className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,22,35,0.92),rgba(40,16,18,0.68))] p-6 shadow-[0_30px_100px_rgba(0,0,0,0.35)]">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(251,191,36,0.14),transparent_24%),radial-gradient(circle_at_bottom_left,rgba(248,113,113,0.16),transparent_30%)]" />
-          <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-orange-400/30 bg-orange-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-orange-100">
-                <Flame size={14} />
-                <span>{t('hero.badge')}</span>
-                <span className="rounded-full bg-orange-500 px-2 py-0.5 text-[10px] text-white">HOT</span>
-              </div>
-              <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white md:text-4xl">{t('hero.title')}</h2>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-white/70 md:text-base">{t('hero.description')}</p>
+    <div className="page-shell overflow-y-auto overflow-x-hidden">
+      <div className="bg-grid-dense pointer-events-none absolute inset-0 opacity-50" />
+      <div className="page-container relative">
+        {/* ── Hero ─────────────────────────────────────────── */}
+        <section className="mb-6 animate-fade-in">
+          <div className="section-header">
+            <div className="flex items-center gap-2">
+              <span className="neon-badge neon-badge-pink">
+                <Flame size={12} />
+                {t('hero.badge')}
+              </span>
+              <span className="neon-badge">
+                <Sparkles size={12} />
+                {t('meta.cost', { count: totalCost })}
+              </span>
             </div>
-            <div className="rounded-2xl border border-orange-400/25 bg-black/20 px-4 py-3 text-sm text-orange-100 shadow-[0_0_40px_rgba(251,146,60,0.12)]">
-              <div className="flex items-center gap-2 font-medium">
-                <Sparkles size={16} />
-                <span>{t('meta.cost', { count: totalCost })}</span>
-              </div>
-            </div>
+            <h1 className="title font-display text-4xl font-extrabold tracking-[-0.035em] text-lab-primary md:text-5xl">
+              {t('hero.title')}
+            </h1>
+            <p className="subtitle">{t('hero.description')}</p>
           </div>
         </section>
 
-        {!userApiConfigRequired && (
-          <ManagedApiNotice description={t('managedNotice')} />
-        )}
+        {!userApiConfigRequired && <ManagedApiNotice description={t('managedNotice')} />}
 
-        <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-          <div className="space-y-6">
-            <section className="rounded-[28px] border border-white/10 bg-white/5 p-5 shadow-[0_20px_70px_rgba(0,0,0,0.22)] backdrop-blur-xl">
-              <h3 className="text-lg font-semibold text-white">{t('models.title')}</h3>
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
+          {/* ═══ LEFT: Config ═══ */}
+          <div className="flex flex-col gap-5">
+            {/* Model selection */}
+            <section className="neon-panel p-6 animate-fade-in-up stagger-1">
+              <div className="flex items-center gap-2 mb-4">
+                <Cpu size={18} className="text-neon-cyan" />
+                <h3 className="font-mono text-xs font-semibold uppercase tracking-widest text-lab-secondary">
+                  {t('models.title')}
+                </h3>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
                 {IMAGE_PLAYGROUND_MODELS.map((model) => {
                   const meta = MODEL_META[model];
                   const active = selectedModel === model;
@@ -399,45 +335,43 @@ export default function ImagePlaygroundPage() {
                       key={model}
                       type="button"
                       onClick={() => setSelectedModel(model)}
-                      className={`rounded-2xl border p-4 text-left transition-all ${
+                      className={`group relative rounded-2xl border p-4 text-left transition-all duration-300 ${meta.glow} ${
                         active
-                          ? `border-white/25 bg-gradient-to-r ${meta.accent} text-white shadow-[0_20px_60px_rgba(0,0,0,0.18)]`
-                          : 'border-white/10 bg-white/5 text-slate-200 hover:border-white/20 hover:bg-white/10'
+                          ? `border-neon-cyan/30 bg-gradient-to-br ${meta.accent}`
+                          : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12]'
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm font-semibold">{t(meta.titleKey)}</div>
-                        {active && <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold uppercase">On</span>}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-sm font-semibold text-white">{t(meta.titleKey)}</div>
+                        {active && (
+                          <span className="flex items-center gap-1 rounded-full bg-neon-cyan/15 px-2 py-0.5 text-[10px] font-bold uppercase text-neon-cyan">
+                            <span className="h-1 w-1 rounded-full bg-neon-cyan animate-pulse" />
+                            ON
+                          </span>
+                        )}
                       </div>
-                      <div className={`mt-2 text-xs leading-6 ${active ? 'text-white/85' : 'text-slate-400'}`}>{t(meta.descKey)}</div>
+                      <div className={`mt-2 text-xs leading-6 ${active ? 'text-lab-secondary' : 'text-lab-muted'}`}>
+                        {t(meta.descKey)}
+                      </div>
                     </button>
                   );
                 })}
               </div>
 
+              {/* Controls row */}
               <div className="mt-5 grid gap-3 md:grid-cols-2">
                 <label className="block">
-                  <div className="mb-2 text-sm font-medium text-white">{t('controls.textLanguage')}</div>
-                  <select
-                    value={textLanguage}
-                    onChange={(event) => setTextLanguage(event.target.value as ImageTextLanguage)}
-                    className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-400/50"
-                  >
+                  <div className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-widest text-lab-muted">{t('controls.textLanguage')}</div>
+                  <select value={textLanguage} onChange={(e) => setTextLanguage(e.target.value as ImageTextLanguage)} className="neon-select">
                     <option value="en" className="bg-slate-900 text-white">{t('controls.languageOptions.en')}</option>
                     <option value="zh" className="bg-slate-900 text-white">{t('controls.languageOptions.zh')}</option>
                   </select>
                 </label>
                 <label className="block">
-                  <div className="mb-2 text-sm font-medium text-white">{t('controls.batchCount')}</div>
-                  <select
-                    value={batchCount}
-                    onChange={(event) => setBatchCount(normalizeBatchCount(event.target.value))}
-                    className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-400/50"
-                  >
+                  <div className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-widest text-lab-muted">{t('controls.batchCount')}</div>
+                  <select value={batchCount} onChange={(e) => setBatchCount(normalizeBatchCount(e.target.value))} className="neon-select">
                     {BATCH_COUNT_OPTIONS.map((option) => (
-                      <option key={option} value={option} className="bg-slate-900 text-white">
-                        {t('controls.batchOption', { count: option })}
-                      </option>
+                      <option key={option} value={option} className="bg-slate-900 text-white">{t('controls.batchOption', { count: option })}</option>
                     ))}
                   </select>
                 </label>
@@ -448,81 +382,49 @@ export default function ImagePlaygroundPage() {
                   {supportsAspectControls && (
                     <>
                       <label className="block">
-                        <div className="mb-2 text-sm font-medium text-white">{t('controls.aspectRatio')}</div>
-                        <select
-                          value={aspectRatio}
-                          onChange={(event) => setAspectRatio(event.target.value as ImageAspectRatio)}
-                          className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-400/50"
-                        >
-                          {aspectRatioOptions.map((option) => (
-                            <option key={option} value={option} className="bg-slate-900 text-white">
-                              {option}
-                            </option>
-                          ))}
+                        <div className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-widest text-lab-muted">{t('controls.aspectRatio')}</div>
+                        <select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value as ImageAspectRatio)} className="neon-select">
+                          {aspectRatioOptions.map((option) => <option key={option} value={option} className="bg-slate-900 text-white">{option}</option>)}
                         </select>
                       </label>
                       <label className="block">
-                        <div className="mb-2 text-sm font-medium text-white">{t('controls.resolution')}</div>
-                        <select
-                          value={resolution}
-                          onChange={(event) => setResolution(event.target.value as ImageResolution)}
-                          className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-400/50"
-                        >
-                          {resolutionOptions.map((option) => (
-                            <option key={option} value={option} className="bg-slate-900 text-white">
-                              {option}
-                            </option>
-                          ))}
+                        <div className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-widest text-lab-muted">{t('controls.resolution')}</div>
+                        <select value={resolution} onChange={(e) => setResolution(e.target.value as ImageResolution)} className="neon-select">
+                          {resolutionOptions.map((option) => <option key={option} value={option} className="bg-slate-900 text-white">{option}</option>)}
                         </select>
                       </label>
                     </>
                   )}
-
                   {supportsGptImage2Controls && (
                     <>
                       <label className="block">
-                        <div className="mb-2 text-sm font-medium text-white">{t('controls.size')}</div>
-                        <select
-                          value={gptSize}
-                          onChange={(event) => setGptSize(event.target.value as GptImageSize)}
-                          className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-400/50"
-                        >
-                          {GPT_IMAGE_SIZES.map((option) => (
-                            <option key={option} value={option} className="bg-slate-900 text-white">
-                              {option}
-                            </option>
-                          ))}
+                        <div className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-widest text-lab-muted">{t('controls.size')}</div>
+                        <select value={gptSize} onChange={(e) => setGptSize(e.target.value as GptImageSize)} className="neon-select">
+                          {GPT_IMAGE_SIZES.map((option) => <option key={option} value={option} className="bg-slate-900 text-white">{option}</option>)}
                         </select>
                       </label>
                       <label className="block">
-                        <div className="mb-2 text-sm font-medium text-white">{t('controls.quality')}</div>
-                        <select
-                          value={gptQuality}
-                          onChange={(event) => setGptQuality(event.target.value as GptImageQuality)}
-                          className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-400/50"
-                        >
-                          {GPT_IMAGE_QUALITIES.map((option) => (
-                            <option key={option} value={option} className="bg-slate-900 text-white">
-                              {t(`controls.qualityOptions.${option}`)}
-                            </option>
-                          ))}
+                        <div className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-widest text-lab-muted">{t('controls.quality')}</div>
+                        <select value={gptQuality} onChange={(e) => setGptQuality(e.target.value as GptImageQuality)} className="neon-select">
+                          {GPT_IMAGE_QUALITIES.map((option) => <option key={option} value={option} className="bg-slate-900 text-white">{t(`controls.qualityOptions.${option}`)}</option>)}
                         </select>
                       </label>
                     </>
                   )}
                 </div>
               )}
-
               {selectedModel === 'gpt-image-2-all' && (
-                <div className="mt-5 rounded-2xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-sm leading-6 text-amber-100">
-                  {t('controls.gptImage2AllNotice')}
-                </div>
+                <div className="status-warning mt-5">{t('controls.gptImage2AllNotice')}</div>
               )}
             </section>
 
-            <section className="rounded-[28px] border border-white/10 bg-white/5 p-5 shadow-[0_20px_70px_rgba(0,0,0,0.22)] backdrop-blur-xl">
-              <h3 className="text-lg font-semibold text-white">{t('templates.title')}</h3>
-              <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {/* Template + Chips */}
+            <section className="neon-panel p-6 animate-fade-in-up stagger-2">
+              <div className="flex items-center gap-2 mb-4">
+                <Wand2 size={18} className="text-neon-purple" />
+                <h3 className="font-mono text-xs font-semibold uppercase tracking-widest text-lab-secondary">{t('templates.title')}</h3>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
                 {TEMPLATE_CARD_KEYS.map((key) => {
                   const active = templateKey === key;
                   return (
@@ -530,21 +432,20 @@ export default function ImagePlaygroundPage() {
                       key={key}
                       type="button"
                       onClick={() => setTemplateKey(key)}
-                      className={`rounded-2xl border p-4 text-left transition-all ${
+                      className={`rounded-2xl border p-4 text-left transition-all duration-300 ${
                         active
-                          ? 'border-orange-300/45 bg-orange-500/12 text-white'
-                          : 'border-white/10 bg-black/10 text-slate-200 hover:border-white/20 hover:bg-white/8'
+                          ? 'border-neon-purple/30 bg-neon-purple-dim'
+                          : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12]'
                       }`}
                     >
-                      <div className="text-sm font-semibold">{t(`templates.${key}`)}</div>
-                      <div className={`mt-2 text-xs leading-6 ${active ? 'text-orange-100/90' : 'text-slate-400'}`}>{t(`templates.${key}Desc`)}</div>
+                      <div className="text-sm font-semibold text-white">{t(`templates.${key}`)}</div>
+                      <div className={`mt-2 text-xs leading-6 ${active ? 'text-lab-secondary' : 'text-lab-muted'}`}>{t(`templates.${key}Desc`)}</div>
                     </button>
                   );
                 })}
               </div>
-
               <div className="mt-5">
-                <div className="mb-3 text-sm font-medium text-white">{t('chips.title')}</div>
+                <div className="mb-3 font-mono text-[11px] font-semibold uppercase tracking-widest text-lab-muted">{t('chips.title')}</div>
                 <div className="flex flex-wrap gap-2">
                   {CHIP_KEYS.map((chipKey) => {
                     const active = selectedChips.includes(chipKey);
@@ -553,11 +454,7 @@ export default function ImagePlaygroundPage() {
                         key={chipKey}
                         type="button"
                         onClick={() => toggleChip(chipKey)}
-                        className={`rounded-full border px-3 py-2 text-xs font-medium transition-all ${
-                          active
-                            ? 'border-cyan-300/40 bg-cyan-500/15 text-cyan-100'
-                            : 'border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:text-white'
-                        }`}
+                        className={`neon-chip ${active ? 'neon-chip-active' : ''}`}
                       >
                         {t(`chips.${chipKey}`)}
                       </button>
@@ -567,64 +464,50 @@ export default function ImagePlaygroundPage() {
               </div>
             </section>
 
-            <section className="rounded-[28px] border border-white/10 bg-white/5 p-5 shadow-[0_20px_70px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+            {/* Prompt input */}
+            <section className="neon-panel p-6 animate-fade-in-up stagger-3">
               {userApiConfigRequired && (
                 <div className="mb-5 grid gap-3 md:grid-cols-2">
                   <label className="block">
-                    <div className="mb-2 text-sm font-medium text-white">{t('inputs.apiUrl')}</div>
-                    <input
-                      value={apiUrl}
-                      onChange={(event) => setApiUrl(event.target.value)}
-                      className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-400/50"
-                    />
+                    <div className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-widest text-lab-muted">{t('inputs.apiUrl')}</div>
+                    <input value={apiUrl} onChange={(e) => setApiUrl(e.target.value)} className="neon-input" />
                   </label>
                   <label className="block">
-                    <div className="mb-2 text-sm font-medium text-white">{t('inputs.apiKey')}</div>
-                    <input
-                      type="password"
-                      value={apiKey}
-                      onChange={(event) => setApiKey(event.target.value)}
-                      className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-400/50"
-                    />
+                    <div className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-widest text-lab-muted">{t('inputs.apiKey')}</div>
+                    <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} className="neon-input" />
                   </label>
                 </div>
               )}
-
               <label className="block">
-                <div className="mb-2 text-sm font-medium text-white">{t('inputs.paperContent')}</div>
+                <div className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-widest text-lab-muted">{t('inputs.paperContent')}</div>
                 <textarea
                   value={paperContent}
-                  onChange={(event) => setPaperContent(event.target.value)}
+                  onChange={(e) => setPaperContent(e.target.value)}
                   placeholder={t('inputs.paperPlaceholder')}
-                  rows={8}
-                  className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-7 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50"
+                  rows={6}
+                  className="neon-textarea"
                 />
               </label>
-
               <label className="mt-4 block">
-                <div className="mb-2 text-sm font-medium text-white">{t('inputs.extra')}</div>
+                <div className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-widest text-lab-muted">{t('inputs.extra')}</div>
                 <textarea
                   value={extraInstructions}
-                  onChange={(event) => setExtraInstructions(event.target.value)}
+                  onChange={(e) => setExtraInstructions(e.target.value)}
                   placeholder={t('inputs.extraPlaceholder')}
-                  rows={4}
-                  className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-7 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50"
+                  rows={3}
+                  className="neon-textarea"
                 />
               </label>
-
-              <div className="mt-5">
-                <div className="mb-2 text-sm font-medium text-white">{t('inputs.preview')}</div>
-                <pre className="max-h-[280px] overflow-auto rounded-2xl border border-white/10 bg-[#09101a] p-4 text-xs leading-6 text-slate-200 whitespace-pre-wrap">
-                  {promptPreview}
-                </pre>
+              <div className="mt-4">
+                <div className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-widest text-lab-muted">{t('inputs.preview')}</div>
+                <pre className="neon-result max-h-[240px] overflow-auto p-4 text-xs leading-6 text-lab-secondary whitespace-pre-wrap">{promptPreview}</pre>
               </div>
-
               <div className="mt-5 flex flex-wrap items-center gap-3">
                 <button
                   type="button"
                   onClick={handleGenerate}
                   disabled={isGenerating}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 via-amber-500 to-rose-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_20px_60px_rgba(251,146,60,0.35)] transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70"
+                  className="btn-neon disabled:opacity-60"
                 >
                   {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Flame size={16} />}
                   <span>
@@ -635,64 +518,53 @@ export default function ImagePlaygroundPage() {
                         : t('actions.generate', { count: totalCost })}
                   </span>
                 </button>
-                {error && <div className="text-sm text-rose-300">{error}</div>}
+                {error && <div className="status-error flex-1">{error}</div>}
               </div>
             </section>
           </div>
 
-          <div className="space-y-6">
-            <section className="rounded-[28px] border border-white/10 bg-white/5 p-5 shadow-[0_20px_70px_rgba(0,0,0,0.22)] backdrop-blur-xl">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-lg font-semibold text-white">{t('result.title')}</h3>
-                  {hasResults && (
-                    <p className="mt-1 text-sm text-slate-400">
-                      {t('result.summary', { success: resultSuccessCount, total: resultBatchCount })}
-                    </p>
-                  )}
+          {/* ═══ RIGHT: Results ═══ */}
+          <div className="flex flex-col gap-5">
+            <section className="neon-panel p-6 animate-fade-in-up stagger-2">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={18} className="text-neon-cyan" />
+                  <h3 className="font-mono text-xs font-semibold uppercase tracking-widest text-lab-secondary">{t('result.title')}</h3>
                 </div>
                 {hasResults && (
-                  <div className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-100">
+                  <span className="neon-badge neon-badge-gold">
                     {t('meta.saved')}
-                  </div>
+                  </span>
                 )}
               </div>
+              {hasResults && (
+                <p className="mb-4 text-xs text-lab-muted">
+                  {t('result.summary', { success: resultSuccessCount, total: resultBatchCount })}
+                </p>
+              )}
 
-              <div className="mt-4 overflow-hidden rounded-[24px] border border-white/10 bg-[#08101a]">
+              <div className="neon-result">
                 {isGenerating ? (
-                  <div className="flex min-h-[440px] flex-col items-center justify-center px-6 text-center">
-                    <Loader2 size={42} className="animate-spin text-orange-300" />
-                    <p className="mt-4 text-base font-medium text-white">
-                      {t('result.loadingTitle', { count: batchCount })}
-                    </p>
-                    <p className="mt-2 max-w-md text-sm leading-6 text-slate-400">
-                      {t('result.loadingDesc', { count: totalCost })}
-                    </p>
+                  <div className="empty-state">
+                    <Loader2 size={36} className="animate-spin text-neon-cyan" />
+                    <div className="title">{t('result.loadingTitle', { count: batchCount })}</div>
+                    <div className="desc">{t('result.loadingDesc', { count: totalCost })}</div>
                   </div>
                 ) : hasResults ? (
-                  <div className="p-4">
+                  <div className="w-full p-4">
                     <div className="grid gap-3 sm:grid-cols-2">
                       {resultImages.map((item) => (
-                        <article key={`${item.index}-${item.fileName}`} className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+                        <article key={`${item.index}-${item.fileName}`} className="overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02]">
                           <div className="aspect-[4/3] overflow-hidden bg-black/30">
-                            <img
-                              src={item.previewUrl || item.imageUrl}
-                              alt={`generated-${item.index}`}
-                              className="h-full w-full object-cover"
-                            />
+                            <img src={item.previewUrl || item.imageUrl} alt={`generated-${item.index}`} className="h-full w-full object-cover transition-transform duration-500 hover:scale-105" />
                           </div>
                           <div className="flex items-center justify-between gap-3 px-4 py-3">
                             <div>
                               <div className="text-sm font-medium text-white">{item.variantLabel}</div>
-                              <div className="text-xs text-slate-400">{item.fileName}</div>
+                              <div className="text-xs text-lab-muted">{item.fileName}</div>
                             </div>
-                            <a
-                              href={item.imageUrl}
-                              download={item.fileName}
-                              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white transition hover:border-white/20 hover:bg-white/10"
-                            >
+                            <a href={item.imageUrl} download={item.fileName} className="toolbar-btn">
                               <Download size={14} />
-                              <span>{t('actions.download')}</span>
                             </a>
                           </div>
                         </article>
@@ -700,40 +572,26 @@ export default function ImagePlaygroundPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex min-h-[440px] items-center justify-center px-6 text-center text-sm leading-7 text-slate-500">
-                    {t('result.empty')}
+                  <div className="empty-state">
+                    <Sparkles size={48} className="icon text-neon-cyan" />
+                    <div className="title">{t('result.empty')}</div>
                   </div>
                 )}
               </div>
 
               {hasResults && resultFailedCount > 0 && (
-                <div className="mt-4 rounded-2xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-sm leading-6 text-amber-100">
-                  {t('result.partial', { success: resultSuccessCount, failed: resultFailedCount })}
-                </div>
+                <div className="status-warning mt-4">{t('result.partial', { success: resultSuccessCount, failed: resultFailedCount })}</div>
               )}
-
-              {billingWarning && (
-                <div className="mt-4 rounded-2xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-sm leading-6 text-amber-100">
-                  {billingWarning}
-                </div>
-              )}
+              {billingWarning && <div className="status-warning mt-4">{billingWarning}</div>}
 
               <div className="mt-4 flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleCopyPrompt}
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition hover:border-white/20 hover:bg-white/10"
-                >
-                  <Copy size={15} />
+                <button type="button" onClick={handleCopyPrompt} className="btn-neon-outline">
+                  <Copy size={14} />
                   <span>{t('actions.copyPrompt')}</span>
                 </button>
                 {resultZipUrl && (
-                  <a
-                    href={resultZipUrl}
-                    download={resultZipFileName}
-                    className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition hover:border-white/20 hover:bg-white/10"
-                  >
-                    <Download size={15} />
+                  <a href={resultZipUrl} download={resultZipFileName} className="btn-neon-outline">
+                    <Download size={14} />
                     <span>{t('actions.downloadAll')}</span>
                   </a>
                 )}

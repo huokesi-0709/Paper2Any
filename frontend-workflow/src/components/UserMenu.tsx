@@ -56,28 +56,28 @@ export function UserMenu({ onShowFiles, onShowAccount }: UserMenuProps = {}) {
         onClick={() => setOpen(!open)}
         className={`group relative flex items-center gap-2 px-1 pl-1.5 pr-3 py-1 rounded-full border transition-all duration-300 ${
           open 
-            ? "bg-white/10 border-white/20 shadow-[0_0_15px_rgba(168,85,247,0.3)]" 
-            : "bg-black/20 border-white/10 hover:bg-white/10 hover:border-white/20 hover:shadow-[0_0_10px_rgba(168,85,247,0.15)]"
+            ? "border-neon-cyan/40 bg-surface-base/40 shadow-[0_0_15px_rgba(34,211,238,0.3)]" 
+            : "border-border-medium bg-surface-base/20 hover:border-neon-cyan/30 hover:shadow-[0_0_10px_rgba(34,211,238,0.15)]"
         }`}
       >
         {/* Avatar / Icon */}
-        <div className="w-8 h-8 rounded-full flex items-center justify-center shadow-inner relative overflow-hidden bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30">
-          <Crown size={16} className="text-purple-200" />
+        <div className="w-8 h-8 rounded-full flex items-center justify-center shadow-inner relative overflow-hidden border border-neon-purple/30 bg-neon-purple/10">
+          <Crown size={16} className="text-neon-cyan" />
           
           {/* Shine effect */}
           <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
         </div>
 
         <div className="flex flex-col items-start mr-1">
-           <span className="text-sm font-medium leading-none bg-gradient-to-r from-purple-200 to-pink-200 bg-clip-text text-transparent group-hover:from-white group-hover:to-white transition-all">
+           <span className="text-sm font-medium leading-none text-white group-hover:text-neon-cyan transition-colors">
              {displayName}
            </span>
-           <span className="text-[10px] text-gray-400 leading-tight scale-90 origin-left">PRO MEMBER</span>
+           <span className="text-[10px] text-slate-400 leading-tight scale-90 origin-left font-mono">PRO MEMBER</span>
         </div>
 
         <ChevronDown
           size={14}
-          className={`text-gray-400 transition-transform duration-300 ${open ? "rotate-180 text-white" : "group-hover:text-gray-200"}`}
+          className={`text-slate-400 transition-transform duration-300 ${open ? "rotate-180 text-neon-cyan" : "group-hover:text-slate-200"}`}
         />
       </button>
 
@@ -89,30 +89,30 @@ export function UserMenu({ onShowFiles, onShowAccount }: UserMenuProps = {}) {
             : "opacity-0 scale-95 -translate-y-2 pointer-events-none"
         }`}
       >
-        <div className="glass-dark rounded-xl border border-white/10 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] backdrop-blur-xl overflow-hidden relative">
+        <div className="bento-card scan-line overflow-hidden relative rounded-xl">
            {/* Decorative background gradients */}
-           <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-b from-purple-500/10 to-transparent pointer-events-none" />
-           <div className="absolute -top-10 -right-10 w-32 h-32 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
+           <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-b from-neon-cyan/10 to-transparent pointer-events-none" />
+           <div className="absolute -top-10 -right-10 w-32 h-32 bg-neon-purple/15 rounded-full blur-3xl pointer-events-none" />
 
            {/* Header Info */}
-           <div className="p-4 border-b border-white/5 relative">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">
+           <div className="p-4 border-b border-border-medium relative">
+              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 font-mono">
                 {t('userMenu.loggedIn')}
               </p>
               <div className="flex items-center gap-3">
-                 <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold shadow-lg bg-gradient-to-br from-purple-500 to-pink-600 text-white">
+                 <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-display font-bold shadow-lg border border-neon-cyan/30 bg-neon-cyan/10 text-neon-cyan">
                     {displayName.charAt(0).toUpperCase()}
                  </div>
                  <div className="overflow-hidden">
                     <p className="text-sm font-bold text-white truncate">{displayName}</p>
-                    <p className="text-xs text-gray-400 truncate max-w-[150px]">{fullEmail}</p>
+                    <p className="text-xs text-slate-400 truncate max-w-[150px]">{fullEmail}</p>
                  </div>
               </div>
 
               {/* Status Badge */}
-              <div className="mt-3 py-1.5 px-2.5 rounded-lg flex items-center gap-2 text-xs font-medium bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/20 text-purple-200">
+              <div className="mt-3 py-1.5 px-2.5 rounded-lg flex items-center gap-2 text-xs font-medium border border-neon-cyan/20 bg-neon-cyan/10 text-neon-cyan">
                  <>
-                   <Crown size={12} className="text-yellow-300" />
+                   <Crown size={12} className="text-neon-cyan" />
                    <span>{t('userMenu.pro')}</span>
                  </>
               </div>
@@ -126,9 +126,9 @@ export function UserMenu({ onShowFiles, onShowAccount }: UserMenuProps = {}) {
                   target="_blank"
                   rel="noreferrer"
                   onClick={() => setOpen(false)}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-amber-100 hover:text-white hover:bg-amber-500/10 transition-all duration-200 group"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-neon-cyan/10 transition-all duration-200 group"
                 >
-                  <div className="p-1.5 rounded-md bg-amber-500/10 text-amber-300 group-hover:bg-amber-500/20">
+                  <div className="p-1.5 rounded-md bg-neon-cyan/10 text-neon-cyan group-hover:bg-neon-cyan/20">
                     <ExternalLink size={14} />
                   </div>
                   {t('userMenu.buyPoints')}
@@ -141,9 +141,9 @@ export function UserMenu({ onShowFiles, onShowAccount }: UserMenuProps = {}) {
                     setOpen(false);
                     onShowAccount?.();
                   }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-all duration-200 group"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-surface-base/30 transition-all duration-200 group"
                 >
-                  <div className="p-1.5 rounded-md bg-white/5 text-gray-300 group-hover:bg-white/10">
+                  <div className="p-1.5 rounded-md bg-surface-base/30 text-slate-300 group-hover:bg-surface-base/50">
                     <Ticket size={14} />
                   </div>
                   {t('userMenu.redeemPoints')}
@@ -155,9 +155,9 @@ export function UserMenu({ onShowFiles, onShowAccount }: UserMenuProps = {}) {
                   setOpen(false);
                   onShowFiles?.();
                 }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-all duration-200 group"
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-surface-base/30 transition-all duration-200 group"
               >
-                <div className="p-1.5 rounded-md bg-white/5 text-gray-300 group-hover:bg-white/10">
+                <div className="p-1.5 rounded-md bg-surface-base/30 text-slate-300 group-hover:bg-surface-base/50">
                   <FolderOpen size={14} />
                 </div>
                 历史文件
@@ -168,23 +168,23 @@ export function UserMenu({ onShowFiles, onShowAccount }: UserMenuProps = {}) {
                   setOpen(false);
                   onShowAccount?.();
                 }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-all duration-200 group"
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-surface-base/30 transition-all duration-200 group"
               >
-                <div className="p-1.5 rounded-md bg-white/5 text-gray-300 group-hover:bg-white/10">
+                <div className="p-1.5 rounded-md bg-surface-base/30 text-slate-300 group-hover:bg-surface-base/50">
                   <Settings size={14} />
                 </div>
                 账户设置
               </button>
 
-              <div className="px-3 py-2 text-xs text-gray-500 text-center italic">
+              <div className="px-3 py-2 text-xs text-slate-500 text-center italic">
                  {t('userMenu.thanks')}
               </div>
 
               <button
                 onClick={handleSignOut}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-all duration-200 group"
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:text-neon-pink hover:bg-neon-pink/10 transition-all duration-200 group"
               >
-                <div className="p-1.5 rounded-md transition-colors bg-gray-700/50 text-gray-400 group-hover:bg-gray-600">
+                <div className="p-1.5 rounded-md transition-colors bg-surface-base/30 text-slate-400 group-hover:bg-neon-pink/20 group-hover:text-neon-pink">
                    <LogOut size={14} />
                 </div>
                 {t('userMenu.signOut')}

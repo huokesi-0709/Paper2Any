@@ -41,15 +41,15 @@ const UploadCard: React.FC<UploadCardProps> = ({
 
   const showFileHint = () => {
     if (!selectedFile) return t('upload.fileHint');
-    if (fileKind === 'pdf') return `PDF：${selectedFile.name}`;
-    if (fileKind === 'image') return `Image：${selectedFile.name}`;
-    return `Unknown file type: ${selectedFile.name}`;
+    if (fileKind === 'pdf') return `PDF: ${selectedFile.name}`;
+    if (fileKind === 'image') return `Image: ${selectedFile.name}`;
+    return `Unknown: ${selectedFile.name}`;
   };
 
-  const graphTypeOptions: { value: GraphType; label: string; icon: React.ReactNode }[] = [
-    { value: 'model_arch', label: t('graphType.model_arch'), icon: <Network size={20} /> },
-    { value: 'tech_route', label: t('graphType.tech_route'), icon: <GitBranch size={20} /> },
-    { value: 'exp_data', label: t('graphType.exp_data'), icon: <BarChart3 size={20} /> },
+  const graphTypeOptions: { value: GraphType; label: string; icon: React.ReactNode; accent: string }[] = [
+    { value: 'model_arch', label: t('graphType.model_arch'), icon: <Network size={20} />, accent: 'cyan' },
+    { value: 'tech_route', label: t('graphType.tech_route'), icon: <GitBranch size={20} />, accent: 'purple' },
+    { value: 'exp_data', label: t('graphType.exp_data'), icon: <BarChart3 size={20} />, accent: 'pink' },
   ];
   const visibleGraphTypeOptions = allowedGraphTypes?.length
     ? graphTypeOptions.filter(option => allowedGraphTypes.includes(option.value))
@@ -68,137 +68,149 @@ const UploadCard: React.FC<UploadCardProps> = ({
     return '.pdf';
   };
 
+  const accentMap: Record<string, { active: string; icon: string }> = {
+    cyan: {
+      active: 'border-neon-cyan/40 bg-neon-cyan-dim text-neon-cyan',
+      icon: 'text-neon-cyan',
+    },
+    purple: {
+      active: 'border-neon-purple/40 bg-neon-purple-dim text-neon-purple',
+      icon: 'text-neon-purple',
+    },
+    pink: {
+      active: 'border-neon-pink/40 bg-neon-pink-dim text-neon-pink',
+      icon: 'text-neon-pink',
+    },
+  };
+
   return (
-    <div className="glass rounded-xl border border-white/10 p-6 lg:p-8 relative overflow-hidden flex flex-col">
-      {/* 装饰背景光 */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-1 bg-gradient-to-r from-transparent via-primary-500 to-transparent opacity-50 blur-sm"></div>
+    <div className="bento-card p-6 lg:p-7 scan-line">
+      {/* Top accent line */}
+      <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-neon-cyan/30 to-transparent" />
 
       <div className="relative">
-        {/* 绘图类型选择 (Dynamic Cards) */}
+        {/* Graph Type Selector */}
         <div className="mb-6">
-          <label className="block text-xs font-medium text-gray-400 mb-2">{t('graphType.label')}</label>
-          <div className={`grid grid-cols-1 ${gridColsClass} gap-3`}>
-            {visibleGraphTypeOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => {
-                  setGraphType(option.value);
-                }}
-                className={`relative group flex flex-col items-center justify-center p-3 rounded-xl transition-all duration-300 overflow-hidden border ${
-                  graphType === option.value
-                    ? 'bg-gradient-to-br from-primary-600 to-primary-400 text-white shadow-lg shadow-primary-500/30 border-white/20 scale-[1.02]'
-                    : 'bg-black/40 text-gray-400 border-white/5 hover:bg-white/5 hover:text-gray-200 hover:border-white/10'
-                }`}
-              >
-                {graphType === option.value && (
-                  <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-shimmer-fast"></div>
-                )}
-                <div className={`mb-2 transition-colors ${graphType === option.value ? 'text-white' : 'text-gray-500 group-hover:text-primary-400'}`}>
-                  {option.icon}
-                </div>
-                <span className="text-xs font-bold tracking-wide text-center leading-tight">
-                  {option.label}
-                </span>
-              </button>
-            ))}
+          <label className="block text-[11px] font-mono uppercase tracking-wider text-lab-muted mb-2.5">
+            {t('graphType.label')}
+          </label>
+          <div className={`grid grid-cols-1 ${gridColsClass} gap-2.5`}>
+            {visibleGraphTypeOptions.map((option) => {
+              const isActive = graphType === option.value;
+              const accent = accentMap[option.accent] || accentMap.cyan;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setGraphType(option.value)}
+                  className={`relative group flex flex-col items-center justify-center gap-2 p-3.5 rounded-bento-sm border transition-all duration-300 overflow-hidden ${
+                    isActive
+                      ? `${accent.active} shadow-sm`
+                      : 'border-border-subtle bg-surface-card text-lab-secondary hover:border-border-medium hover:bg-surface-card-hover hover:text-lab-primary'
+                  }`}
+                >
+                  <div className={`transition-colors ${isActive ? accent.icon : 'text-lab-muted group-hover:text-neon-cyan'}`}>
+                    {option.icon}
+                  </div>
+                  <span className="text-[11px] font-mono font-semibold tracking-wide text-center leading-tight">
+                    {option.label}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* 上传模式 Tab (炫酷卡片式 - 蓝色系) */}
-        <div className="grid grid-cols-2 gap-3 mb-6 p-1.5 bg-black/40 rounded-2xl border border-white/5">
-          <button
-            type="button"
-            onClick={() => setUploadMode('file')}
-            className={`relative group flex flex-col items-center justify-center py-3 rounded-xl transition-all duration-300 overflow-hidden ${
-              uploadMode === 'file'
-                ? 'bg-gradient-to-br from-primary-600 to-primary-500 text-white shadow-lg shadow-primary-500/30 scale-[1.02] ring-1 ring-white/20'
-                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200 hover:scale-[1.02]'
-            }`}
-          >
-             {uploadMode === 'file' && (
-                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-shimmer-fast"></div>
-             )}
-             <FileText size={22} className={`mb-1.5 transition-colors ${uploadMode === 'file' ? 'text-white' : 'text-gray-500 group-hover:text-primary-400'}`} />
-             <span className={`text-sm font-bold tracking-wide ${uploadMode === 'file' ? 'text-white' : 'text-gray-300'}`}>{t('uploadTabs.file')}</span>
-             <span className={`text-[10px] uppercase tracking-wider font-medium ${uploadMode === 'file' ? 'text-primary-100' : 'text-gray-600'}`}>{t('uploadTabs.fileSub')}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setUploadMode('text')}
-            className={`relative group flex flex-col items-center justify-center py-3 rounded-xl transition-all duration-300 overflow-hidden ${
-              uploadMode === 'text'
-                ? 'bg-gradient-to-br from-primary-600 to-primary-500 text-white shadow-lg shadow-primary-500/30 scale-[1.02] ring-1 ring-white/20'
-                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200 hover:scale-[1.02]'
-            }`}
-          >
-             {uploadMode === 'text' && (
-                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-shimmer-fast"></div>
-             )}
-             <Type size={22} className={`mb-1.5 transition-colors ${uploadMode === 'text' ? 'text-white' : 'text-gray-500 group-hover:text-primary-400'}`} />
-             <span className={`text-sm font-bold tracking-wide ${uploadMode === 'text' ? 'text-white' : 'text-gray-300'}`}>{t('uploadTabs.text')}</span>
-             <span className={`text-[10px] uppercase tracking-wider font-medium ${uploadMode === 'text' ? 'text-primary-100' : 'text-gray-600'}`}>{t('uploadTabs.textSub')}</span>
-          </button>
+        {/* Upload Mode Tab */}
+        <div className="mb-6">
+          <label className="block text-[11px] font-mono uppercase tracking-wider text-lab-muted mb-2.5">
+            {t('uploadTabs.label')}
+          </label>
+          <div className="grid grid-cols-2 gap-2 p-1 bg-surface-base/60 rounded-bento-sm border border-border-subtle">
+            <button
+              type="button"
+              onClick={() => setUploadMode('file')}
+              className={`relative group flex flex-col items-center justify-center gap-1 py-2.5 rounded-bento-sm transition-all duration-300 ${
+                uploadMode === 'file'
+                  ? 'border border-blue-200 bg-blue-50 text-blue-700 shadow-sm'
+                  : 'text-lab-muted hover:bg-slate-50 hover:text-lab-primary'
+              }`}
+            >
+              <FileText size={18} className={uploadMode === 'file' ? 'text-neon-cyan' : ''} />
+              <span className="text-xs font-mono font-semibold">{t('uploadTabs.file')}</span>
+              <span className="text-[9px] uppercase tracking-wider text-lab-dim">{t('uploadTabs.fileSub')}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setUploadMode('text')}
+              className={`relative group flex flex-col items-center justify-center gap-1 py-2.5 rounded-bento-sm transition-all duration-300 ${
+                uploadMode === 'text'
+                  ? 'border border-blue-200 bg-blue-50 text-blue-700 shadow-sm'
+                  : 'text-lab-muted hover:bg-slate-50 hover:text-lab-primary'
+              }`}
+            >
+              <Type size={18} className={uploadMode === 'text' ? 'text-neon-purple' : ''} />
+              <span className="text-xs font-mono font-semibold">{t('uploadTabs.text')}</span>
+              <span className="text-[9px] uppercase tracking-wider text-lab-dim">{t('uploadTabs.textSub')}</span>
+            </button>
+          </div>
         </div>
 
-        {/* 不同模式内容区域 */}
+        {/* Content Area */}
         {uploadMode === 'file' && (
           <div
-            className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center gap-4 transition-all h-[300px] ${
-              isDragOver ? 'border-primary-500 bg-primary-500/10' : 'border-white/20 hover:border-primary-400 bg-black/20'
+            className={`border-2 border-dashed rounded-bento p-8 flex flex-col items-center justify-center text-center gap-4 transition-all duration-300 h-[280px] ${
+              isDragOver
+                ? 'border-neon-cyan bg-neon-cyan-dim shadow-neon-cyan'
+                : 'border-border-medium bg-surface-base/40 hover:border-neon-cyan/30 hover:bg-neon-cyan-dim/30'
             }`}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
           >
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary-500/20 to-primary-400/20 flex items-center justify-center">
-              <UploadCloud size={32} className="text-primary-400" />
+            <div className="w-14 h-14 rounded-bento-sm bg-neon-cyan-dim flex items-center justify-center border border-neon-cyan/20">
+              <UploadCloud size={28} className="text-neon-cyan" />
             </div>
             <div>
-              <p className="text-white font-medium mb-1">
+              <p className="text-sm font-mono font-medium text-lab-primary mb-1">
                 {t('upload.fileDragTitleFile')}
               </p>
-              <p className="text-xs text-primary-300/80 mb-1">
-                 {graphType === 'exp_data' ? '(支持 PDF 或 图片)' : '(仅支持 PDF)'}
+              <p className="text-[11px] text-neon-cyan/70 mb-1">
+                {graphType === 'exp_data' ? t('upload.fileTypePdfImage') : t('upload.fileTypePdfOnly')}
               </p>
-              <p className="text-sm text-gray-400">
+              <p className="text-xs text-lab-secondary">
                 {showFileHint()}
               </p>
             </div>
-            <label className="px-6 py-2.5 rounded-full bg-gradient-to-r from-primary-600 to-primary-500 text-white text-sm font-medium cursor-pointer hover:from-primary-700 hover:to-primary-600 transition-all shadow-lg shadow-primary-500/20">
+            <label className="btn-neon-outline text-xs">
               {t('upload.selectFile')}
               <input
                 type="file"
-                accept={
-                  uploadMode === 'file'
-                    ? getAcceptTypes()
-                    : undefined
-                }
+                accept={getAcceptTypes()}
                 className="hidden"
                 onChange={handleFileChange}
               />
             </label>
             {selectedFile && (
-                <div className="px-4 py-2 bg-primary-500/20 border border-primary-500/40 rounded-lg animate-fade-in">
-                  <p className="text-sm text-primary-300 font-medium">✓ {selectedFile.name}</p>
-                </div>
+              <div className="px-4 py-1.5 bg-neon-cyan-dim border border-neon-cyan/30 rounded-bento-sm">
+                <p className="text-xs text-neon-cyan font-mono">✓ {selectedFile.name}</p>
+              </div>
             )}
           </div>
         )}
 
         {uploadMode === 'text' && (
-          <div className="space-y-3 h-[300px] flex flex-col">
-            <label className="block text-xs font-medium text-gray-400">
+          <div className="space-y-2 h-[280px] flex flex-col">
+            <label className="block text-[11px] font-mono uppercase tracking-wider text-lab-muted">
               {t('upload.textLabel')}
             </label>
             <textarea
               value={textContent}
               onChange={e => setTextContent(e.target.value)}
               placeholder={t('upload.textPlaceholder')}
-              className="flex-1 w-full rounded-xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-primary-500 resize-none placeholder:text-gray-600"
+              className="flex-1 w-full rounded-bento-sm border border-border-medium bg-surface-base/60 px-4 py-3 text-sm text-lab-primary outline-none focus:ring-1 focus:ring-neon-cyan/40 focus:border-neon-cyan/40 resize-none placeholder:text-lab-dim font-mono"
             />
-            <p className="text-[11px] text-gray-500 text-right">
+            <p className="text-[10px] text-lab-dim text-right">
               {t('upload.textTip')}
             </p>
           </div>

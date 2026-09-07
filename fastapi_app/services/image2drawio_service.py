@@ -83,8 +83,26 @@ class Image2DrawioService:
         if not drawio_path:
             drawio_path = final_state.get("drawio_output_path", "") if isinstance(final_state, dict) else getattr(final_state, "drawio_output_path", "")
 
+        temp_data = final_state.get("temp_data", {}) if isinstance(final_state, dict) else getattr(final_state, "temp_data", {})
+        temp_data = temp_data or {}
+        elements = temp_data.get("drawio_elements", []) or []
+        image_count = sum(1 for item in elements if item.get("kind") == "image")
+        image_prompts = temp_data.get("sam3_segment_hints", []) or []
+        fallback_used = bool(temp_data.get("visual_fallback_used"))
+        visual_output_missing = bool(image_prompts) and image_count == 0
+        success = bool(drawio_xml) and not visual_output_missing
+        error = "视觉元素转换失败，未能保留原图中的图标或图片。" if visual_output_missing else None
+        quality_warning = (
+            "未能拆分复杂图标，已使用保真背景并保留可编辑文字"
+            if fallback_used and success
+            else None
+        )
+
         return {
-            "success": bool(drawio_xml),
+            "success": success,
             "xml_content": drawio_xml,
             "file_path": str(drawio_path) if drawio_path else "",
+            "error": error,
+            "fallback_used": fallback_used,
+            "quality_warning": quality_warning,
         }

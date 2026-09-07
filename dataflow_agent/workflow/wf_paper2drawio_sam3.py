@@ -169,7 +169,7 @@ MAX_DRAWIO_ELEMENTS = 800
 MIN_IMAGE_AREA_RATIO = 0.00001
 MAX_IMAGE_BBOX_AREA_RATIO = 0.88
 FALLBACK_COARSE_TEXT_MAX_AREA_RATIO = 0.08
-FALLBACK_LOCAL_TEXT_MAX_AREA_RATIO = 0.035
+FALLBACK_LOCAL_TEXT_MAX_AREA_RATIO = 0.075
 
 # 对低覆盖的大图标做前景细化回退，避免主体缺失且避免纯色背景串入
 IMAGE_MASK_REPAIR_LOW_COVERAGE_THRESHOLD = 0.58
@@ -260,7 +260,7 @@ class FontSizeProcessor:
         text_offset: float = 1.0,
         min_font_size: float = 8.0,
         max_font_size: float = 48.0,
-        height_ratio: float = 0.85,
+        height_ratio: float = 0.40,
         width_safety: float = 1.04,
         drawio_pt_ratio: float = 1.45,
     ):
@@ -292,7 +292,14 @@ class FontSizeProcessor:
                 total += 1.0
         return max(total, 1.0)
 
-    def _estimate_font_size(self, text: str, geometry: Dict[str, Any], is_latex: bool) -> float:
+    def _estimate_font_size(
+        self,
+        text: str,
+        geometry: Dict[str, Any],
+        is_latex: bool,
+        precise_width: bool = False,
+        font_family: str = "",
+    ) -> float:
         """
         智能字号估计：同时受文本框高度和文本长度限制，尽量贴近原图视觉大小。
         """
@@ -306,8 +313,17 @@ class FontSizeProcessor:
             by_height = height * self.height_ratio
             # 约束2：按文本长度估计（避免短高框导致字号过大）
             vis_len = self._visual_text_length(text)
+            if precise_width:
+                normalized_family = str(font_family or "").lower()
+                width_factor = 0.70 if "condensed" in normalized_family or "narrow" in normalized_family else 0.90
+                by_width_drawio = (width / max(1.0, vis_len * width_factor)) * 0.95
+                by_height_drawio = by_height * self.drawio_pt_ratio
+                size = min(by_height_drawio, by_width_drawio)
+                return max(self.min_font_size, min(size, self.max_font_size))
             by_width = (width / vis_len) * self.width_safety
-            size = min(by_height, by_width)
+            # OCR width is often clipped for long lines. Keep height as the main
+            # signal and let width reduce the estimate by at most 15%.
+            size = min(by_height, max(by_width, by_height * 0.85))
         size = size * self.drawio_pt_ratio
         return max(self.min_font_size, min(size, self.max_font_size))
 
@@ -334,7 +350,13 @@ class FontSizeProcessor:
             geometry = block.get("geometry", {})
             text = block.get("text", "")
             is_latex = block.get("is_latex", False)
-            font_size = self._estimate_font_size(text=text, geometry=geometry, is_latex=is_latex)
+            font_size = self._estimate_font_size(
+                text=text,
+                geometry=geometry,
+                is_latex=is_latex,
+                precise_width=bool(block.get("ink_bbox")),
+                font_family=str(block.get("font_family") or ""),
+            )
             block["font_size"] = max(font_size, 6)
             result.append(block)
         return result
@@ -453,6 +475,12 @@ class FontFamilyProcessor:
         "consolas": "Courier New",
         "monaco": "Courier New",
         "menlo": "Courier New",
+        "sans-serif": "Arial",
+        "sans serif": "Arial",
+        "condensed sans-serif": "Arial Narrow",
+        "condensed sans serif": "Arial Narrow",
+        "serif": "Times New Roman",
+        "monospace": "Courier New",
     }
 
     SERIF_KEYWORDS = ["baskerville", "garamond", "palatino", "didot", "bodoni"]
@@ -772,10 +800,188 @@ def _bbox_to_polygon(bbox: List[float], image_w: int, image_h: int) -> Optional[
     return [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
 
 
+def _detect_text_ink_bbox(
+    image_bgr: np.ndarray,
+    approx_bbox: List[int],
+) -> Optional[List[int]]:
+    """Refine a VLM box to the complete visible text line without absorbing nearby icons."""
+    image_h, image_w = image_bgr.shape[:2]
+    approx = _sanitize_bbox(approx_bbox, image_bgr.shape)
+    if not approx:
+        return None
+    x1, y1, x2, y2 = approx
+    box_w = max(2, x2 - x1)
+    box_h = max(2, y2 - y1)
+
+    margin_x = max(36, min(int(image_w * 0.22), int(max(box_w * 0.75, box_h * 4.0))))
+    margin_y = max(3, min(18, int(round(box_h * 0.25))))
+    sx1 = max(0, x1 - margin_x)
+    sx2 = min(image_w, x2 + margin_x)
+    sy1 = max(0, y1 - margin_y)
+    sy2 = min(image_h, y2 + margin_y)
+    roi = image_bgr[sy1:sy2, sx1:sx2]
+    if roi.size == 0:
+        return None
+
+    background = np.median(roi.reshape(-1, 3), axis=0)
+    color_distance = np.max(
+        np.abs(roi.astype(np.int16) - background.astype(np.int16)),
+        axis=2,
+    )
+    foreground = color_distance >= 32
+
+    core_y1 = max(0, y1 - sy1 + int(round(box_h * 0.12)))
+    core_y2 = min(roi.shape[0], y2 - sy1 - int(round(box_h * 0.12)))
+    if core_y2 <= core_y1:
+        core_y1, core_y2 = max(0, y1 - sy1), min(roi.shape[0], y2 - sy1)
+    column_counts = foreground[core_y1:core_y2].sum(axis=0)
+    min_column_pixels = max(2, int(round(max(1, core_y2 - core_y1) * 0.06)))
+    occupied_columns = (column_counts >= min_column_pixels).astype(np.uint8)[None, :] * 255
+    close_width = max(3, min(9, int(round(box_h * 0.16))))
+    occupied_columns = cv2.morphologyEx(
+        occupied_columns,
+        cv2.MORPH_CLOSE,
+        np.ones((1, close_width), dtype=np.uint8),
+    )[0] > 0
+
+    all_column_runs: List[Tuple[int, int]] = []
+    run_start: Optional[int] = None
+    for index, occupied in enumerate(occupied_columns):
+        if occupied and run_start is None:
+            run_start = index
+        if run_start is not None and (not occupied or index == len(occupied_columns) - 1):
+            run_end = index if not occupied else index + 1
+            global_start, global_end = sx1 + run_start, sx1 + run_end
+            if run_end - run_start >= 2:
+                all_column_runs.append((global_start, global_end))
+            run_start = None
+    selected_run_indexes = [
+        index
+        for index, (start, end) in enumerate(all_column_runs)
+        if min(end, x2) > max(start, x1)
+    ]
+    if selected_run_indexes:
+        maximum_gap = max(8, min(28, int(round(box_h * 0.65))))
+        maximum_extension = max(16, min(36, int(round(box_h * 0.80))))
+        extension_limit = x2 + maximum_extension
+        next_index = max(selected_run_indexes) + 1
+        while next_index < len(all_column_runs):
+            previous_end = all_column_runs[next_index - 1][1]
+            next_start = all_column_runs[next_index][0]
+            next_end = all_column_runs[next_index][1]
+            if next_start - previous_end > maximum_gap or next_end > extension_limit:
+                break
+            selected_run_indexes.append(next_index)
+            next_index += 1
+    column_runs = [all_column_runs[index] for index in sorted(set(selected_run_indexes))]
+    if not column_runs:
+        return None
+
+    refined_x1 = min(start for start, _ in column_runs)
+    refined_x2 = max(end for _, end in column_runs)
+    local_x1 = max(0, refined_x1 - sx1)
+    local_x2 = min(roi.shape[1], refined_x2 - sx1)
+    row_counts = foreground[:, local_x1:local_x2].sum(axis=1)
+    min_row_pixels = max(2, int(round(max(1, refined_x2 - refined_x1) * 0.025)))
+    occupied_rows = (row_counts >= min_row_pixels).astype(np.uint8)[:, None] * 255
+    close_height = max(3, min(7, int(round(box_h * 0.12))))
+    occupied_rows = cv2.morphologyEx(
+        occupied_rows,
+        cv2.MORPH_CLOSE,
+        np.ones((close_height, 1), dtype=np.uint8),
+    )[:, 0] > 0
+
+    row_runs: List[Tuple[int, int]] = []
+    run_start = None
+    minimum_text_height = max(2, int(round(box_h * 0.12)))
+    for index, occupied in enumerate(occupied_rows):
+        if occupied and run_start is None:
+            run_start = index
+        if run_start is not None and (not occupied or index == len(occupied_rows) - 1):
+            run_end = index if not occupied else index + 1
+            global_start, global_end = sy1 + run_start, sy1 + run_end
+            overlap = min(global_end, y2) - max(global_start, y1)
+            if run_end - run_start >= minimum_text_height and overlap > 0:
+                row_runs.append((global_start, global_end))
+            run_start = None
+    if not row_runs:
+        return None
+
+    refined = [
+        refined_x1,
+        min(start for start, _ in row_runs),
+        refined_x2,
+        max(end for _, end in row_runs),
+    ]
+    return _sanitize_bbox(refined, image_bgr.shape)
+
+
+def _has_number_badge_left(image_bgr: np.ndarray, ink_bbox: List[int], line_height: int) -> bool:
+    """Return true when a substantial colored badge sits immediately left of a title line."""
+    image_h, _ = image_bgr.shape[:2]
+    x1, y1, _, y2 = ink_bbox
+    search_width = max(20, int(round(line_height * 1.55)))
+    bx1 = max(0, x1 - search_width)
+    bx2 = max(0, x1 - 3)
+    by1 = max(0, y1 - 3)
+    by2 = min(image_h, y2 + 3)
+    if bx2 <= bx1 or by2 <= by1:
+        return False
+    roi = image_bgr[by1:by2, bx1:bx2]
+    hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+    colored_or_dark = (hsv[:, :, 1] >= 55) | (hsv[:, :, 2] <= 120)
+    minimum_area = max(20, int(round(line_height * line_height * 0.12)))
+    return int(np.count_nonzero(colored_or_dark)) >= minimum_area
+
+
+def _infer_text_color(image_bgr: np.ndarray, ink_bbox: List[int]) -> Optional[str]:
+    """Infer the dominant glyph color from a tight text-only image region."""
+    bbox = _sanitize_bbox(ink_bbox, image_bgr.shape)
+    if not bbox:
+        return None
+    x1, y1, x2, y2 = bbox
+    roi = image_bgr[y1:y2, x1:x2]
+    if roi.size == 0:
+        return None
+    background = np.median(roi.reshape(-1, 3), axis=0)
+    distance = np.max(np.abs(roi.astype(np.int16) - background.astype(np.int16)), axis=2)
+    pixels = roi[distance >= 32]
+    if len(pixels) < 8:
+        return None
+    # Background edges and anti-aliasing can outnumber the glyph core. Prefer
+    # darker or more saturated pixels before selecting the dominant color bin.
+    hsv_pixels = cv2.cvtColor(pixels.reshape(-1, 1, 3), cv2.COLOR_BGR2HSV).reshape(-1, 3)
+    luminance = np.mean(pixels.astype(np.float32), axis=1)
+    likely_glyph = (luminance <= np.percentile(luminance, 65)) | (hsv_pixels[:, 1] >= 70)
+    glyph_pixels = pixels[likely_glyph]
+    if len(glyph_pixels) >= 8:
+        pixels = glyph_pixels
+    quantized = (pixels // 16).astype(np.int32)
+    keys = quantized[:, 0] * 256 + quantized[:, 1] * 16 + quantized[:, 2]
+    values, counts = np.unique(keys, return_counts=True)
+    dominant_key = values[int(np.argmax(counts))]
+    dominant_pixels = pixels[keys == dominant_key]
+    b, g, r = np.median(dominant_pixels, axis=0).astype(int).tolist()
+    return f"#{r:02X}{g:02X}{b:02X}"
+
+
+def _looks_like_condensed_text(text: str, ink_bbox: List[int]) -> bool:
+    """Infer a condensed sans face from the source line's glyph aspect ratio."""
+    if len((text or "").strip()) < 4:
+        return False
+    x1, y1, x2, y2 = ink_bbox
+    ink_width = max(1, x2 - x1)
+    ink_height = max(1, y2 - y1)
+    visual_length = FontSizeProcessor._visual_text_length(text)
+    width_per_glyph_height = ink_width / max(1.0, ink_height * visual_length)
+    return width_per_glyph_height <= 1.12
+
+
 def _vectorize_text_blocks(
     bbox_res: List[Dict[str, Any]],
     image_w: int,
     image_h: int,
+    image_bgr: Optional[np.ndarray] = None,
 ) -> List[Dict[str, Any]]:
     text_blocks: List[Dict[str, Any]] = []
     for it in bbox_res or []:
@@ -791,11 +997,29 @@ def _vectorize_text_blocks(
             polygon = _bbox_to_polygon(it.get("bbox"), image_w, image_h)
         if not polygon:
             continue
-        text_blocks.append({
+        block = {
             "text": text,
             "polygon": polygon,
             "is_latex": False,
-        })
+        }
+        font_hint = str(it.get("font_family") or "").strip()
+        if font_hint:
+            block["font_family"] = font_hint
+        font_weight = str(it.get("font_weight") or "").strip().lower()
+        if font_weight in {"normal", "bold"}:
+            block["font_weight"] = font_weight
+            block["is_bold"] = font_weight == "bold"
+        font_style = str(it.get("font_style") or "").strip().lower()
+        if font_style in {"normal", "italic"}:
+            block["font_style"] = font_style
+            block["is_italic"] = font_style == "italic"
+        font_color = str(it.get("font_color") or "").strip()
+        if re.fullmatch(r"#[0-9a-fA-F]{6}", font_color):
+            block["font_color"] = font_color.upper()
+        text_align = str(it.get("text_align") or "").strip().lower()
+        if text_align in {"left", "center", "right"}:
+            block["text_align"] = text_align
+        text_blocks.append(block)
 
     if not text_blocks:
         return []
@@ -806,14 +1030,72 @@ def _vectorize_text_blocks(
         block["geometry"] = coord_processor.polygon_to_geometry(polygon) if polygon else {
             "x": 0, "y": 0, "width": 100, "height": 20, "rotation": 0
         }
+        geometry = block["geometry"]
+        if image_bgr is not None:
+            approx_bbox = [
+                int(round(geometry.get("x", 0))),
+                int(round(geometry.get("y", 0))),
+                int(round(geometry.get("x", 0) + geometry.get("width", 0))),
+                int(round(geometry.get("y", 0) + geometry.get("height", 0))),
+            ]
+            ink_bbox = _detect_text_ink_bbox(image_bgr, approx_bbox)
+            if ink_bbox:
+                block["ink_bbox"] = ink_bbox
+                geometry["x"] = ink_bbox[0]
+                geometry["width"] = ink_bbox[2] - ink_bbox[0]
+                block["text_align"] = "center"
+                inferred_color = _infer_text_color(image_bgr, ink_bbox)
+                if inferred_color:
+                    existing_color = str(block.get("font_color") or "")
+                    inferred_rgb = tuple(int(inferred_color[index:index + 2], 16) for index in (1, 3, 5))
+                    inferred_lightness = sum(inferred_rgb) / 3
+                    existing_lightness = 255.0
+                    if re.fullmatch(r"#[0-9a-fA-F]{6}", existing_color):
+                        existing_rgb = tuple(int(existing_color[index:index + 2], 16) for index in (1, 3, 5))
+                        existing_lightness = sum(existing_rgb) / 3
+                    if inferred_lightness < 220 or existing_lightness >= 220:
+                        block["font_color"] = inferred_color
+                font_hint = str(block.get("font_family") or "").lower()
+                if (
+                    font_hint in {"", "sans-serif", "arial"}
+                    and _looks_like_condensed_text(block["text"], ink_bbox)
+                ):
+                    block["font_family"] = "condensed sans-serif"
+
+                numbered_heading = re.fullmatch(r"\s*([1-9]\d?)\s+(.+?)\s*", block["text"])
+                line_height = max(1, approx_bbox[3] - approx_bbox[1])
+                if (
+                    numbered_heading
+                    and approx_bbox[1] <= max(90, int(round(image_h * 0.12)))
+                    and _has_number_badge_left(image_bgr, ink_bbox, line_height)
+                ):
+                    block["text"] = numbered_heading.group(2)
+                    block["font_weight"] = "bold"
+                    block["is_bold"] = True
+                    block["text_align"] = "center"
 
     font_size_processor = FontSizeProcessor()
     font_family_processor = FontFamilyProcessor()
     style_processor = StyleProcessor()
 
     text_blocks = font_size_processor.process(text_blocks)
-    text_blocks = font_family_processor.process(text_blocks, global_font="Arial")
-    text_blocks = style_processor.process(text_blocks, azure_styles=[])
+
+    allowed_fonts = {"Arial", "Arial Narrow", "Times New Roman", "Courier New"}
+    for block in text_blocks:
+        if block.get("font_family"):
+            normalized_font = font_family_processor.standardize(str(block["font_family"]))
+            block["font_family"] = normalized_font if normalized_font in allowed_fonts else "Arial"
+        else:
+            # Image reconstruction must not switch fonts based on text semantics.
+            # A model identifier containing underscores is not evidence of a monospace font,
+            # and a long academic sentence is not evidence of a serif font.
+            block["font_family"] = "Arial"
+
+        if "font_weight" not in block and float(block.get("font_size") or 0) >= 24:
+            block["font_weight"] = "bold"
+            block["is_bold"] = True
+
+    text_blocks = style_processor.process(text_blocks, azure_styles=[], unify=False)
 
     return text_blocks
 
@@ -889,9 +1171,12 @@ def _escape_text(text: str, is_latex: bool = False) -> str:
 
 
 def _text_style_from_block(block: Dict[str, Any]) -> str:
+    text_align = str(block.get("text_align") or "center").lower()
+    if text_align not in {"left", "center", "right"}:
+        text_align = "center"
     styles = [
         "text", "html=1", "whiteSpace=nowrap", "autosize=1", "resizable=0",
-        "align=center", "verticalAlign=middle", "overflow=visible",
+        f"align={text_align}", "verticalAlign=middle", "overflow=visible",
     ]
     font_size = block.get("font_size") or TEXT_FONT_SIZE_DEFAULT
     styles.append(f"fontSize={int(font_size)}")
@@ -1018,6 +1303,10 @@ def _sanitize_bbox(bbox_px: Optional[List[int]], target_shape: tuple[int, int, i
 
 
 def _text_block_bbox(block: Dict[str, Any], image_w: int, image_h: int) -> Optional[List[int]]:
+    ink_bbox = block.get("ink_bbox")
+    if isinstance(ink_bbox, (list, tuple)) and len(ink_bbox) == 4:
+        return _sanitize_bbox([int(round(float(v))) for v in ink_bbox], (image_h, image_w, 1))
+
     geometry = block.get("geometry", {}) or {}
     try:
         x = float(geometry.get("x", 0))
@@ -1026,6 +1315,19 @@ def _text_block_bbox(block: Dict[str, Any], image_w: int, image_h: int) -> Optio
         height = float(geometry.get("height", 0))
     except Exception:
         return None
+
+    text = str(block.get("text") or "")
+    try:
+        drawio_font_size = float(block.get("font_size") or 0)
+    except (TypeError, ValueError):
+        drawio_font_size = 0
+    if text and drawio_font_size > 0:
+        visual_length = FontSizeProcessor._visual_text_length(text)
+        estimated_width = visual_length * (drawio_font_size / 1.45) / 1.04 * 1.10
+        if estimated_width > width:
+            center_x = x + width / 2
+            width = min(float(image_w), estimated_width)
+            x = center_x - width / 2
 
     bbox = [
         int(round(x)),
@@ -1063,6 +1365,48 @@ def _sample_surrounding_color(image_bgr: np.ndarray, bbox: List[int], pad: int =
 
     median_bgr = np.median(ring_pixels.reshape(-1, 3), axis=0)
     return tuple(int(max(0, min(255, round(v)))) for v in median_bgr.tolist())
+
+
+def _remove_text_ink_preserving_lines(
+    target_bgr: np.ndarray,
+    source_bgr: np.ndarray,
+    bbox: List[int],
+    fill_bgr: Tuple[int, int, int],
+) -> None:
+    """Remove glyph pixels inside a text box while preserving diagram borders."""
+    sanitized = _sanitize_bbox(bbox, source_bgr.shape)
+    if not sanitized:
+        return
+    x1, y1, x2, y2 = sanitized
+    source_roi = source_bgr[y1:y2, x1:x2]
+    target_roi = target_bgr[y1:y2, x1:x2]
+    if source_roi.size == 0:
+        return
+
+    fill = np.asarray(fill_bgr, dtype=np.int16)
+    distance = np.max(np.abs(source_roi.astype(np.int16) - fill), axis=2)
+    foreground = (distance >= 28).astype(np.uint8) * 255
+
+    roi_h, roi_w = foreground.shape
+    horizontal_length = max(10, min(40, int(round(roi_h * 0.75))))
+    vertical_length = max(10, min(40, int(round(roi_h * 0.75))))
+    horizontal_lines = cv2.morphologyEx(
+        foreground,
+        cv2.MORPH_OPEN,
+        np.ones((1, horizontal_length), dtype=np.uint8),
+    )
+    vertical_lines = cv2.morphologyEx(
+        foreground,
+        cv2.MORPH_OPEN,
+        np.ones((vertical_length, 1), dtype=np.uint8),
+    )
+    protected_lines = cv2.bitwise_or(horizontal_lines, vertical_lines)
+    protected_lines = cv2.dilate(protected_lines, np.ones((3, 3), dtype=np.uint8), iterations=1)
+
+    glyph_mask = cv2.bitwise_and(foreground, cv2.bitwise_not(protected_lines))
+    glyph_mask = cv2.dilate(glyph_mask, np.ones((3, 3), dtype=np.uint8), iterations=1)
+    glyph_mask = cv2.bitwise_and(glyph_mask, cv2.bitwise_not(protected_lines))
+    target_roi[glyph_mask > 0] = np.asarray(fill_bgr, dtype=np.uint8)
 
 
 def _text_blocks_are_coarse(text_blocks: List[Dict[str, Any]], image_w: int, image_h: int) -> bool:
@@ -1114,13 +1458,22 @@ def _build_visual_fallback_elements(
                 continue
 
             x1, y1, x2, y2 = bbox
-            pad = max(2, min(10, int(round(min(x2 - x1, y2 - y1) * 0.15))))
-            ex1 = max(0, x1 - pad)
-            ey1 = max(0, y1 - pad)
-            ex2 = min(w, x2 + pad)
-            ey2 = min(h, y2 + pad)
-            fill_bgr = _sample_surrounding_color(bg_image, [ex1, ey1, ex2, ey2], pad=pad + 4)
-            cv2.rectangle(bg_image, (ex1, ey1), (ex2, ey2), fill_bgr, -1)
+            text_height = max(1, y2 - y1)
+            # ink_bbox is already tight around the full visible line. A small edge
+            # allowance removes anti-aliasing without reaching neighboring icons.
+            pad_x = max(2, min(6, int(round(text_height * 0.14))))
+            pad_y = max(3, min(7, int(round(text_height * 0.20))))
+            ex1 = max(0, x1 - pad_x)
+            ey1 = max(0, y1 - pad_y)
+            ex2 = min(w, x2 + pad_x)
+            ey2 = min(h, y2 + pad_y)
+            fill_bgr = _sample_surrounding_color(image_bgr, [ex1, ey1, ex2, ey2], pad=pad_y + 6)
+            _remove_text_ink_preserving_lines(
+                target_bgr=bg_image,
+                source_bgr=image_bgr,
+                bbox=[ex1, ey1, ex2, ey2],
+                fill_bgr=fill_bgr,
+            )
 
     cv2.imwrite(str(bg_path), bg_image)
     elements = [{
@@ -1132,6 +1485,18 @@ def _build_visual_fallback_elements(
         "group": "background_fallback",
     }]
     return elements, use_original_with_text
+
+
+def _should_use_visual_fallback(
+    sam3_results: List[Dict[str, Any]],
+    elements: List[Dict[str, Any]],
+    image_prompts: List[str],
+) -> bool:
+    """Preserve the source image when visual objects were expected but not produced."""
+    if not sam3_results or not elements:
+        return True
+    has_image_element = any(item.get("kind") == "image" for item in elements)
+    return bool(image_prompts) and not has_image_element
 
 
 def _shape_type_from_prompt(prompt: str) -> str:
@@ -1739,7 +2104,8 @@ def create_paper2drawio_sam3_graph() -> GenericGraphBuilder:
         try:
             with Image.open(img_path) as pil_img:
                 w, h = pil_img.size
-            text_blocks = _vectorize_text_blocks(bbox_res, w, h)
+            image_bgr = cv2.imread(img_path)
+            text_blocks = _vectorize_text_blocks(bbox_res, w, h, image_bgr=image_bgr)
         except Exception as e:
             log.warning(f"[paper2drawio_sam3][VLM] vectorize failed: {e}")
             text_blocks = []
@@ -1827,7 +2193,9 @@ def create_paper2drawio_sam3_graph() -> GenericGraphBuilder:
         base_dir = Path(_ensure_result_path(state))
         elements = _build_elements_from_sam3(results, image_bgr, base_dir)
         fallback_hide_text_blocks = False
-        if not elements:
+        image_prompts = state.temp_data.get("sam3_segment_hints", []) or []
+        fallback_used = _should_use_visual_fallback(results, elements, image_prompts)
+        if fallback_used:
             text_blocks = state.temp_data.get("text_blocks", []) or []
             elements, fallback_hide_text_blocks = _build_visual_fallback_elements(
                 image_bgr=image_bgr,
@@ -1835,7 +2203,7 @@ def create_paper2drawio_sam3_graph() -> GenericGraphBuilder:
                 out_dir=base_dir,
             )
             log.warning(
-                f"[paper2drawio_sam3] SAM3 produced no drawable elements; "
+                f"[paper2drawio_sam3] visual objects were not preserved; "
                 f"using visual fallback background (hide_text_blocks={fallback_hide_text_blocks})"
             )
         else:
@@ -1844,6 +2212,7 @@ def create_paper2drawio_sam3_graph() -> GenericGraphBuilder:
             log.info(f"[paper2drawio_sam3] drawio_elements shape={shape_count} image={image_count}")
         state.temp_data["drawio_elements"] = elements
         state.temp_data["fallback_hide_text_blocks"] = fallback_hide_text_blocks
+        state.temp_data["visual_fallback_used"] = fallback_used
         return state
 
     async def _evaluate_node(state: Paper2DrawioState) -> Paper2DrawioState:

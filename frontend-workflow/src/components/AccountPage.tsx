@@ -26,6 +26,7 @@ interface ProfileData {
 
 interface PointsData {
   balance: number;
+  is_unlimited?: boolean;
 }
 
 interface ReferralRecord {
@@ -94,6 +95,7 @@ export function AccountPage() {
 
   const showApiSettings = runtimeConfig.user_api_config_required;
   const pointsBalance = profileData?.points?.balance ?? 0;
+  const isUnlimited = Boolean(profileData?.points?.is_unlimited);
   const displayModeText = runtimeConfig.billing_mode === "free" ? "免费模式" : "付费模式";
   const purchaseUrl = runtimeConfig.points_purchase_url?.trim()
     || getPurchaseUrl(runtimeConfig.managed_api_url || DEFAULT_LLM_API_URL);
@@ -255,19 +257,22 @@ export function AccountPage() {
 
   if (!user) {
     return (
-      <div className="w-full h-full flex items-center justify-center">
-        <p className="text-gray-400">请先登录</p>
+      <div className="page-shell flex items-center justify-center">
+        <div className="page-container text-center">
+          <p className="text-slate-400">请先登录</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="w-full h-full overflow-auto px-6 py-8 bg-gradient-to-br from-[#050512] via-[#0a0a1a] to-[#050512]">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <div className="page-shell overflow-y-auto">
+      <div className="page-container space-y-6">
+        {/* Header */}
         <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-bold text-white">账户设置</h1>
-          <p className="text-sm text-gray-400">
-            当前为 <span className="text-white">{displayModeText}</span>
+          <h1 className="text-3xl font-display font-bold text-white">账户设置</h1>
+          <p className="text-sm text-slate-400">
+            当前为 <span className="text-neon-cyan font-medium">{displayModeText}</span>
             {runtimeConfig.billing_mode === "free"
               ? "，业务模型与扣点策略均由后端统一托管。"
               : "，用户自行填写 API 配置，平台默认不扣点。"}
@@ -275,51 +280,54 @@ export function AccountPage() {
         </div>
 
         {loading ? (
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-6 flex items-center gap-3 text-gray-300">
-            <Loader2 size={18} className="animate-spin" />
-            <span>正在加载账户信息...</span>
+          <div className="bento-card scan-line p-6 flex items-center gap-3 text-slate-300">
+            <Loader2 size={18} className="animate-spin text-neon-cyan" />
+            <span className="text-sm">正在加载账户信息...</span>
           </div>
         ) : (
           <>
+            {/* Row 1: Mode / Points / Invite Code */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
+              <div className="bento-card scan-line p-6 space-y-4">
                 <div className="flex items-center gap-2 text-white">
-                  <Settings size={18} className="text-cyan-400" />
-                  <span className="font-medium">模式状态</span>
+                  <Settings size={18} className="text-neon-cyan" />
+                  <span className="font-display font-bold text-sm">模式状态</span>
                 </div>
-                <div className="text-2xl font-semibold text-white">{displayModeText}</div>
-                <p className="text-sm text-gray-400">
+                <div className="text-2xl font-display font-bold text-white">{displayModeText}</div>
+                <p className="text-sm text-slate-400">
                   免费模式下右上角点数来自后端配置；付费模式下使用用户自带 API，不额外消耗平台点数。
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
+              <div className="bento-card scan-line p-6 space-y-4">
                 <div className="flex items-center gap-2 text-white">
-                  <Coins size={18} className="text-yellow-400" />
-                  <span className="font-medium">点数 / 配额</span>
+                  <Coins size={18} className="text-neon-purple" />
+                  <span className="font-display font-bold text-sm">点数 / 配额</span>
                 </div>
-                <div className="text-2xl font-semibold text-white">
-                  {runtimeConfig.billing_mode === "free" ? `${pointsBalance}` : "∞"}
+                <div className="text-2xl font-display font-bold text-white">
+                  {isUnlimited || runtimeConfig.billing_mode !== "free" ? "∞" : `${pointsBalance}`}
                 </div>
-                <p className="text-sm text-gray-400">
-                  {runtimeConfig.billing_mode === "free"
+                <p className="text-sm text-slate-400">
+                  {isUnlimited
+                    ? "管理员 / 开发者账号不消耗平台点数。"
+                    : runtimeConfig.billing_mode === "free"
                     ? `每日最多补 ${runtimeConfig.daily_grant_points} 点，余额上限 ${runtimeConfig.daily_grant_balance_cap} 点。`
                     : "当前模式不扣平台点数，主要依赖用户自备 API。"}
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
+              <div className="bento-card scan-line p-6 space-y-4">
                 <div className="flex items-center gap-2 text-white">
-                  <Ticket size={18} className="text-purple-400" />
-                  <span className="font-medium">我的邀请码</span>
+                  <Ticket size={18} className="text-neon-pink" />
+                  <span className="font-display font-bold text-sm">我的邀请码</span>
                 </div>
-                <code className="block w-full rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-center text-lg text-white">
+                <code className="block w-full rounded-lg border border-border-medium bg-surface-base/30 px-4 py-3 text-center text-lg font-mono text-neon-cyan">
                   {profileData?.profile?.invite_code || "暂无"}
                 </code>
                 <button
                   onClick={handleCopyInviteCode}
                   disabled={!profileData?.profile?.invite_code}
-                  className="w-full py-2.5 rounded-lg bg-purple-600/80 hover:bg-purple-600 disabled:opacity-50 text-white text-sm font-medium flex items-center justify-center gap-2 transition-all"
+                  className="btn-neon w-full py-2.5 disabled:opacity-40 flex items-center justify-center gap-2"
                 >
                   {copied ? <CheckCircle2 size={16} /> : <Copy size={16} />}
                   {copied ? "已复制" : "复制邀请码"}
@@ -327,14 +335,15 @@ export function AccountPage() {
               </div>
             </div>
 
+            {/* Row 2: Redeem / Invite Fill / API Config */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {(runtimeConfig.billing_mode === "free" || runtimeConfig.points_redeem_enabled) && (
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
+                <div className="bento-card scan-line p-6 space-y-4">
                   <div className="flex items-center gap-2 text-white">
-                    <Coins size={18} className="text-amber-300" />
-                    <span className="font-medium">点数兑换</span>
+                    <Coins size={18} className="text-neon-cyan" />
+                    <span className="font-display font-bold text-sm">点数兑换</span>
                   </div>
-                  <p className="text-sm text-gray-400">
+                  <p className="text-sm text-slate-400">
                     点数不足时，可先前往购买页获取兑换码，再回到这里兑换加点。
                   </p>
                   <div className="space-y-3">
@@ -343,13 +352,13 @@ export function AccountPage() {
                       value={redeemCodeInput}
                       onChange={(e) => setRedeemCodeInput(e.target.value)}
                       placeholder="输入点数兑换码"
-                      className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
+                      className="neon-input w-full"
                     />
                     <div className="flex flex-col sm:flex-row gap-3">
                       <button
                         onClick={handleRedeemPoints}
                         disabled={redeeming || !redeemCodeInput.trim()}
-                        className="flex-1 px-5 py-3 rounded-lg bg-amber-600/80 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-medium flex items-center justify-center gap-2"
+                        className="btn-neon flex-1 py-2.5 disabled:opacity-40 flex items-center justify-center gap-2"
                       >
                         {redeeming ? <Loader2 size={16} className="animate-spin" /> : <Ticket size={16} />}
                         立即兑换
@@ -359,7 +368,7 @@ export function AccountPage() {
                           href={purchaseUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="flex-1 px-5 py-3 rounded-lg border border-amber-400/20 bg-amber-500/10 hover:bg-amber-500/15 text-amber-100 text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+                          className="toolbar-btn toolbar-btn-label flex-1 py-2.5"
                         >
                           <ExternalLink size={16} />
                           前往发卡平台
@@ -368,19 +377,19 @@ export function AccountPage() {
                     </div>
                   </div>
                   {(redeemSuccessMessage || redeemErrorMessage) && (
-                    <div className={`rounded-lg px-4 py-3 text-sm ${redeemSuccessMessage ? "bg-green-500/10 border border-green-500/20 text-green-300" : "bg-red-500/10 border border-red-500/20 text-red-300"}`}>
+                    <div className={redeemSuccessMessage ? "status-success" : "status-error"}>
                       {redeemSuccessMessage || redeemErrorMessage}
                     </div>
                   )}
                 </div>
               )}
 
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
+              <div className="bento-card scan-line p-6 space-y-4">
                 <div className="flex items-center gap-2 text-white">
-                  <Users size={18} className="text-green-400" />
-                  <span className="font-medium">填写邀请码</span>
+                  <Users size={18} className="text-neon-cyan" />
+                  <span className="font-display font-bold text-sm">填写邀请码</span>
                 </div>
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-slate-400">
                   当前邀请策略：{inviteRewardText}
                 </p>
                 <div className="flex gap-3">
@@ -389,41 +398,41 @@ export function AccountPage() {
                     value={inviteCodeInput}
                     onChange={(e) => setInviteCodeInput(e.target.value)}
                     placeholder="输入邀请码"
-                    className="flex-1 px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                    className="neon-input flex-1"
                   />
                   <button
                     onClick={handleClaimInvite}
                     disabled={claiming || !inviteCodeInput.trim()}
-                    className="px-5 py-3 rounded-lg bg-green-600/80 hover:bg-green-600 disabled:opacity-50 text-white text-sm font-medium flex items-center gap-2"
+                    className="btn-neon px-5 py-2.5 disabled:opacity-40 flex items-center gap-2"
                   >
                     {claiming ? <Loader2 size={16} className="animate-spin" /> : <Ticket size={16} />}
                     兑换
                   </button>
                 </div>
                 {(claimSuccess || authError) && (
-                  <div className={`rounded-lg px-4 py-3 text-sm ${claimSuccess ? "bg-green-500/10 border border-green-500/20 text-green-300" : "bg-red-500/10 border border-red-500/20 text-red-300"}`}>
+                  <div className={claimSuccess ? "status-success" : "status-error"}>
                     {claimSuccess ? "邀请码兑换成功" : authError}
                   </div>
                 )}
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
+              <div className="bento-card scan-line p-6 space-y-4">
                 <div className="flex items-center gap-2 text-white">
-                  <Key size={18} className="text-blue-400" />
-                  <span className="font-medium">API 配置</span>
+                  <Key size={18} className="text-neon-purple" />
+                  <span className="font-display font-bold text-sm">API 配置</span>
                 </div>
                 {showApiSettings ? (
                   <>
-                    <p className="text-sm text-gray-400">
+                    <p className="text-sm text-slate-400">
                       付费模式下，业务调用优先使用当前浏览器保存的用户 API 配置。
                     </p>
                     <div className="space-y-4">
                       <div>
-                        <label className="block text-sm text-gray-400 mb-2">API URL</label>
+                        <label className="block text-sm text-slate-400 mb-2">API URL</label>
                         <select
                           value={apiUrl}
                           onChange={(e) => setApiUrl(e.target.value)}
-                          className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white focus:outline-none"
+                          className="neon-select w-full"
                         >
                           {[apiUrl, ...API_URL_OPTIONS]
                             .filter((value, index, array) => array.indexOf(value) === index)
@@ -435,19 +444,19 @@ export function AccountPage() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm text-gray-400 mb-2">API Key</label>
+                        <label className="block text-sm text-slate-400 mb-2">API Key</label>
                         <input
                           type="password"
                           value={apiKey}
                           onChange={(e) => setApiKey(e.target.value)}
                           placeholder="sk-..."
-                          className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none"
+                          className="neon-input w-full"
                         />
                       </div>
                       <button
                         onClick={handleSaveSettings}
                         disabled={savingSettings}
-                        className="w-full py-3 rounded-lg bg-blue-600/80 hover:bg-blue-600 text-white font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                        className="btn-neon w-full py-3 disabled:opacity-40 flex items-center justify-center gap-2"
                       >
                         {savingSettings ? <Loader2 size={18} className="animate-spin" /> : <Key size={18} />}
                         {settingsSaved ? "已保存" : "保存配置"}
@@ -455,54 +464,55 @@ export function AccountPage() {
                     </div>
                   </>
                 ) : (
-                  <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-4 text-sm text-cyan-100">
+                  <div className="status-success">
                     后端托管模型已开启。功能调用会消耗点数，无需手动填写 API URL 或 API Key；若点数不足，可前往购买页获取兑换码，再到账户页兑换加点。
                   </div>
                 )}
               </div>
             </div>
 
+            {/* Row 3: Referral History / Points Ledger */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+              <div className="bento-card scan-line p-6">
                 <div className="flex items-center gap-2 text-white mb-4">
-                  <Users size={18} className="text-emerald-400" />
-                  <span className="font-medium">邀请记录</span>
+                  <Users size={18} className="text-neon-cyan" />
+                  <span className="font-display font-bold text-sm">邀请记录</span>
                 </div>
                 {profileData?.referrals?.length ? (
                   <div className="space-y-3">
                     {profileData.referrals.map((ref) => (
-                      <div key={ref.id} className="rounded-lg border border-white/10 bg-black/20 px-4 py-3">
-                        <div className="text-sm text-white">{ref.invitee_user_id}</div>
-                        <div className="text-xs text-gray-400 mt-1">{new Date(ref.created_at).toLocaleString()}</div>
+                      <div key={ref.id} className="rounded-lg border border-border-medium bg-surface-base/20 px-4 py-3">
+                        <div className="text-sm text-white font-mono">{ref.invitee_user_id}</div>
+                        <div className="text-xs text-slate-400 mt-1">{new Date(ref.created_at).toLocaleString()}</div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-400">暂无邀请记录</p>
+                  <p className="text-sm text-slate-400">暂无邀请记录</p>
                 )}
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+              <div className="bento-card scan-line p-6">
                 <div className="flex items-center gap-2 text-white mb-4">
-                  <History size={18} className="text-orange-400" />
-                  <span className="font-medium">点数流水</span>
+                  <History size={18} className="text-neon-purple" />
+                  <span className="font-display font-bold text-sm">点数流水</span>
                 </div>
                 {profileData?.points_ledger?.length ? (
                   <div className="space-y-3 max-h-[420px] overflow-auto pr-1">
                     {profileData.points_ledger.map((record) => (
-                      <div key={record.id} className="rounded-lg border border-white/10 bg-black/20 px-4 py-3">
+                      <div key={record.id} className="rounded-lg border border-border-medium bg-surface-base/20 px-4 py-3">
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-sm text-white">{formatLedgerReason(record.reason)}</span>
-                          <span className={`text-sm font-medium ${record.points >= 0 ? "text-green-300" : "text-red-300"}`}>
+                          <span className={`text-sm font-mono font-bold ${record.points >= 0 ? "text-neon-cyan" : "text-neon-pink"}`}>
                             {record.points >= 0 ? `+${record.points}` : record.points}
                           </span>
                         </div>
-                        <div className="text-xs text-gray-400 mt-1">{new Date(record.created_at).toLocaleString()}</div>
+                        <div className="text-xs text-slate-400 mt-1">{new Date(record.created_at).toLocaleString()}</div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-400">暂无点数流水</p>
+                  <p className="text-sm text-slate-400">暂无点数流水</p>
                 )}
               </div>
             </div>

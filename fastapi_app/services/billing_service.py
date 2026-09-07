@@ -22,6 +22,8 @@ from fastapi_app.services.supabase_admin_service import extract_response_data, g
 
 log = get_logger(__name__)
 
+UNLIMITED_QUOTA = 9_999_999
+
 
 @dataclass
 class _QuotaCacheEntry:
@@ -107,14 +109,23 @@ class BillingService:
             log.warning("Supabase billing request failed: %s", exc)
             raise self._billing_backend_unavailable() from exc
 
-    def _unlimited_quota(self) -> Dict[str, Any]:
-        unlimited = 9_999_999
+    def _unlimited_quota(
+        self,
+        *,
+        is_authenticated: bool = False,
+        billing_mode: Optional[str] = None,
+        user_id: Optional[str] = None,
+        billing_exempt: bool = False,
+    ) -> Dict[str, Any]:
         return {
             "used": 0,
-            "limit": unlimited,
-            "remaining": unlimited,
-            "is_authenticated": False,
-            "billing_mode": get_runtime_billing_config()["billing_mode"],
+            "limit": UNLIMITED_QUOTA,
+            "remaining": UNLIMITED_QUOTA,
+            "is_authenticated": is_authenticated,
+            "is_unlimited": True,
+            "billing_exempt": billing_exempt,
+            "billing_mode": billing_mode or get_runtime_billing_config()["billing_mode"],
+            **({"user_id": user_id} if user_id else {}),
         }
 
     def _supabase(self):
@@ -308,16 +319,20 @@ class BillingService:
     def _quota_from_user(self, user: AuthUser) -> Dict[str, Any]:
         self._bootstrap_user(user)
 
+        if user.is_billing_exempt:
+            return self._unlimited_quota(
+                is_authenticated=True,
+                billing_mode=get_runtime_billing_config()["billing_mode"],
+                user_id=user.id,
+                billing_exempt=True,
+            )
+
         if not is_free_billing_mode():
-            unlimited = 9_999_999
-            return {
-                "used": 0,
-                "limit": unlimited,
-                "remaining": unlimited,
-                "is_authenticated": True,
-                "billing_mode": "paid",
-                "user_id": user.id,
-            }
+            return self._unlimited_quota(
+                is_authenticated=True,
+                billing_mode="paid",
+                user_id=user.id,
+            )
 
         self._grant_daily_points_if_needed(user)
         balance = self._get_balance(user.id)
@@ -326,6 +341,8 @@ class BillingService:
             "limit": balance,
             "remaining": balance,
             "is_authenticated": True,
+            "is_unlimited": False,
+            "billing_exempt": False,
             "billing_mode": "free",
             "user_id": user.id,
         }
@@ -375,12 +392,31 @@ class BillingService:
             }
 
         if user and not getattr(user, "is_anonymous", False):
+            if user.is_billing_exempt:
+                quota = self._unlimited_quota(
+                    is_authenticated=True,
+                    billing_mode=get_runtime_billing_config()["billing_mode"],
+                    user_id=user.id,
+                    billing_exempt=True,
+                )
+                self._set_cached_quota(user.id, quota)
+                return {
+                    "success": True,
+                    "workflow_type": workflow_type,
+                    "amount": 0,
+                    "remaining": UNLIMITED_QUOTA,
+                    "is_unlimited": True,
+                    "billing_exempt": True,
+                    "billing_mode": quota["billing_mode"],
+                }
+
             if not is_free_billing_mode():
                 return {
                     "success": True,
                     "workflow_type": workflow_type,
                     "amount": 0,
                     "remaining": None,
+                    "is_unlimited": True,
                     "billing_mode": "paid",
                 }
 
@@ -395,6 +431,8 @@ class BillingService:
                         "limit": remaining,
                         "remaining": remaining,
                         "is_authenticated": True,
+                        "is_unlimited": False,
+                        "billing_exempt": False,
                         "billing_mode": "free",
                         "user_id": user.id,
                     },
@@ -404,6 +442,7 @@ class BillingService:
                     "workflow_type": workflow_type,
                     "amount": 0,
                     "remaining": remaining,
+                    "is_unlimited": False,
                     "billing_mode": "free",
                     "deduplicated": True,
                 }
@@ -424,6 +463,8 @@ class BillingService:
                     "limit": remaining,
                     "remaining": remaining,
                     "is_authenticated": True,
+                    "is_unlimited": False,
+                    "billing_exempt": False,
                     "billing_mode": "free",
                     "user_id": user.id,
                 },
@@ -433,6 +474,7 @@ class BillingService:
                 "workflow_type": workflow_type,
                 "amount": requested_amount,
                 "remaining": remaining,
+                "is_unlimited": False,
                 "billing_mode": "free",
             }
 
@@ -465,7 +507,10 @@ class BillingService:
         return {
             "billing_mode": get_runtime_billing_config()["billing_mode"],
             "profile": profile,
-            "points": {"balance": self._get_balance(user.id)},
+            "points": {
+                "balance": self._get_balance(user.id),
+                "is_unlimited": user.is_billing_exempt or not is_free_billing_mode(),
+            },
             "referrals": referrals,
             "points_ledger": ledger,
             "pricing": self._pricing(),

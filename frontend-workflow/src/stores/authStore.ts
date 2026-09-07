@@ -22,6 +22,8 @@ interface Quota {
   used: number;
   limit: number;
   remaining: number;
+  isUnlimited: boolean;
+  billingExempt?: boolean;
   billingMode?: string;
 }
 
@@ -454,6 +456,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           used: quotaInfo.used,
           limit: quotaInfo.limit,
           remaining: quotaInfo.remaining,
+          isUnlimited: quotaInfo.isUnlimited,
+          billingExempt: quotaInfo.billingExempt,
           billingMode: quotaInfo.billingMode,
         }
       });

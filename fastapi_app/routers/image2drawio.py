@@ -16,6 +16,8 @@ class Image2DrawioResponse(BaseModel):
     xml_content: str = ""
     file_path: str = ""
     error: Optional[str] = None
+    fallback_used: bool = False
+    quality_warning: Optional[str] = None
 
 
 @router.post("/generate", response_model=Image2DrawioResponse)

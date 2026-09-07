@@ -37,25 +37,24 @@ export function PointsDisplay() {
   // Show loading state if quota hasn't been fetched yet
   if (!quota) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 sm:px-3">
-        <Loader2 size={16} className="animate-spin text-gray-400" />
-        <span className="text-xs text-gray-400 sm:text-sm">...</span>
+      <div className="flex items-center gap-2 rounded-lg border border-border-medium bg-surface-base/20 px-2 py-1.5 sm:px-3">
+        <Loader2 size={16} className="animate-spin text-slate-400" />
+        <span className="text-xs text-slate-400 sm:text-sm font-mono">...</span>
       </div>
     );
   }
 
-  // Check for "unlimited" quota (returned when Supabase is not configured)
-  const isUnlimited = quota.remaining > 1000000;
+  const isUnlimited = quota.isUnlimited;
   const isAuthenticatedUser = Boolean(user);
   const balanceLabel = "点";
   const title = isUnlimited
-    ? (quota.billingMode === 'paid' ? '当前为付费模式，平台不扣点' : '当前为无限用量')
+    ? (quota.billingExempt ? '管理员 / 开发者账号，无限积分且不扣点' : quota.billingMode === 'paid' ? '当前为付费模式，平台不扣点' : '当前为无限用量')
     : (isAuthenticatedUser ? '剩余点数' : '当前点数');
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 sm:px-3" title={title}>
-      <Coins size={16} className="text-yellow-400" />
-      <span className="text-xs text-gray-300 sm:text-sm">
+    <div className="flex items-center gap-2 rounded-lg border border-border-medium bg-surface-base/20 px-2 py-1.5 sm:px-3 hover:border-neon-cyan/30 transition-colors" title={title}>
+      <Coins size={16} className="text-neon-cyan" />
+      <span className="text-xs text-white sm:text-sm font-mono font-medium">
         {isUnlimited ? "∞" : `${quota.remaining} ${balanceLabel}`}
       </span>
     </div>

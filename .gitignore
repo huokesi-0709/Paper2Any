@@ -123,6 +123,16 @@ frontend-workflow/node_modules/
 frontend-workflow/dist/
 frontend-workflow/build/
 frontend-workflow/.vite/
+
+# 前端本地工具缓存 / 浏览器测试产物（不应入库）
+frontend-workflow/.npm-cache/
+frontend-workflow/.playwright-browsers/
+frontend-workflow/.playwright-cli/
+frontend-workflow/.playwright-daemon/
+frontend-workflow/.pw-local/
+frontend-workflow/playwright-report/
+frontend-workflow/test-results/
+frontend-workflow/blob-report/
 *.local
 
 

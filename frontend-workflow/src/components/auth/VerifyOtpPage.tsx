@@ -109,22 +109,22 @@ export function VerifyOtpPage({ email, onBack }: Props) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0a0a1a]">
-      <div className="glass-dark p-8 rounded-xl w-full max-w-md border border-white/10">
+    <div className="min-h-screen flex items-center justify-center bg-surface-base p-4">
+      <div className="bento-card scan-line p-8 w-full max-w-md">
         <div className="text-center mb-6">
-          <div className="w-16 h-16 bg-primary-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Mail className="text-primary-400" size={32} />
+          <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border border-neon-cyan/30 bg-neon-cyan/10">
+            <Mail className="text-neon-cyan" size={32} />
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">
+          <h2 className="text-2xl font-display font-bold text-lab-primary mb-2">
             Check your email
           </h2>
-          <p className="text-gray-400 text-sm">
-            We sent a verification code to <strong className="text-white">{email}</strong>
+          <p className="text-lab-secondary text-sm">
+            We sent a verification code to <strong className="text-lab-primary">{email}</strong>
           </p>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg flex items-center gap-2 text-red-300">
+          <div className="status-error mb-4 flex items-center gap-2">
             <AlertCircle size={18} />
             <span className="text-sm">{error}</span>
           </div>
@@ -144,7 +144,7 @@ export function VerifyOtpPage({ email, onBack }: Props) {
               onKeyDown={(e) => handleKeyDown(index, e)}
               onPaste={handlePaste}
               disabled={loading}
-              className="w-10 h-14 sm:w-12 text-center text-xl sm:text-2xl font-bold bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:border-primary-500 disabled:opacity-50 transition-colors"
+              className="w-10 h-14 sm:w-12 text-center text-xl sm:text-2xl font-display font-bold bg-white border border-border-medium rounded-lg text-lab-primary focus:outline-none focus:border-blue-500 focus:shadow-[0_0_0_3px_rgba(37,99,235,0.12)] disabled:opacity-50 transition-all"
             />
           ))}
         </div>
@@ -153,7 +153,7 @@ export function VerifyOtpPage({ email, onBack }: Props) {
         <div className="text-center mb-6">
           <button
             onClick={() => setOtpLength(otpLength === 6 ? 8 : 6)}
-            className="text-xs text-gray-500 hover:text-gray-400 transition-colors"
+            className="text-xs text-slate-500 hover:text-neon-cyan transition-colors"
           >
             {otpLength === 6 ? "Use 8-digit code" : "Use 6-digit code"}
           </button>
@@ -162,7 +162,7 @@ export function VerifyOtpPage({ email, onBack }: Props) {
         <button
           onClick={() => handleSubmit()}
           disabled={loading || otp.some((d) => !d)}
-          className="w-full py-2.5 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+          className="btn-neon glow w-full py-2.5 disabled:opacity-40 flex items-center justify-center gap-2"
         >
           {loading ? (
             <>
@@ -179,7 +179,7 @@ export function VerifyOtpPage({ email, onBack }: Props) {
           <button
             onClick={handleResend}
             disabled={loading || resendCooldown > 0}
-            className="text-sm text-gray-400 hover:text-primary-400 disabled:text-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-1 mx-auto"
+            className="text-sm text-lab-secondary hover:text-blue-700 disabled:text-slate-400 disabled:cursor-not-allowed flex items-center justify-center gap-1 mx-auto transition-colors"
           >
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
             {resendCooldown > 0
@@ -189,10 +189,10 @@ export function VerifyOtpPage({ email, onBack }: Props) {
         </div>
 
         {/* Back button */}
-        <p className="mt-6 text-center text-gray-400 text-sm">
+        <p className="mt-6 text-center text-lab-secondary text-sm">
           <button
             onClick={onBack}
-            className="text-primary-400 hover:underline"
+            className="text-neon-cyan hover:text-neon-cyan/80 hover:underline transition-colors"
           >
             ← Back to login
           </button>
