@@ -103,7 +103,9 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
   const [textContent, setTextContent] = useState('');
   const [graphType, setGraphType] = useState<GraphType>(defaultGraphType);
   const [language, setLanguage] = useState<Language>('zh');
-  const [style, setStyle] = useState<StyleType>('cartoon');
+  const [style, setStyle] = useState<StyleType>(
+    defaultGraphType === 'model_arch' ? 'line_art' : 'cartoon'
+  );
   const [figureComplex, setFigureComplex] = useState<FigureComplex>('easy');
   const [resolution, setResolution] = useState<'2K' | '4K'>('2K');
 
@@ -603,6 +605,15 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
       setStageProgress(0);
       // setShowOutputPanel(true);
 
+      if (uploadMode === 'file' && !selectedFile) {
+        setError(t('errors.noFile'));
+        return;
+      }
+      if (uploadMode === 'text' && !textContent.trim()) {
+        setError(t('errors.noText'));
+        return;
+      }
+
       const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
       if (quota.remaining <= 0) {
         setError(quota.isAuthenticated
@@ -994,7 +1005,7 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
     <div className="page-shell">
       {showBannerProp && <Banner show={showBanner} onClose={() => setShowBanner(false)} stars={stars} />}
 
-      <div className="page-container animate-fade-in pt-20 pb-10">
+      <div className="page-container">
           <Header
             badge={header?.badge}
             title={header?.title}
@@ -1003,12 +1014,14 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
           />
 
           {hint && (
-            <div className="mb-8">
+            <details className="workspace-help">
+              <summary>{hint.title}</summary>
               <BilingualHint title={hint.title} zh={hint.zh} en={hint.en} tone={hint.tone} />
-            </div>
+            </details>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-[2fr,minmax(260px,1fr)] gap-6 mb-10">
+          <div className="workflow-studio">
+          <div className="workflow-configuration">
             <UploadCard
               graphType={graphType}
               setGraphType={setGraphType}
@@ -1046,6 +1059,7 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
               setResolution={setResolution}
               isLoading={isLoading}
               isSubmitLocked={isSubmitLocked}
+              canSubmit={uploadMode === 'file' ? Boolean(selectedFile) : Boolean(textContent.trim())}
               handleSubmit={handleSubmit}
               currentStage={currentStage}
               stageProgress={stageProgress}
@@ -1071,6 +1085,19 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
             />
           </div>
 
+          <div className="workflow-output">
+          {graphStep === 'input' && !techRouteSvgPreview && !downloadUrl && (
+            <section className="bento-card">
+              <h2 className="workspace-panel-heading">{t('enterprise.results', { ns: 'common' })}</h2>
+              <div className="empty-state"><div className="title">{t('enterprise.resultEmpty', { ns: 'common' })}</div><p className="desc">{t('enterprise.resultHint', { ns: 'common' })}</p></div>
+            </section>
+          )}
+          {downloadUrl && (
+            <section className="bento-card">
+              <h2 className="workspace-panel-heading">{t('enterprise.results', { ns: 'common' })}</h2>
+              <div className="empty-state"><div className="title">{t('success.pptGenerated')}</div><p className="desc break-all">{lastFilename}</p><a href={downloadUrl} download={lastFilename || 'paper2figure.pptx'} className="btn-neon">{t('enterprise.downloadResult', { ns: 'common', defaultValue: '下载结果 / Download' })}</a></div>
+            </section>
+          )}
           <PreviewSection
             graphType={graphType}
             graphStep={graphStep}
@@ -1111,7 +1138,7 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
                 <div className="bento-card scan-line p-4">
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div>
-                      <h3 className="text-sm font-display font-bold text-white flex items-center gap-2">
+                      <h3 className="text-sm font-display font-bold text-lab-primary flex items-center gap-2">
                         <span className="w-1 h-4 bg-neon-pink rounded-full" style={{ boxShadow: '0 0 8px rgba(255,0,212,0.6)' }} />
                         DrawIO 在线编辑 / Editor
                       </h3>
@@ -1120,7 +1147,7 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
                     <span className="text-[11px] text-slate-500 font-mono">等待生成 / Pending</span>
                   </div>
                   <div
-                    className="mt-4 flex flex-col items-center justify-center rounded-xl border border-border-medium bg-[#060914]"
+                    className="mt-4 flex flex-col items-center justify-center rounded-xl border border-border-medium bg-slate-50"
                     style={{ height: '560px' }}
                   >
                     <svg className="w-16 h-16 text-slate-600 mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1153,6 +1180,9 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
             svgBwPath={svgBwPath}
             svgColorPath={svgColorPath}
           />
+
+          </div>
+          </div>
 
           {extraSection && <div className="mb-2">{extraSection}</div>}
           {showExamples && <ExamplesSection visibleTypes={exampleTypes ?? allowedGraphTypes} />}

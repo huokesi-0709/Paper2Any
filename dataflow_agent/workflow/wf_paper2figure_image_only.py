@@ -117,23 +117,34 @@ def create_p2fig_image_only_graph() -> GenericGraphBuilder:
         - 最多重试 3 次，每次失败打印详细日志
         """
         # 安全获取 figure_desc_generator 的结果，可能因 input_type=FIGURE 跳过了该节点
-        fd_gen_result = state.agent_results.get("figure_desc_generator")
-        prompt = ""
-        if fd_gen_result:
-            prompt = fd_gen_result.get("results", {}).get("fig_desc", "")
-        
+        fd_gen_result = state.agent_results.get("figure_desc_generator") or {}
+        generated_results = fd_gen_result.get("results", {}) if isinstance(fd_gen_result, dict) else {}
+        prompt = (
+            (getattr(state, "fig_desc", "") or "").strip()
+            or str(generated_results.get("figure_desc") or "").strip()
+            or str(generated_results.get("fig_desc") or "").strip()
+        )
+
         safe_prompt = json.dumps(prompt, ensure_ascii=False) if prompt else ""
 
         edit_prompt = state.request.get("edit_prompt")
         image_path = state.request.get("prev_image")
 
-        final_prompt = edit_prompt if image_path else safe_prompt
+        final_prompt = (edit_prompt or "").strip() if image_path else safe_prompt
 
         log.info(
             f"[p2f_image_only] final_prompt(len={len(final_prompt)}), "
             f"edit_prompt_len={len(edit_prompt or '')}, image_path={image_path}, "
             f"safe_prompt_len={len(safe_prompt or '')}"
         )
+
+        if not final_prompt:
+            state.agent_results["gen_img_error"] = {
+                "msg": "未能生成有效的模型结构图描述，请重试；如果持续失败，请改用粘贴正文并确认内容完整。",
+                "save_path": "",
+            }
+            log.error("[p2f_image_only] stopped before image API call because final_prompt is empty")
+            return state
 
         result_root = Path(_ensure_result_path(state)).resolve()
         result_root.mkdir(parents=True, exist_ok=True)

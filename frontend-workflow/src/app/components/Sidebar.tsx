@@ -1,13 +1,14 @@
 import { NAV_GROUPS, NAV_LINKS, NavLink as NavLinkType } from '../navigation';
 import { useNav } from '../nav-context';
-import { Menu } from 'lucide-react';
+import { Command, X, PanelLeftClose } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 interface SidebarProps {
   /** Optional extra className for layout flexibility */
   className?: string;
-  /** Callback to open the mobile sidebar (optional — for mobile hamburger) */
-  onMobileMenuClick?: () => void;
+  mobileOpen: boolean;
+  onClose: () => void;
 }
 
 function SidebarItem({
@@ -31,7 +32,7 @@ function SidebarItem({
         group relative flex w-full cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium
         transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-cyan/60
         ${isActive
-          ? `${link.accent} border-blue-200 bg-blue-50 shadow-[inset_0_0_0_1px_rgba(37,99,235,0.02)]`
+          ? 'border-blue-100 bg-blue-50 text-blue-700'
           : 'border-transparent text-lab-secondary hover:border-slate-200 hover:bg-slate-50 hover:text-lab-primary'}
       `}
       title={label}
@@ -45,48 +46,65 @@ function SidebarItem({
   );
 }
 
-export function Sidebar({ className = '', onMobileMenuClick }: SidebarProps) {
+export function Sidebar({ className = '', mobileOpen, onClose }: SidebarProps) {
   const { t } = useTranslation();
   const { currentPath, navigate } = useNav();
+  const asideRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    asideRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+      if (event.key !== 'Tab') return;
+      const buttons = asideRef.current?.querySelectorAll<HTMLButtonElement>('button');
+      if (!buttons?.length) return;
+      const first = buttons[0];
+      const last = buttons[buttons.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => { document.removeEventListener('keydown', handleKey); previousFocus?.focus(); };
+  }, [mobileOpen, onClose]);
 
   const handleNavigate = (path: string) => {
     navigate(path);
+    onClose();
   };
 
   return (
+    <>
+    {mobileOpen && <button type="button" className="navigation-backdrop" onClick={onClose} aria-label={t('enterprise.closeNavigation')} />}
     <aside
+      ref={asideRef}
+      id="workspace-navigation"
+      aria-label={t('enterprise.navigation')}
       className={`
-        relative z-30 flex flex-col
-        w-64 shrink-0
-        bg-white/95 backdrop-blur-xl border-r border-slate-200/90
+        workspace-sidebar ${mobileOpen ? 'is-open' : ''} relative z-30 flex flex-col
+        w-60 shrink-0
+        bg-white border-r border-slate-200
         h-full
         ${className}
       `}
     >
       {/* Logo / Brand */}
-      <div className="flex h-16 flex-shrink-0 items-center gap-3 border-b border-slate-200/90 px-4">
-        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-neon-cyan to-neon-purple shadow-[0_8px_24px_rgba(79,124,255,0.2)]">
-          <span className="font-display font-bold text-sm text-white">P2A</span>
+      <div className="flex h-14 flex-shrink-0 items-center gap-2.5 px-5">
+        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm">
+          <Command size={19} />
         </div>
         <span className="font-display font-bold text-lg text-text-primary">FigureMind</span>
+        <button type="button" onClick={onClose} className="toolbar-btn ml-auto lg:hidden" aria-label={t('enterprise.closeNavigation')}><X size={16} /></button>
       </div>
 
       {/* Mobile hamburger (only visible on small screens) */}
-      {onMobileMenuClick && (
-        <div className="lg:hidden p-2 border-b border-border-medium flex-shrink-0">
-          <button
-            onClick={onMobileMenuClick}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-border-medium text-text-secondary hover:text-neon-cyan hover:border-neon-cyan/40 transition-all"
-            title={t('app.sidebar.toggle')}
-          >
-            <Menu size={18} />
-            <span className="text-xs font-mono">{t('app.sidebar.toggle')}</span>
-          </button>
-        </div>
-      )}
+      <div className="mx-3 mt-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+        <div className="text-xs font-semibold text-slate-800">{t('enterprise.workspace')}</div>
+        <div className="mt-1 text-[11px] text-slate-500">{t('enterprise.workspaceScope')}</div>
+      </div>
 
       {/* Navigation — permanent, always fully visible, scrolls vertically */}
-      <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-4">
+      <nav className="flex-1 overflow-y-auto py-5 px-3 space-y-5">
         {NAV_GROUPS.map((group) => {
           const groupLinks = NAV_LINKS.filter((l) => l.group === group.key);
           if (groupLinks.length === 0) return null;
@@ -123,6 +141,8 @@ export function Sidebar({ className = '', onMobileMenuClick }: SidebarProps) {
           );
         })}
       </nav>
+      <div className="mx-4 mb-5 flex items-start gap-2 border-t border-slate-200 pt-4 text-xs leading-5 text-slate-500"><PanelLeftClose size={15} className="mt-0.5 shrink-0" /><span>{t('enterprise.sidebarHint')}</span></div>
     </aside>
+    </>
   );
 }

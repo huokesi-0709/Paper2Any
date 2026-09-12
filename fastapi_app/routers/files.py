@@ -8,7 +8,9 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import time
+import zipfile
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Iterator
 from datetime import datetime
@@ -16,6 +18,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Body, Depends, UploadFile, File, Form, Request, HTTPException, Query
 from fastapi.responses import StreamingResponse, Response
+from starlette.concurrency import run_in_threadpool
 import mimetypes
 
 from fastapi_app.dependencies import AuthUser, get_current_user_or_system
@@ -39,6 +42,121 @@ IMAGE_WORKFLOW_TYPES = {"image_playground"}
 REBUTTAL_SUFFIXES = {".md", ".txt", ".json", ".zip"}
 FIGURE_PREFIXES = ("fig_", "technical_route", "exp_")
 FILE_ACCESS_TOKEN_VERSION = 1
+FILE_PREVIEW_MAX_CHARS = 120_000
+FILE_PREVIEW_MAX_ARCHIVE_ITEMS = 500
+
+
+def _truncate_preview_content(content: str) -> tuple[str, bool]:
+    if len(content) <= FILE_PREVIEW_MAX_CHARS:
+        return content, False
+    return content[:FILE_PREVIEW_MAX_CHARS], True
+
+
+def _plain_text_from_drawio(path: Path) -> str:
+    """Return a useful label outline for uncompressed draw.io XML files."""
+    raw = path.read_text(encoding="utf-8", errors="replace")
+    labels = re.findall(r'\bvalue="([^"]+)"', raw, flags=re.IGNORECASE)
+    cleaned: List[str] = []
+    for label in labels:
+        text = re.sub(r"<[^>]+>", " ", label)
+        text = (
+            text.replace("&amp;", "&")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", '"')
+            .replace("&#39;", "'")
+        )
+        text = re.sub(r"\s+", " ", text).strip()
+        if text and text not in cleaned:
+            cleaned.append(text)
+    if cleaned:
+        return "\n".join(f"• {label}" for label in cleaned)
+    return raw
+
+
+def _build_file_content_preview(path: Path) -> Dict[str, Any]:
+    suffix = path.suffix.lower()
+    kind = "text"
+    content = ""
+
+    if suffix == ".pptx":
+        from pptx import Presentation
+
+        presentation = Presentation(str(path))
+        slides: List[str] = []
+        for index, slide in enumerate(presentation.slides, start=1):
+            blocks = [shape.text.strip() for shape in slide.shapes if hasattr(shape, "text") and shape.text.strip()]
+            slides.append("\n".join([f"[Slide {index}]", *blocks]))
+        content = "\n\n".join(slides)
+        kind = "presentation"
+    elif suffix == ".docx":
+        from docx import Document
+
+        document = Document(str(path))
+        paragraphs = [paragraph.text.strip() for paragraph in document.paragraphs if paragraph.text.strip()]
+        for table_index, table in enumerate(document.tables, start=1):
+            paragraphs.append(f"[Table {table_index}]")
+            for row in table.rows:
+                paragraphs.append(" | ".join(cell.text.strip() for cell in row.cells))
+        content = "\n".join(paragraphs)
+        kind = "document"
+    elif suffix == ".xlsx":
+        from openpyxl import load_workbook
+
+        workbook = load_workbook(str(path), read_only=True, data_only=True)
+        sheets: List[str] = []
+        for worksheet in workbook.worksheets:
+            rows = [f"[Sheet: {worksheet.title}]"]
+            for row_index, row in enumerate(worksheet.iter_rows(values_only=True), start=1):
+                values = ["" if value is None else str(value) for value in row]
+                if any(values):
+                    rows.append("\t".join(values))
+                if row_index >= 200:
+                    rows.append("…")
+                    break
+            sheets.append("\n".join(rows))
+        content = "\n\n".join(sheets)
+        kind = "spreadsheet"
+    elif suffix == ".pdf":
+        import fitz
+
+        document = fitz.open(str(path))
+        pages = [f"[Page {index}]\n{page.get_text().strip()}" for index, page in enumerate(document, start=1)]
+        content = "\n\n".join(pages)
+        kind = "document"
+    elif suffix == ".zip":
+        with zipfile.ZipFile(path) as archive:
+            entries = archive.infolist()
+            lines = [f"{entry.filename}  ({entry.file_size} bytes)" for entry in entries[:FILE_PREVIEW_MAX_ARCHIVE_ITEMS]]
+            if len(entries) > FILE_PREVIEW_MAX_ARCHIVE_ITEMS:
+                lines.append(f"… {len(entries) - FILE_PREVIEW_MAX_ARCHIVE_ITEMS} more items")
+        content = "\n".join(lines)
+        kind = "archive"
+    elif suffix == ".drawio":
+        content = _plain_text_from_drawio(path)
+        kind = "diagram"
+    elif suffix == ".json":
+        parsed = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+        content = json.dumps(parsed, ensure_ascii=False, indent=2)
+    elif suffix in {".txt", ".md", ".csv", ".xml", ".html", ".htm", ".svg", ".log", ".yaml", ".yml"}:
+        content = path.read_text(encoding="utf-8", errors="replace")
+    else:
+        return {
+            "success": True,
+            "kind": "unsupported",
+            "content": "",
+            "truncated": False,
+            "file_type": suffix.removeprefix(".") or "file",
+        }
+
+    content, truncated = _truncate_preview_content(content)
+    return {
+        "success": True,
+        "kind": kind,
+        "content": content,
+        "truncated": truncated,
+        "file_type": suffix.removeprefix(".") or "file",
+    }
 
 def _iter_file_range(path: Path, start: int, end: int, chunk_size: int = 1024 * 1024) -> Iterator[bytes]:
     with open(path, "rb") as f:
@@ -342,6 +460,28 @@ async def stream_file(token: str, request: Request):
         headers=headers,
         media_type=media_type,
     )
+
+
+@router.post("/content-preview")
+async def get_file_content_preview(
+    path: str = Body(..., embed=True),
+    user: AuthUser = Depends(get_current_user_or_system),
+) -> Dict[str, Any]:
+    """Extract a bounded, read-only text preview for generated documents."""
+    asset_path = _ensure_user_owned_output_path(path, user)
+    try:
+        return await run_in_threadpool(_build_file_content_preview, asset_path)
+    except ImportError as exc:
+        return {
+            "success": True,
+            "kind": "unsupported",
+            "content": "",
+            "truncated": False,
+            "file_type": asset_path.suffix.lower().removeprefix(".") or "file",
+            "detail": f"Preview dependency is unavailable: {exc.name or 'unknown'}",
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail="This file could not be parsed for preview") from exc
 
 
 @router.get("/onlyoffice/config")

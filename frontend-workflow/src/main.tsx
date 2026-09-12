@@ -6,6 +6,7 @@ import { RuntimeConfigProvider } from './components/RuntimeConfigProvider';
 import { AuthGate } from './components/auth';
 import './i18n'; // Import i18n configuration
 import './styles/globals.css';
+import './styles/workspace.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

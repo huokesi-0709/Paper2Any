@@ -315,10 +315,12 @@ export default function ImagePlaygroundPage() {
 
         {!userApiConfigRequired && <ManagedApiNotice description={t('managedNotice')} />}
 
-        <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
+        <div className="image-studio">
           {/* ═══ LEFT: Config ═══ */}
           <div className="flex flex-col gap-5">
             {/* Model selection */}
+            <details className="image-settings bento-card">
+              <summary>{t('models.title')}</summary>
             <section className="neon-panel p-6 animate-fade-in-up stagger-1">
               <div className="flex items-center gap-2 mb-4">
                 <Cpu size={18} className="text-neon-cyan" />
@@ -338,11 +340,11 @@ export default function ImagePlaygroundPage() {
                       className={`group relative rounded-2xl border p-4 text-left transition-all duration-300 ${meta.glow} ${
                         active
                           ? `border-neon-cyan/30 bg-gradient-to-br ${meta.accent}`
-                          : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12]'
+                          : 'border-slate-200 bg-white/[0.02] hover:border-blue-300'
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div className="text-sm font-semibold text-white">{t(meta.titleKey)}</div>
+                        <div className="text-sm font-semibold text-lab-primary">{t(meta.titleKey)}</div>
                         {active && (
                           <span className="flex items-center gap-1 rounded-full bg-neon-cyan/15 px-2 py-0.5 text-[10px] font-bold uppercase text-neon-cyan">
                             <span className="h-1 w-1 rounded-full bg-neon-cyan animate-pulse" />
@@ -363,15 +365,15 @@ export default function ImagePlaygroundPage() {
                 <label className="block">
                   <div className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-widest text-lab-muted">{t('controls.textLanguage')}</div>
                   <select value={textLanguage} onChange={(e) => setTextLanguage(e.target.value as ImageTextLanguage)} className="neon-select">
-                    <option value="en" className="bg-slate-900 text-white">{t('controls.languageOptions.en')}</option>
-                    <option value="zh" className="bg-slate-900 text-white">{t('controls.languageOptions.zh')}</option>
+                    <option value="en" className="bg-slate-900 text-lab-primary">{t('controls.languageOptions.en')}</option>
+                    <option value="zh" className="bg-slate-900 text-lab-primary">{t('controls.languageOptions.zh')}</option>
                   </select>
                 </label>
                 <label className="block">
                   <div className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-widest text-lab-muted">{t('controls.batchCount')}</div>
                   <select value={batchCount} onChange={(e) => setBatchCount(normalizeBatchCount(e.target.value))} className="neon-select">
                     {BATCH_COUNT_OPTIONS.map((option) => (
-                      <option key={option} value={option} className="bg-slate-900 text-white">{t('controls.batchOption', { count: option })}</option>
+                      <option key={option} value={option} className="bg-slate-900 text-lab-primary">{t('controls.batchOption', { count: option })}</option>
                     ))}
                   </select>
                 </label>
@@ -384,13 +386,13 @@ export default function ImagePlaygroundPage() {
                       <label className="block">
                         <div className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-widest text-lab-muted">{t('controls.aspectRatio')}</div>
                         <select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value as ImageAspectRatio)} className="neon-select">
-                          {aspectRatioOptions.map((option) => <option key={option} value={option} className="bg-slate-900 text-white">{option}</option>)}
+                          {aspectRatioOptions.map((option) => <option key={option} value={option} className="bg-slate-900 text-lab-primary">{option}</option>)}
                         </select>
                       </label>
                       <label className="block">
                         <div className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-widest text-lab-muted">{t('controls.resolution')}</div>
                         <select value={resolution} onChange={(e) => setResolution(e.target.value as ImageResolution)} className="neon-select">
-                          {resolutionOptions.map((option) => <option key={option} value={option} className="bg-slate-900 text-white">{option}</option>)}
+                          {resolutionOptions.map((option) => <option key={option} value={option} className="bg-slate-900 text-lab-primary">{option}</option>)}
                         </select>
                       </label>
                     </>
@@ -400,13 +402,13 @@ export default function ImagePlaygroundPage() {
                       <label className="block">
                         <div className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-widest text-lab-muted">{t('controls.size')}</div>
                         <select value={gptSize} onChange={(e) => setGptSize(e.target.value as GptImageSize)} className="neon-select">
-                          {GPT_IMAGE_SIZES.map((option) => <option key={option} value={option} className="bg-slate-900 text-white">{option}</option>)}
+                          {GPT_IMAGE_SIZES.map((option) => <option key={option} value={option} className="bg-slate-900 text-lab-primary">{option}</option>)}
                         </select>
                       </label>
                       <label className="block">
                         <div className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-widest text-lab-muted">{t('controls.quality')}</div>
                         <select value={gptQuality} onChange={(e) => setGptQuality(e.target.value as GptImageQuality)} className="neon-select">
-                          {GPT_IMAGE_QUALITIES.map((option) => <option key={option} value={option} className="bg-slate-900 text-white">{t(`controls.qualityOptions.${option}`)}</option>)}
+                          {GPT_IMAGE_QUALITIES.map((option) => <option key={option} value={option} className="bg-slate-900 text-lab-primary">{t(`controls.qualityOptions.${option}`)}</option>)}
                         </select>
                       </label>
                     </>
@@ -418,13 +420,17 @@ export default function ImagePlaygroundPage() {
               )}
             </section>
 
+            </details>
+
             {/* Template + Chips */}
-            <section className="neon-panel p-6 animate-fade-in-up stagger-2">
+            <details className="image-settings bento-card">
+              <summary>{t('templates.title')}</summary>
+            <section className="neon-panel p-5">
               <div className="flex items-center gap-2 mb-4">
                 <Wand2 size={18} className="text-neon-purple" />
                 <h3 className="font-mono text-xs font-semibold uppercase tracking-widest text-lab-secondary">{t('templates.title')}</h3>
               </div>
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-3">
                 {TEMPLATE_CARD_KEYS.map((key) => {
                   const active = templateKey === key;
                   return (
@@ -435,10 +441,10 @@ export default function ImagePlaygroundPage() {
                       className={`rounded-2xl border p-4 text-left transition-all duration-300 ${
                         active
                           ? 'border-neon-purple/30 bg-neon-purple-dim'
-                          : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12]'
+                          : 'border-slate-200 bg-white/[0.02] hover:border-blue-300'
                       }`}
                     >
-                      <div className="text-sm font-semibold text-white">{t(`templates.${key}`)}</div>
+                      <div className="text-sm font-semibold text-lab-primary">{t(`templates.${key}`)}</div>
                       <div className={`mt-2 text-xs leading-6 ${active ? 'text-lab-secondary' : 'text-lab-muted'}`}>{t(`templates.${key}Desc`)}</div>
                     </button>
                   );
@@ -463,6 +469,8 @@ export default function ImagePlaygroundPage() {
                 </div>
               </div>
             </section>
+
+            </details>
 
             {/* Prompt input */}
             <section className="neon-panel p-6 animate-fade-in-up stagger-3">
@@ -524,7 +532,7 @@ export default function ImagePlaygroundPage() {
           </div>
 
           {/* ═══ RIGHT: Results ═══ */}
-          <div className="flex flex-col gap-5">
+          <div className="image-results flex flex-col gap-5">
             <section className="neon-panel p-6 animate-fade-in-up stagger-2">
               <div className="flex items-center justify-between gap-3 mb-4">
                 <div className="flex items-center gap-2">
@@ -554,13 +562,13 @@ export default function ImagePlaygroundPage() {
                   <div className="w-full p-4">
                     <div className="grid gap-3 sm:grid-cols-2">
                       {resultImages.map((item) => (
-                        <article key={`${item.index}-${item.fileName}`} className="overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02]">
-                          <div className="aspect-[4/3] overflow-hidden bg-black/30">
+                        <article key={`${item.index}-${item.fileName}`} className="overflow-hidden rounded-2xl border border-slate-200 bg-white/[0.02]">
+                          <div className="aspect-[4/3] overflow-hidden bg-slate-100">
                             <img src={item.previewUrl || item.imageUrl} alt={`generated-${item.index}`} className="h-full w-full object-cover transition-transform duration-500 hover:scale-105" />
                           </div>
                           <div className="flex items-center justify-between gap-3 px-4 py-3">
                             <div>
-                              <div className="text-sm font-medium text-white">{item.variantLabel}</div>
+                              <div className="text-sm font-medium text-lab-primary">{item.variantLabel}</div>
                               <div className="text-xs text-lab-muted">{item.fileName}</div>
                             </div>
                             <a href={item.imageUrl} download={item.fileName} className="toolbar-btn">

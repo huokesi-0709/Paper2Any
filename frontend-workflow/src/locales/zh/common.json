@@ -315,10 +315,71 @@
       "actions": "操作"
     },
     "actions": {
+      "view": "查看内容",
       "download": "下载",
       "delete": "删除",
       "confirmDelete": "确定要删除 \"{{fileName}}\" 吗？",
       "deleteError": "删除文件失败"
+    },
+    "preview": {
+      "eyebrow": "文件内容预览",
+      "format": "格式",
+      "loading": "正在读取文件内容...",
+      "drawioErrorTitle": "暂时无法渲染这个 DrawIO 文件",
+      "drawioErrorDesc": "文件可能使用了压缩画布或特殊组件，可下载原文件继续查看。",
+      "close": "关闭预览",
+      "error": "暂时无法读取这个文件，请下载后查看。",
+      "unsupportedTitle": "该格式暂不支持浏览器内预览",
+      "unsupportedDesc": "文件信息已保留，你仍可直接下载后查看完整内容。",
+      "emptyTitle": "未提取到可显示的文字",
+      "emptyDesc": "文件可能只包含图形或空白页面，可下载查看完整版本。",
+      "truncated": "内容较长，这里仅显示前 120,000 个字符；下载可查看完整文件。",
+      "readOnly": "预览为只读，不会修改原文件。"
     }
+  },
+  "enterprise": {
+    "skip": "跳至工作区",
+    "workspace": "智能体工作台",
+    "workspaceScope": "科研绘图 · 内容创作",
+    "closeNavigation": "关闭导航",
+    "navigation": "工作台导航",
+    "sidebarHint": "选择一个智能体，配置素材并开始生成。",
+    "homeTitle": "今天，开始一项新任务",
+    "homeDescription": "从素材到可编辑成果，在同一个工作台完成。",
+    "openFiles": "查看历史文件",
+    "newTask": "新建任务",
+    "startTitle": "让研究内容变成清晰的图示",
+    "startDescription": "上传论文或粘贴正文，配置生成要求，再编辑与导出结果。",
+    "startAction": "开始绘图",
+    "agents": "选择智能体",
+    "agentCount": "{{count}} 个可用工作流",
+    "searchAgents": "搜索名称或功能",
+    "filter": "筛选功能",
+    "all": "全部功能",
+    "noMatches": "没有找到匹配的内容，请尝试其他关键词。",
+    "steps": {
+      "prepare": {
+        "title": "准备素材",
+        "description": "上传论文、图片，或粘贴文本。"
+      },
+      "configure": {
+        "title": "配置与执行",
+        "description": "选择模型、风格和生成参数。"
+      },
+      "review": {
+        "title": "检查与交付",
+        "description": "预览结果，继续编辑并导出。"
+      }
+    },
+    "billingDetails": "计费规则",
+    "guide": "使用说明",
+    "results": "生成结果",
+    "resultEmpty": "结果将在这里呈现",
+    "resultHint": "完成左侧素材和参数配置后开始生成。",
+    "fileSearch": "搜索文件名",
+    "fileTypes": "全部类型",
+    "fileCount": "{{count}} 个文件",
+    "refresh": "刷新文件",
+    "fileDescription": "先查看每个文件的内容，再决定下载哪一个；预览不会修改原文件。"
   }
 }

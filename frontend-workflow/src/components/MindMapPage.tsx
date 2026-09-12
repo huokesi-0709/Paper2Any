@@ -391,86 +391,38 @@ export default function MindMapPage() {
 
   return (
     <div className="page-shell overflow-y-auto overflow-x-hidden">
-      <div className="page-container flex flex-col gap-6 pb-12 pt-6">
-        {/* Hero Section */}
-        <section className="bento-card scan-line p-6 md:p-8">
-          <div className="relative grid gap-6 lg:grid-cols-[1.02fr_0.98fr]">
-            <div className="space-y-5">
-              <div className="inline-flex items-center gap-2 rounded-full border border-neon-cyan/25 bg-neon-cyan/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-neon-cyan">
-                <BrainCircuit size={14} />
-                <span>{t('hero.badge')}</span>
-              </div>
-              <div className="space-y-3">
-                <h1 className="font-display text-4xl font-extrabold tracking-[-0.035em] text-lab-primary md:text-5xl">{t('hero.title')}</h1>
-                <p className="max-w-3xl text-base leading-7 text-lab-secondary md:text-lg">{t('hero.description')}</p>
-              </div>
-              {/* Pricing info */}
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-sm text-slate-700">
-                <div className="text-sm font-semibold text-emerald-900">{t('pricing.title')}</div>
-                <div className="mt-1 text-xs leading-6 text-slate-700">{t('pricing.description')}</div>
-                <div className="mt-1 text-xs font-medium leading-6 text-emerald-800">
-                  {t('pricing.preview', { points: estimatedPoints })}
-                </div>
-                <div className="mt-2 grid gap-1 text-xs leading-5 text-slate-600">
-                  <span>{t('pricing.tierSummary')}</span>
-                  <span>{t('pricing.depthSummary')}</span>
-                  <span>{t('pricing.previewNote', { points: estimatedPoints })}</span>
-                </div>
-                {chargeInfo ? (
-                  <div className="mt-3 rounded-2xl border border-emerald-800 bg-emerald-900 px-3 py-2 text-xs leading-6 text-emerald-50">
-                    {t('pricing.actual', {
-                      nodes: chargeInfo.nodeCount,
-                      depth: chargeInfo.depth,
-                      points: chargeInfo.points,
-                    })}
-                  </div>
-                ) : null}
-                {runtimeConfig.points_purchase_url ? (
-                  <>
-                    {' '}
-                    <a href={runtimeConfig.points_purchase_url} target="_blank" rel="noreferrer" className="font-semibold text-emerald-800 underline decoration-emerald-600/70 underline-offset-4 hover:text-emerald-950">
-                      {runtimeConfig.points_purchase_url}
-                    </a>
-                  </>
-                ) : null}
-              </div>
-              {status ? (
-                <div className="status-success flex items-center gap-2 text-sm">{status}</div>
-              ) : null}
-              {error ? (
-                <div className="status-error flex items-center gap-2 text-sm">{error}</div>
-              ) : null}
-            </div>
-            {/* Stats Cards */}
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="bento-card scan-line p-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t('stats.nodes')}</div>
-                <div className="mt-3 text-3xl font-display font-bold text-white">{metrics.nodes}</div>
-              </div>
-              <div className="bento-card scan-line p-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t('stats.depth')}</div>
-                <div className="mt-3 text-3xl font-display font-bold text-white">{metrics.depth}</div>
-              </div>
-              <div className="bento-card scan-line p-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t('stats.branches')}</div>
-                <div className="mt-3 text-3xl font-display font-bold text-white">{metrics.branches}</div>
-              </div>
-              <div className="sm:col-span-3 bento-card scan-line p-5">
-                <div className="flex flex-wrap items-center gap-3 text-sm text-slate-300">
-                  <span className="neon-chip">React Flow</span>
-                  <span className="neon-chip">{t('editor.techRoute')}</span>
-                  <span className="neon-chip">{t('editor.treeJson')}</span>
-                  <span className="neon-chip">{t('editor.costBadge', { points: estimatedPoints })}</span>
-                </div>
-              </div>
-            </div>
+      <div className="page-container flex flex-col gap-4 pb-12 pt-6">
+        <header className="mindmap-heading">
+          <div className="workspace-tool-header">
+            <div className="workspace-eyebrow">{t('hero.badge')}</div>
+            <h1>{t('hero.title')}</h1>
+            <p>{t('hero.description')}</p>
           </div>
-        </section>
+          <div className="mindmap-metrics">
+            <div><span>{t('stats.nodes')}</span><strong>{metrics.nodes}</strong></div>
+            <div><span>{t('stats.depth')}</span><strong>{metrics.depth}</strong></div>
+            <div><span>{t('stats.branches')}</span><strong>{metrics.branches}</strong></div>
+          </div>
+        </header>
+        <details className="workspace-help">
+          <summary>{t('pricing.title')} · {t('editor.costBadge', { points: estimatedPoints })}</summary>
+          <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-xs leading-6 text-slate-700">
+            <p>{t('pricing.description')}</p>
+            <p>{t('pricing.preview', { points: estimatedPoints })}</p>
+            <p>{t('pricing.tierSummary')}</p>
+            <p>{t('pricing.depthSummary')}</p>
+            <p>{t('pricing.previewNote')}</p>
+            {runtimeConfig.points_purchase_url && <a href={runtimeConfig.points_purchase_url} target="_blank" rel="noreferrer" className="font-medium text-blue-700 underline underline-offset-4 break-all">{runtimeConfig.points_purchase_url}</a>}
+          </div>
+        </details>
+        {chargeInfo && <div className="status-success" role="status">{t('pricing.actual', { nodes: chargeInfo.nodeCount, depth: chargeInfo.depth, points: chargeInfo.points })}</div>}
+        {status && <div className="status-success" role="status">{status}</div>}
+        {error && <div className="status-error" role="alert">{error}</div>}
 
         {/* Main Layout: Input | Editor | Details */}
-        <section className="grid gap-6 2xl:grid-cols-[420px_minmax(0,1fr)_360px]">
+        <section className="mindmap-layout">
           {/* Input Panel */}
-          <div className="bento-card scan-line p-5 space-y-5">
+          <div className="mindmap-input bento-card p-4 space-y-5">
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
@@ -497,8 +449,8 @@ export default function MindMapPage() {
                 >
                   <UploadCloud className="text-neon-cyan" size={30} />
                   <div className="space-y-2">
-                    <div className="text-base font-medium text-white">{t('input.dropzone')}</div>
-                    <div className="text-sm text-slate-400">{t('input.subtitle')}</div>
+                    <div className="text-base font-medium text-lab-primary">{t('input.dropzone')}</div>
+                    <div className="text-sm text-slate-600">{t('input.subtitle')}</div>
                   </div>
                 </button>
                 <input
@@ -510,7 +462,7 @@ export default function MindMapPage() {
                   onChange={(event) => appendFiles(event.target.files)}
                 />
                 {files.length > 0 ? (
-                  <div className="rounded-2xl border border-border-medium bg-surface-base/30 px-4 py-3 text-sm text-slate-300">
+                  <div className="rounded-2xl border border-border-medium bg-surface-base/30 px-4 py-3 text-sm text-slate-600">
                     <div>{t('input.picked', { count: files.length })}</div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {files.map((file) => (
@@ -537,7 +489,7 @@ export default function MindMapPage() {
             {/* Settings */}
             <div className="space-y-4 rounded-2xl border border-border-medium bg-surface-base/30 p-4">
               <div>
-                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t('settings.model')}</div>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-600">{t('settings.model')}</div>
                 <select
                   value={model}
                   onChange={(event) => setModel(event.target.value)}
@@ -551,13 +503,13 @@ export default function MindMapPage() {
                   ))}
                 </select>
                 {!userApiConfigRequired ? (
-                  <p className="mt-2 text-[11px] leading-5 text-emerald-200/70">Free 模式下由后端统一选择思维导图模型。</p>
+                  <p className="mt-2 text-[11px] leading-5 text-emerald-800">Free 模式下由后端统一选择思维导图模型。</p>
                 ) : null}
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+              <div className="grid gap-4 grid-cols-1">
                 <div>
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t('settings.style')}</div>
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-600">{t('settings.style')}</div>
                   <select
                     value={mindmapStyle}
                     onChange={(event) => setMindmapStyle(event.target.value as MindMapStyle)}
@@ -569,7 +521,7 @@ export default function MindMapPage() {
                   </select>
                 </div>
                 <div>
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t('settings.language')}</div>
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-600">{t('settings.language')}</div>
                   <select
                     value={language}
                     onChange={(event) => setLanguage(event.target.value as OutputLanguage)}
@@ -582,7 +534,7 @@ export default function MindMapPage() {
               </div>
 
               <div>
-                <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
+                <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.22em] text-slate-600">
                   <span>{t('settings.depth')}</span>
                   <span className="text-neon-cyan">{maxDepth}</span>
                 </div>
@@ -599,7 +551,7 @@ export default function MindMapPage() {
               {userApiConfigRequired ? (
                 <div className="space-y-3">
                   <div>
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t('settings.apiUrl')}</div>
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-600">{t('settings.apiUrl')}</div>
                     <input
                       value={apiUrl}
                       onChange={(event) => setApiUrl(event.target.value)}
@@ -607,7 +559,7 @@ export default function MindMapPage() {
                     />
                   </div>
                   <div>
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t('settings.apiKey')}</div>
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-600">{t('settings.apiKey')}</div>
                     <input
                       type="password"
                       value={apiKey}
@@ -629,18 +581,18 @@ export default function MindMapPage() {
                 {isGenerating ? <Loader2 size={18} className="animate-spin" /> : <BrainCircuit size={18} />}
                 <span>{isGenerating ? t('actions.generating') : t('actions.generate')}</span>
               </button>
-              <div className="text-xs leading-6 text-slate-400">
+              <div className="text-xs leading-6 text-slate-600">
                 {t('pricing.ruleSummary')}
               </div>
             </div>
           </div>
 
           {/* Editor Panel */}
-          <div className="bento-card scan-line p-5">
-            <div className="mb-4 flex items-center justify-between gap-4">
+          <div className="mindmap-canvas bento-card p-4">
+            <div className="mindmap-canvas-toolbar">
               <div>
-                <div className="text-lg font-display font-bold text-white">{t('editor.title')}</div>
-                <div className="text-sm text-slate-400">{t('editor.subtitle')}</div>
+                <div className="text-lg font-display font-bold text-lab-primary">{t('editor.title')}</div>
+                <div className="text-sm text-slate-600">{t('editor.subtitle')}</div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <button type="button" onClick={() => reactFlowRef.current?.fitView({ padding: 0.18, duration: 300 })} className="toolbar-btn toolbar-btn-label text-xs">
@@ -676,7 +628,7 @@ export default function MindMapPage() {
             </div>
 
             {tree ? (
-              <div className="h-[760px] overflow-hidden rounded-2xl border border-border-medium bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_35%),linear-gradient(180deg,rgba(6,9,20,0.98),rgba(15,23,42,0.92))]">
+              <div className="mindmap-viewport overflow-hidden">
                 <ReactFlow
                   nodes={flow.nodes}
                   edges={flow.edges}
@@ -692,31 +644,31 @@ export default function MindMapPage() {
                   elementsSelectable
                   proOptions={{ hideAttribution: true }}
                 >
-                  <MiniMap nodeColor="#22d3ee" maskColor="rgba(6,9,20,0.45)" />
+                  <MiniMap nodeColor="#2563eb" maskColor="rgba(241,245,249,0.65)" />
                   <Controls />
                   <Background gap={22} size={1} color="rgba(148,163,184,0.18)" />
                 </ReactFlow>
               </div>
             ) : (
-              <div className="empty-state h-[760px] flex flex-col">
+              <div className="mindmap-viewport empty-state flex flex-col">
                 <FileText size={34} className="text-neon-cyan/50" />
-                <div className="mt-5 text-lg font-display font-bold text-white">{t('editor.emptyTitle')}</div>
-                <div className="mt-2 max-w-lg text-sm leading-7 text-slate-400">{t('editor.emptyDesc')}</div>
+                <div className="mt-5 text-lg font-display font-bold text-lab-primary">{t('editor.emptyTitle')}</div>
+                <div className="mt-2 max-w-lg text-sm leading-7 text-slate-600">{t('editor.emptyDesc')}</div>
               </div>
             )}
           </div>
 
           {/* Details Panel */}
-          <div className="bento-card scan-line p-5 space-y-5">
+          <div className="mindmap-details bento-card p-4">
             <div>
-              <div className="text-lg font-display font-bold text-white">{t('details.title')}</div>
-              <div className="text-sm text-slate-400">{t('details.subtitle')}</div>
+              <div className="text-lg font-display font-bold text-lab-primary">{t('details.title')}</div>
+              <div className="text-sm text-slate-600">{t('details.subtitle')}</div>
             </div>
 
             {/* Node Editor */}
             <div className="space-y-3 rounded-2xl border border-border-medium bg-surface-base/30 p-4">
               <div className="flex items-center justify-between">
-                <div className="text-sm font-medium text-white">{t('details.selectedNode')}</div>
+                <div className="text-sm font-medium text-lab-primary">{t('details.selectedNode')}</div>
                 {selectedNode && selectedNode.id !== tree?.id ? (
                   <button type="button" onClick={handleDeleteNode} className="rounded-full border border-neon-pink/20 bg-neon-pink/10 p-2 text-neon-pink hover:bg-neon-pink/20">
                     <Trash2 size={14} />
@@ -726,7 +678,7 @@ export default function MindMapPage() {
               {selectedNode ? (
                 <div className="space-y-3">
                   <div>
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t('details.label')}</div>
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-600">{t('details.label')}</div>
                     <input
                       value={selectedNode.label}
                       onChange={(event) => updateSelectedNode({ label: event.target.value })}
@@ -734,7 +686,7 @@ export default function MindMapPage() {
                     />
                   </div>
                   <div>
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{t('details.summary')}</div>
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-600">{t('details.summary')}</div>
                     <textarea
                       value={selectedNode.summary || ''}
                       onChange={(event) => updateSelectedNode({ summary: event.target.value })}
@@ -753,30 +705,30 @@ export default function MindMapPage() {
                   </div>
                 </div>
               ) : (
-                <div className="text-sm leading-6 text-slate-400">{t('details.empty')}</div>
+                <div className="text-sm leading-6 text-slate-600">{t('details.empty')}</div>
               )}
             </div>
 
             {/* Highlights */}
             <div className="space-y-3 rounded-2xl border border-border-medium bg-surface-base/30 p-4">
-              <div className="text-sm font-medium text-white">{t('details.highlights')}</div>
+              <div className="text-sm font-medium text-lab-primary">{t('details.highlights')}</div>
               {highlights.length > 0 ? (
                 <div className="space-y-2">
                   {highlights.map((item, index) => (
-                    <div key={`${item}-${index}`} className="rounded-2xl border border-border-medium bg-surface-base/20 px-3 py-3 text-sm leading-6 text-slate-300">
+                    <div key={`${item}-${index}`} className="rounded-2xl border border-border-medium bg-surface-base/20 px-3 py-3 text-sm leading-6 text-slate-600">
                       {item}
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-sm leading-6 text-slate-400">{t('details.highlightsEmpty')}</div>
+                <div className="text-sm leading-6 text-slate-600">{t('details.highlightsEmpty')}</div>
               )}
             </div>
 
             {/* Source */}
             <div className="space-y-3 rounded-2xl border border-border-medium bg-surface-base/30 p-4">
-              <div className="text-sm font-medium text-white">{t('details.source')}</div>
-              <div className="rounded-2xl border border-border-medium bg-surface-base/20 px-3 py-3 text-xs leading-6 text-slate-400">
+              <div className="text-sm font-medium text-lab-primary">{t('details.source')}</div>
+              <div className="rounded-2xl border border-border-medium bg-surface-base/20 px-3 py-3 text-xs leading-6 text-slate-600">
                 {mindmapFileUrl || t('details.sourceEmpty')}
               </div>
               <div className="grid gap-2 sm:grid-cols-2">

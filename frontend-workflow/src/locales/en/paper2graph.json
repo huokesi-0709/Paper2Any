@@ -85,6 +85,7 @@
       "en": "English"
     },
     "styleLabel": "Style",
+    "defaultLabel": "Default",
     "style": {
       "cartoon": "Cartoon",
       "realistic": "Photorealistic",
@@ -105,6 +106,7 @@
   "submit": {
     "buttonIdle": "Generate editable PPTX",
     "buttonLoading": "Generating...",
+    "inputRequired": "Upload a PDF, or switch to text mode and enter the research content first.",
     "hintTitle": "Tip",
     "hintText": "If the request takes long or fails, the API provider may be unstable. Please try again later, or switch model/provider."
   },

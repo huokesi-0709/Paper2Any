@@ -508,8 +508,8 @@ const Image2DrawioPage = () => {
           </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)] mt-6" style={{ minHeight: '720px' }}>
-          <div className="flex flex-col gap-4">
+        <div className="workflow-studio mt-6">
+          <div className="workflow-configuration">
             {/* Upload Panel */}
             <div className="bento-card scan-line p-5">
               <h3 className="text-sm font-display font-bold text-lab-primary mb-3 flex items-center gap-2">
@@ -652,7 +652,7 @@ const Image2DrawioPage = () => {
           </div>
 
           {/* Right column: Preview + XML */}
-          <div className="flex flex-col gap-4">
+          <div className="workflow-output flex flex-col gap-4">
             {/* Preview Panel */}
             <div className="bento-card scan-line p-4 md:p-6">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -716,7 +716,7 @@ const Image2DrawioPage = () => {
                 )}
               </div>
               {/* DrawIO iframe area */}
-              <div className={`mt-4 flex-1 bg-[#060914] rounded-2xl border border-border-medium min-h-[420px] lg:min-h-[720px] overflow-hidden ${xmlContent ? 'relative block' : 'flex items-center justify-center'}`}>
+              <div className={`mindmap-viewport mt-4 overflow-hidden ${xmlContent ? 'relative block' : 'flex items-center justify-center'}`}>
                 {xmlContent ? (
                   <iframe
                     ref={iframeRef}
@@ -734,7 +734,8 @@ const Image2DrawioPage = () => {
             </div>
 
             {/* XML Panel */}
-            <div className="bento-card scan-line p-5">
+            <details className="bento-card p-5">
+              <summary className="cursor-pointer text-sm font-semibold text-slate-700">{t('xml.title')}</summary>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-display font-bold text-lab-primary flex items-center gap-2">
                   <Wand2 className="text-neon-purple" size={18} />
@@ -755,7 +756,7 @@ const Image2DrawioPage = () => {
                 placeholder={t('xml.placeholder')}
                 className="neon-textarea w-full h-48"
               />
-            </div>
+            </details>
           </div>
         </div>
 

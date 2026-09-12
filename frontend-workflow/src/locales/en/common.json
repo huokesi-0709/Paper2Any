@@ -315,10 +315,71 @@
       "actions": "Actions"
     },
     "actions": {
+      "view": "View content",
       "download": "Download",
       "delete": "Delete",
       "confirmDelete": "Are you sure you want to delete \"{{fileName}}\"?",
       "deleteError": "Failed to delete file"
+    },
+    "preview": {
+      "eyebrow": "File content preview",
+      "format": "format",
+      "loading": "Reading file content...",
+      "drawioErrorTitle": "This DrawIO file could not be rendered",
+      "drawioErrorDesc": "The file may use a compressed canvas or a specialized component. Download the original file to continue.",
+      "close": "Close preview",
+      "error": "This file cannot be read right now. Download it to view the full content.",
+      "unsupportedTitle": "This format cannot be previewed in the browser yet",
+      "unsupportedDesc": "The file information is available, and you can still download the complete file.",
+      "emptyTitle": "No displayable text was found",
+      "emptyDesc": "The file may contain only graphics or blank pages. Download it for the complete view.",
+      "truncated": "This preview shows the first 120,000 characters. Download the file to view everything.",
+      "readOnly": "This preview is read-only and does not change the original file."
     }
+  },
+  "enterprise": {
+    "skip": "Skip to workspace",
+    "workspace": "Agent workspace",
+    "workspaceScope": "Research diagrams · Content creation",
+    "closeNavigation": "Close navigation",
+    "navigation": "Workspace navigation",
+    "sidebarHint": "Choose an agent, configure your sources, and start generating.",
+    "homeTitle": "Start your next task",
+    "homeDescription": "Turn source material into editable outputs in one workspace.",
+    "openFiles": "View history",
+    "newTask": "NEW TASK",
+    "startTitle": "Turn research into clear diagrams",
+    "startDescription": "Upload a paper or paste text, configure the output, then edit and export.",
+    "startAction": "Create a diagram",
+    "agents": "Choose an agent",
+    "agentCount": "{{count}} available workflows",
+    "searchAgents": "Search by name or capability",
+    "filter": "Filter capabilities",
+    "all": "All capabilities",
+    "noMatches": "No matches. Try another search.",
+    "steps": {
+      "prepare": {
+        "title": "Prepare sources",
+        "description": "Upload papers, images, or paste text."
+      },
+      "configure": {
+        "title": "Configure and run",
+        "description": "Choose a model, style, and parameters."
+      },
+      "review": {
+        "title": "Review and deliver",
+        "description": "Preview, refine, and export your results."
+      }
+    },
+    "billingDetails": "Billing rules",
+    "guide": "Usage guide",
+    "results": "Generated results",
+    "resultEmpty": "Your results appear here",
+    "resultHint": "Prepare your sources and parameters on the left to start.",
+    "fileSearch": "Search filenames",
+    "fileTypes": "All types",
+    "fileCount": "{{count}} files",
+    "refresh": "Refresh files",
+    "fileDescription": "Preview each file before deciding what to download. Previews never change the original file."
   }
 }

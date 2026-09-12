@@ -85,6 +85,7 @@
       "en": "英文"
     },
     "styleLabel": "风格",
+    "defaultLabel": "默认",
     "style": {
       "cartoon": "卡通",
       "realistic": "写实",
@@ -105,6 +106,7 @@
   "submit": {
     "buttonIdle": "生成",
     "buttonLoading": "生成中...",
+    "inputRequired": "请先上传 PDF，或切换到粘贴正文并输入研究内容。",
     "hintTitle": "提示",
     "hintText": "提示：如果长时间无响应或生成失败，可能是 API 服务商不稳定。建议稍后再试，或尝试更换模型/服务商。"
   },

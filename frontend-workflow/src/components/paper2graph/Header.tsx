@@ -9,7 +9,7 @@ interface HeaderProps {
   align?: 'center' | 'left';
 }
 
-const Header: React.FC<HeaderProps> = ({ badge, title, subtitle, align = 'center' }) => {
+const Header: React.FC<HeaderProps> = ({ badge, title, subtitle, align = 'left' }) => {
   const { t } = useTranslation('paper2graph');
 
   const resolvedBadge = badge ?? t('hero.badge');
@@ -18,7 +18,7 @@ const Header: React.FC<HeaderProps> = ({ badge, title, subtitle, align = 'center
   const alignClass = align === 'left' ? 'text-left items-start' : 'text-center items-center';
 
   return (
-    <div className={`mb-8 flex flex-col gap-3 ${alignClass}`}>
+    <div className={`workspace-tool-header flex flex-col gap-2 ${alignClass}`}>
       <div className="inline-flex items-center gap-2 neon-badge neon-badge-purple">
         <Sparkles size={12} className="text-glow-purple" />
         <span>{resolvedBadge}</span>
@@ -26,7 +26,6 @@ const Header: React.FC<HeaderProps> = ({ badge, title, subtitle, align = 'center
       <h1 className="font-display text-4xl font-extrabold tracking-[-0.035em] text-lab-primary md:text-5xl">
         {resolvedTitle}
       </h1>
-      <div className="h-1 w-16 rounded-full bg-blue-600" />
       <p className="max-w-2xl text-base leading-7 text-lab-secondary">
         {resolvedSubtitle}
       </p>

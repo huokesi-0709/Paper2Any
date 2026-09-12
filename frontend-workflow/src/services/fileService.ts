@@ -16,6 +16,29 @@ export interface FileRecord {
   download_url?: string;
 }
 
+export interface FileContentPreview {
+  success: boolean;
+  kind: "text" | "presentation" | "document" | "spreadsheet" | "archive" | "diagram" | "unsupported";
+  content: string;
+  truncated: boolean;
+  file_type: string;
+  detail?: string;
+}
+
+export async function getFileContentPreview(pathOrUrl: string): Promise<FileContentPreview> {
+  const response = await backendFetch('/api/v1/files/content-preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: pathOrUrl }),
+  });
+
+  if (!response.ok) {
+    throw new Error((await response.text()) || `Failed to preview file: ${response.status}`);
+  }
+
+  return response.json();
+}
+
 /**
  * Upload a file to Supabase Storage and save record to user_files table.
  *

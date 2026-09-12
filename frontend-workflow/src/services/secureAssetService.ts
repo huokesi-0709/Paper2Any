@@ -97,6 +97,19 @@ export async function downloadSecureAsset(pathOrUrl: string, filename?: string):
   link.remove();
 }
 
+export async function getSecureAssetBlob(pathOrUrl: string): Promise<Blob> {
+  const accessUrl = await getSecureAssetUrl(pathOrUrl);
+  if (!accessUrl) {
+    throw new Error('Secure asset URL missing');
+  }
+
+  const response = await fetch(accessUrl, { credentials: 'same-origin' });
+  if (!response.ok) {
+    throw new Error((await response.text()) || `Failed to read secure asset: ${response.status}`);
+  }
+  return response.blob();
+}
+
 export async function openSecureAsset(pathOrUrl: string): Promise<void> {
   const accessUrl = await getSecureAssetUrl(pathOrUrl);
   if (!accessUrl || typeof window === 'undefined') {

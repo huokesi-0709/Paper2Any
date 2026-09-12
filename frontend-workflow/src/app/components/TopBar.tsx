@@ -7,6 +7,7 @@ import {
   RefreshCw,
   Settings,
   User,
+  Menu,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../stores/authStore';
@@ -19,9 +20,11 @@ import { useNav } from '../nav-context';
 
 interface TopBarProps {
   currentPath: string;
+  navigationOpen: boolean;
+  onToggleNavigation: () => void;
 }
 
-export function TopBar({ currentPath }: TopBarProps) {
+export function TopBar({ currentPath, navigationOpen, onToggleNavigation }: TopBarProps) {
   const { t } = useTranslation();
   const { navigate } = useNav();
   const { user, signOut, refreshQuota } = useAuthStore();
@@ -73,8 +76,9 @@ export function TopBar({ currentPath }: TopBarProps) {
   const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || t('app.workspace.guest');
 
   return (
-    <header className="relative z-50 isolate h-16 overflow-visible border-b border-slate-200/90 bg-white/90 px-3 shadow-[0_4px_18px_rgba(15,39,71,0.04)] backdrop-blur-xl sm:px-5">
+    <header className="workspace-topbar relative z-50 isolate h-14 shrink-0 overflow-visible border-b border-slate-200 bg-white px-3 sm:px-6">
       <div className="flex h-full min-w-0 items-center justify-between gap-3">
+        <button type="button" onClick={onToggleNavigation} aria-label={t('app.sidebar.toggle')} aria-expanded={navigationOpen} aria-controls="workspace-navigation" className="toolbar-btn lg:hidden"><Menu size={18} /></button>
         <nav className="hidden min-w-0 items-center gap-2 text-xs font-mono sm:flex" aria-label={t('app.workspace.breadcrumbLabel')}>
           {breadcrumbs.map((crumb, idx) => (
             <span key={crumb.labelKey} className="flex min-w-0 items-center gap-2">

@@ -23,14 +23,15 @@ const Paper2DrawioAiPage = () => {
             title={t('subpages.ai.title')}
             subtitle={t('subpages.ai.subtitle')}
           />
-          <div className="mb-8">
+          <details className="workspace-help">
+            <summary>{t('subpages.ai.hintTitle')}</summary>
             <BilingualHint
               title={t('subpages.ai.hintTitle')}
               zh={t('subpages.ai.hintZh')}
               en={t('subpages.ai.hintEn')}
               tone="violet"
             />
-          </div>
+          </details>
         </div>
       }
       extraSection={

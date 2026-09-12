@@ -33,6 +33,7 @@ interface SettingsCardProps {
   setResolution: (resolution: '2K' | '4K') => void;
   isLoading: boolean;
   isSubmitLocked: boolean;
+  canSubmit: boolean;
   handleSubmit: () => void;
   currentStage: number;
   stageProgress: number;
@@ -77,6 +78,7 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
   setResolution,
   isLoading,
   isSubmitLocked,
+  canSubmit,
   handleSubmit,
   currentStage,
   stageProgress,
@@ -296,7 +298,7 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                 {graphType !== 'exp_data' && <option value="realistic">{t('advanced.style.realistic')}</option>}
                 {graphType !== 'exp_data' && <option value="3d">{t('advanced.style.3d')}</option>}
                 {graphType !== 'exp_data' && <option value="flat_2.5d">{t('advanced.style.flat_2.5d')}</option>}
-                {graphType !== 'exp_data' && <option value="line_art">{t('advanced.style.line_art')}</option>}
+                {graphType !== 'exp_data' && <option value="line_art">{t('advanced.style.line_art')}{graphType === 'model_arch' ? ` (${t('advanced.defaultLabel')})` : ''}</option>}
                 {graphType !== 'exp_data' && <option value="low_poly">{t('advanced.style.low_poly')}</option>}
                 {graphType !== 'exp_data' && <option value="neon_glow">{t('advanced.style.neon_glow')}</option>}
                 {graphType === 'exp_data' && <option value="Low Poly 3D">{t('advanced.style.lowPoly')}</option>}
@@ -491,12 +493,19 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={isLoading || isValidating || isSubmitLocked}
+          disabled={!canSubmit || isLoading || isValidating || isSubmitLocked}
+          title={!canSubmit ? t('submit.inputRequired') : undefined}
           className={`w-full inline-flex items-center justify-center gap-2 rounded-bento-sm bg-gradient-to-r ${getAccentClass()} text-white text-sm font-mono font-semibold py-2.5 transition-all disabled:opacity-60 disabled:cursor-not-allowed glow`}
         >
           {(isLoading || isValidating || isSubmitLocked) ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
           <span>{(isLoading || isValidating || isSubmitLocked) ? t('submit.buttonLoading') : t('submit.buttonIdle')}</span>
         </button>
+
+        {!canSubmit && (
+          <p className="text-[11px] text-amber-700" role="status">
+            {t('submit.inputRequired')}
+          </p>
+        )}
 
         <div className="flex items-start gap-2 text-xs text-lab-secondary bg-neon-cyan-dim border border-neon-cyan/20 rounded-bento-sm px-3 py-2">
           <Info size={14} className="mt-0.5 text-neon-cyan flex-shrink-0" />
