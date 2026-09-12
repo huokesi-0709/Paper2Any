@@ -51,7 +51,7 @@
   "cases": {
     "title": "使用案例",
     "subtitle": "示例图可直接转换为可编辑 DrawIO",
-    "feishu": "查看飞书文档",
+    "project": "查看项目主页",
     "items": {
       "case1Title": "示例一",
       "case1Desc": "复杂图像转为可编辑 DrawIO",

@@ -1,5 +1,5 @@
 """
-Configuration module for Paper2Any FastAPI application.
+Configuration module for FigureMind FastAPI application.
 
 Provides centralized configuration management for:
 - Model names (LLM, Image, VLM, etc.)

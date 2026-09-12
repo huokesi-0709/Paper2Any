@@ -65,7 +65,7 @@
   },
   "examples": {
     "sectionTitle": "使用示例",
-    "feishuLink": "查看详细教程",
+    "projectLink": "查看详细教程",
     "sectionSubtitle": "参考示例快速上手",
     "cards": {
       "pdfToDiagramTitle": "PDF 转图表",
@@ -77,7 +77,7 @@
   "cases": {
     "title": "流程图 / 架构图案例",
     "subtitle": "下面示例支持在线编辑与导出",
-    "feishu": "查看飞书文档",
+    "project": "查看项目主页",
     "items": {
       "case1Title": "流程图示例",
       "case1Desc": "从文本或 PDF 直接生成可编辑流程图",

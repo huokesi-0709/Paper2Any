@@ -283,7 +283,7 @@ const resolveTheme = (theme?: FrontendDeckTheme | null) => ({
     ...DEFAULT_TYPOGRAPHY,
     ...(theme?.typography || {}),
   },
-  footerText: theme?.footerText || 'Paper2Any Frontend PPT',
+  footerText: theme?.footerText || 'FigureMind Frontend PPT',
 });
 
 const resolveCanvasVisualTheme = (
@@ -319,7 +319,7 @@ const resolveCanvasVisualTheme = (
       contentGap: visualSpec?.layout?.contentGap ?? 18,
       maxColumns: visualSpec?.layout?.maxColumns ?? 2,
     },
-    footerText: theme?.footerText || 'Paper2Any Frontend PPT',
+    footerText: theme?.footerText || 'FigureMind Frontend PPT',
   };
 };
 

@@ -6,7 +6,7 @@
 
 ---
 
-**Project:** Paper2Any
+**Project:** FigureMind
 **Generated:** 2026-08-08 15:35:01
 **Category:** Developer Tool / IDE
 **Design Dials:** Variance 7/10 (Balanced / Modern) | Motion 6/10 (Standard) | Density 5/10 (Standard)

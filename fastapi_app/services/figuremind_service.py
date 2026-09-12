@@ -28,7 +28,7 @@ log = get_logger(__name__)
 PROJECT_ROOT = get_project_root()
 BASE_OUTPUT_DIR = (PROJECT_ROOT / "outputs").resolve()
 
-TASK_LIMITER = AsyncInterProcessSemaphore("paper2any_service_tasks", limit=1)
+TASK_LIMITER = AsyncInterProcessSemaphore("figuremind_service_tasks", limit=1)
 VISUAL_WORKFLOW_LIMITER = AsyncInterProcessSemaphore("sam3_visual_workflows", limit=1)
 
 
@@ -56,9 +56,9 @@ def _normalize_tech_route_text_model(candidate: str | None) -> str:
     return value
 
 
-class Paper2AnyService:
+class FigureMindService:
     """
-    Paper2Any 业务 Service 层
+    FigureMind 业务 Service 层
     
     职责：
     - 处理 paper2figure (Paper2Graph) 相关逻辑
@@ -74,7 +74,7 @@ class Paper2AnyService:
         resolved_api_url, resolved_api_key = resolve_llm_credentials(
             req.api_url,
             req.api_key,
-            scope="paper2any",
+            scope="figuremind",
         )
         api_url = resolved_api_url.rstrip("/")
         if api_url.endswith("/chat/completions"):
@@ -230,12 +230,12 @@ class Paper2AnyService:
         resolved_chat_api_url, resolved_api_key = resolve_llm_credentials(
             chat_api_url,
             api_key,
-            scope="paper2any",
+            scope="figuremind",
         )
         resolved_image_api_url, resolved_image_api_key = resolve_image_generation_credentials(
             chat_api_url,
             api_key,
-            scope="paper2any",
+            scope="figuremind",
         )
         # 1. 基础参数校验
         self._validate_input(input_type, file, file_kind, text)
@@ -360,12 +360,12 @@ class Paper2AnyService:
         resolved_chat_api_url, resolved_api_key = resolve_llm_credentials(
             chat_api_url,
             api_key,
-            scope="paper2any",
+            scope="figuremind",
         )
         resolved_image_api_url, resolved_image_api_key = resolve_image_generation_credentials(
             chat_api_url,
             api_key,
-            scope="paper2any",
+            scope="figuremind",
         )
         # 1. 基础参数校验
         self._validate_input(input_type, file, file_kind, text)
@@ -607,7 +607,7 @@ class Paper2AnyService:
             resolved_chat_api_url, resolved_api_key = resolve_llm_credentials(
                 chat_api_url,
                 api_key,
-                scope="paper2any",
+                scope="figuremind",
             )
             req = FeaturePaper2VideoRequest(
                 model=model_name,

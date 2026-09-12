@@ -1157,8 +1157,8 @@ export const buildCanvasSlidesPptxBlob = async (
   const pptx = new PptxGenJS();
   pptx.defineLayout({ name: 'PAPER2PPT_CANVAS_WIDE', width: SLIDE_WIDTH_IN, height: SLIDE_HEIGHT_IN });
   pptx.layout = 'PAPER2PPT_CANVAS_WIDE';
-  pptx.author = 'Paper2Any';
-  pptx.company = 'Paper2Any';
+  pptx.author = 'FigureMind';
+  pptx.company = 'FigureMind';
   pptx.subject = 'Editable Canvas PPT export';
   pptx.title = 'paper2ppt_editable';
 

@@ -278,7 +278,7 @@ async def run_ppt2polish_workflow(args, image_paths: list[str], output_dir: Path
         language=args.language,
         page_count=len(image_paths),
         input_type="FIGURE",
-        email="cli_ppt2polish@paper2any.local",
+        email="cli_ppt2polish@figuremind.local",
     )
 
     pagecontent = [{"ppt_img_path": img_path} for img_path in image_paths]

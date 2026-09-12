@@ -1,18 +1,18 @@
 services:
-  paper2any-backend:
+  figuremind-backend:
     build:
       context: .
       dockerfile: Dockerfile
       args:
         INSTALL_CUDA: ${DOCKER_BACKEND_INSTALL_CUDA:-0}
         PYTHON_BASE_IMAGE: ${PYTHON_BASE_IMAGE:-python:3.11-slim}
-    image: paper2any-backend:local
-    container_name: paper2any-backend
+    image: figuremind-backend:local
+    container_name: figuremind-backend
     env_file:
       - ./fastapi_app/.env
     environment:
       PYTHONUNBUFFERED: "1"
-      PAPER2ANY_RUNTIME_TMPDIR: /app/outputs/system/tmp
+      FIGUREMIND_RUNTIME_TMPDIR: /app/outputs/system/tmp
       RMBG_MODEL_PATH: ${RMBG_MODEL_PATH:-/app/models/RMBG-2.0}
       SAM3_SERVER_URLS: ${SAM3_SERVER_URLS:-}
       SAM3_HOME: ${SAM3_HOME:-}
@@ -52,7 +52,7 @@ services:
       start_period: 30s
     restart: unless-stopped
 
-  paper2any-frontend:
+  figuremind-frontend:
     build:
       context: .
       dockerfile: frontend-workflow/Dockerfile
@@ -65,14 +65,14 @@ services:
         VITE_LLM_API_URLS: ${VITE_LLM_API_URLS:-}
         VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
         VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
-    image: paper2any-frontend:local
-    container_name: paper2any-frontend
+    image: figuremind-frontend:local
+    container_name: figuremind-frontend
     depends_on:
-      paper2any-backend:
+      figuremind-backend:
         condition: service_healthy
     environment:
       NGINX_LISTEN_PORT: "${DOCKER_FRONTEND_BIND_PORT:-80}"
-      BACKEND_UPSTREAM_URL: "${BACKEND_UPSTREAM_URL:-http://paper2any-backend:${DOCKER_BACKEND_BIND_PORT:-8000}}"
+      BACKEND_UPSTREAM_URL: "${BACKEND_UPSTREAM_URL:-http://figuremind-backend:${DOCKER_BACKEND_BIND_PORT:-8000}}"
     ports:
       - "${FRONTEND_PORT:-3000}:${DOCKER_FRONTEND_BIND_PORT:-80}"
     healthcheck:
@@ -83,7 +83,7 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  paper2any-sam3:
+  figuremind-sam3:
     profiles: ["sam3"]
     build:
       context: .
@@ -91,8 +91,8 @@ services:
       args:
         INSTALL_CUDA: 1
         PYTHON_BASE_IMAGE: ${PYTHON_BASE_IMAGE:-python:3.11-slim}
-    image: paper2any-backend:local-gpu
-    container_name: paper2any-sam3
+    image: figuremind-backend:local-gpu
+    container_name: figuremind-sam3
     environment:
       PYTHONUNBUFFERED: "1"
       SAM3_HOME: ${SAM3_HOME:-/app/models/sam3-official/sam3}

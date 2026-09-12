@@ -150,9 +150,8 @@
     "pdf2pptText": "PDF2PPT 页面",
     "new": "处理新的论文",
     "share": {
-      "title": "获取免费 API Key",
-      "desc": "点击下方平台图标复制推广文案\n分享至朋友圈/小红书/推特，截图联系微信群管理员领 Key！",
-      "wechat": "微信",
+      "title": "分享 FigureMind",
+      "desc": "点击下方平台图标复制推广文案\n欢迎分享 FigureMind，并通过项目主页提交反馈。",
       "rednote": "小红书",
       "twitter": "Twitter",
       "copy": "复制",
@@ -160,9 +159,9 @@
       "star": "如果本项目对你有帮助，可以点个star嘛～"
     },
     "group": {
-      "title": "加入交流群",
-      "desc": "效果满意？遇到问题？\n欢迎扫码加入交流群反馈与讨论",
-      "scan": "扫码加入微信交流群"
+      "title": "FigureMind",
+      "desc": "科研生图智能体\n读懂研究，画出方法",
+      "scan": "Scientific Figure Agent"
     }
   },
   "errors": {

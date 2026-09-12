@@ -1,4 +1,4 @@
-# Paper2Any 项目文档
+# FigureMind 项目文档
 
 <div align="center">
 
@@ -10,12 +10,12 @@
 
 ## 💡 项目简介
 
-**Paper2Any** 是一个基于深度学习的智能化工作流平台，专注于将学术论文转换为多种形式的输出，包括示意图、PPT、视频、技术报告等。通过集成最新的多模态大模型和计算机视觉技术，Paper2Any 能够自动解析论文内容并生成高质量的视觉和文本输出。
+**FigureMind** 是一个基于深度学习的智能化工作流平台，专注于将学术论文转换为多种形式的输出，包括示意图、PPT、视频、技术报告等。通过集成最新的多模态大模型和计算机视觉技术，FigureMind 能够自动解析论文内容并生成高质量的视觉和文本输出。
 
 ### 核心优势
 
 - 🎯 **多模态输出**：支持从论文生成示意图(Figure)、PPT、视频(Video)、技术报告(Technical Report)等多种格式
-- 🔌 **模块化设计**：基于 DataFlow-Agent 框架，工作流可灵活组合和扩展
+- 🔌 **模块化设计**：基于 FigureMind 框架，工作流可灵活组合和扩展
 - 🎨 **高质量生成**：集成前沿的视觉生成模型和文本生成模型，确保输出质量
 - ⚡ **高效处理**：支持批量处理和并行计算，快速处理大量论文
 - 🔄 **灵活部署**：提供 Docker 容器化部署和本地部署选项
@@ -100,7 +100,7 @@ bash deploy/start_nv.sh
 ## 🏗️ 系统架构
 
 ```
-Paper2Any/
+FigureMind/
 ├── dataflow_agent/          # 工作流引擎、agent、toolkits、底层 workflow
 ├── fastapi_app/             # FastAPI 后端服务与业务配置
 ├── frontend-workflow/       # 前端界面 (Vite + React + TypeScript)
@@ -149,7 +149,7 @@ Paper2Any/
 感谢所有为本项目做出贡献的开发者和使用者！
 
 特别鸣谢：
-- DataFlow-Agent - 底层工作流框架
+- FigureMind - 底层工作流框架
 - React / Vite - 前端界面与构建工具
 - [FastAPI](https://fastapi.tiangolo.com/) - 高性能 API 框架
 - [LangGraph](https://github.com/langchain-ai/langgraph) - 工作流编排灵感来源
@@ -158,8 +158,8 @@ Paper2Any/
 
 ## 📞 联系我们
 
-- **问题反馈**: [GitHub Issues](https://github.com/OpenDCAI/Paper2Any/issues)
-- **讨论交流**: [GitHub Discussions](https://github.com/OpenDCAI/Paper2Any/discussions)
+- **问题反馈**: [GitHub Issues](https://github.com/huokesi-0709/FigureMind/issues)
+- **讨论交流**: [GitHub Discussions](https://github.com/huokesi-0709/FigureMind/discussions)
 
 ---
 
@@ -167,6 +167,6 @@ Paper2Any/
 
 **如果这个项目对你有帮助，请给我们一个 ⭐️ Star！**
 
-Made with ❤️ by Paper2Any Team
+Made with ❤️ by FigureMind Team
 
 </div>

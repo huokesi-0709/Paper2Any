@@ -16,7 +16,7 @@ OCR 分辨率与锐化（UPSCALE_LONG_SIDE_TO、UPSCALE_INTERP、ENABLE_SHARPEN�
 - 可选地对原始页面进行 inpaint，生成“去文字的干净底图”作为 PPT 背景
 
 典型用法：
-- 在 DataFlow-Agent 的图像处理流程中，作为从图片页到可编辑 PPT 文稿的后处理工具
+- 在 FigureMind 的图像处理流程中，作为从图片页到可编辑 PPT 文稿的后处理工具
 - 也可在其它组件或脚本中通过对外函数直接调用
 """
 

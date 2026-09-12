@@ -59,10 +59,10 @@
 ### 3.1 模板文件与默认路径
 
 - 模板文件落位：
-  - `static/paper2any_imgs/p2t/temp.png`
+  - `static/figuremind_imgs/p2t/temp.png`
 - Workflow 默认模板路径：
   - 优先 `request.tech_route_template`（支持传入 `temp.png` 或绝对路径）
-  - 为空时使用默认 `static/paper2any_imgs/p2t/temp.png`
+  - 为空时使用默认 `static/figuremind_imgs/p2t/temp.png`
 
 ### 3.2 色卡设计（预设 4 套，每套 4 色，可视化）
 
@@ -110,7 +110,7 @@
 #### 3.4.1 黑白 SVG 生成（参考模板 PNG）
 
 - Agent：`technical_route_bw_svg_generator`
-  - 文件：`dataflow_agent/agentroles/paper2any_agents/technical_route_bw_svg_generator.py`
+  - 文件：`dataflow_agent/agentroles/figuremind_agents/technical_route_bw_svg_generator.py`
   - 使用 VLM：`use_vlm=True`，`vlm_config.mode="understanding"`，`vlm_config.input_image=模板路径`
   - 固定模型：`gpt-5.2`
   - 输出：严格 JSON `{"svg_code":"..."}`，写入 `state.figure_tec_svg_bw_content`
@@ -125,7 +125,7 @@
 #### 3.4.2 彩色 SVG 上色（仅输入黑白SVG + 色卡）
 
 - Agent：`technical_route_colorize_svg`
-  - 文件：`dataflow_agent/agentroles/paper2any_agents/technical_route_colorize_svg_agent.py`
+  - 文件：`dataflow_agent/agentroles/figuremind_agents/technical_route_colorize_svg_agent.py`
   - 文本模式（非 VLM）
   - 固定模型：`gpt-5.2`
   - 输入：`bw_svg_code` + `palette_json` + `validation_feedback`
@@ -157,7 +157,7 @@
 
 1) **模板与配色参数接入**
    - request：`tech_route_template`、`tech_route_palette`
-   - 默认模板：`static/paper2any_imgs/p2t/temp.png`
+   - 默认模板：`static/figuremind_imgs/p2t/temp.png`
 
 2) **黑白 SVG 节点**
    - 新增 VLM agent + prompt
@@ -183,15 +183,15 @@
 ## 5. 当前开发进度（已完成项）
 
 ### 5.1 模板落位
-- 已将仓库根目录 `temp.png` 复制到：`static/paper2any_imgs/p2t/temp.png`
+- 已将仓库根目录 `temp.png` 复制到：`static/figuremind_imgs/p2t/temp.png`
 
 ### 5.2 后端接口与返回字段
 - `fastapi_app/schemas.py`
   - `Paper2FigureRequest` 增加：`tech_route_template`, `tech_route_palette`
   - `Paper2FigureResponse` 增加：`svg_bw_*`, `svg_color_*`
-- `fastapi_app/routers/paper2any.py`
+- `fastapi_app/routers/figuremind.py`
   - `generate_paper2figure_json` 增加 Form 参数并传入 service
-- `fastapi_app/services/paper2any_service.py`
+- `fastapi_app/services/figuremind_service.py`
   - `generate_paper2figure_json` 透传 palette/template 到 request
   - 响应中新增 4 个 URL 字段（bw/color）
 - `fastapi_app/workflow_adapters/wa_paper2figure.py`
@@ -211,8 +211,8 @@
 
 ### 5.5 Agent 与 Prompt
 - 新增 agents：
-  - `dataflow_agent/agentroles/paper2any_agents/technical_route_bw_svg_generator.py`
-  - `dataflow_agent/agentroles/paper2any_agents/technical_route_colorize_svg_agent.py`
+  - `dataflow_agent/agentroles/figuremind_agents/technical_route_bw_svg_generator.py`
+  - `dataflow_agent/agentroles/figuremind_agents/technical_route_colorize_svg_agent.py`
 - 新增 prompts（在现有模板文件中追加）：
   - `dataflow_agent/promptstemplates/resources/pt_technical_route_desc_generator_repo.py`
 
@@ -250,18 +250,18 @@
 ## 7. 关键文件清单（便于代码审查）
 
 - 模板：
-  - `static/paper2any_imgs/p2t/temp.png`
+  - `static/figuremind_imgs/p2t/temp.png`
 - Workflow：
   - `dataflow_agent/workflow/wf_paper2technical.py`
 - Agents：
-  - `dataflow_agent/agentroles/paper2any_agents/technical_route_bw_svg_generator.py`
-  - `dataflow_agent/agentroles/paper2any_agents/technical_route_colorize_svg_agent.py`
+  - `dataflow_agent/agentroles/figuremind_agents/technical_route_bw_svg_generator.py`
+  - `dataflow_agent/agentroles/figuremind_agents/technical_route_colorize_svg_agent.py`
 - Prompts：
   - `dataflow_agent/promptstemplates/resources/pt_technical_route_desc_generator_repo.py`
 - Backend：
   - `fastapi_app/schemas.py`
-  - `fastapi_app/routers/paper2any.py`
-  - `fastapi_app/services/paper2any_service.py`
+  - `fastapi_app/routers/figuremind.py`
+  - `fastapi_app/services/figuremind_service.py`
   - `fastapi_app/workflow_adapters/wa_paper2figure.py`
 - Frontend：
   - `frontend-workflow/src/components/paper2graph/constants.ts`

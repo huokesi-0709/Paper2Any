@@ -20,7 +20,6 @@ import { verifyLlmConnection } from '../services/llmService';
 import { useAuthStore } from '../stores/authStore';
 import { getApiSettings, saveApiSettings } from '../services/apiSettingsService';
 import { backendFetch } from '../services/backendClient';
-import QRCodeTooltip from './QRCodeTooltip';
 import ManagedApiNotice from './ManagedApiNotice';
 import { useRuntimeBilling } from '../hooks/useRuntimeBilling';
 import { appendManagedApiConfig, appendManagedModel } from '../utils/runtimeBillingForm';
@@ -263,14 +262,13 @@ const Ppt2PolishPage = () => {
     }
   }, [currentSlideIndex, currentStep]);
 
-  const shareText = `发现一个超好用的AI工具 DataFlow-Agent！🚀
+  const shareText = `发现一个科研生图智能体 FigureMind！🚀
 支持论文转PPT、PDF转PPT、PPT美化等功能，科研打工人的福音！
 
-🔗 在线体验：https://dcai-paper2any.nas.cpolar.cn/
-⭐ GitHub Agent：https://github.com/OpenDCAI/Paper2Any
-🌟 GitHub Core：https://github.com/OpenDCAI/DataFlow
+🔗 在线体验：https://github.com/huokesi-0709/FigureMind
+⭐ GitHub Agent：https://github.com/huokesi-0709/FigureMind
 
-转发本文案+截图，联系微信群管理员即可获取免费Key！🎁
+项目持续迭代，欢迎关注与反馈。
 #AI工具 #PPT制作 #科研效率 #开源项目`;
 
   const getQuotaContext = () => ({
@@ -442,9 +440,9 @@ const Ppt2PolishPage = () => {
     const fetchStars = async () => {
       try {
         const [res1, res2, res3] = await Promise.all([
-          fetch('https://api.github.com/repos/OpenDCAI/DataFlow'),
-          fetch('https://api.github.com/repos/OpenDCAI/Paper2Any'),
-          fetch('https://api.github.com/repos/OpenDCAI/DataFlex')
+          fetch('https://api.github.com/repos/huokesi-0709/FigureMind'),
+          fetch('https://api.github.com/repos/huokesi-0709/FigureMind'),
+          fetch('https://api.github.com/repos/huokesi-0709/FigureMind')
         ]);
         const data1 = await res1.json();
         const data2 = await res2.json();
@@ -1644,7 +1642,6 @@ const Ppt2PolishPage = () => {
                                 <option key={url} value={url}>{url}</option>
                               ))}
                             </select>
-                  <QRCodeTooltip>
                     <a
                       href={getPurchaseUrl(llmApiUrl)}
                       target="_blank"
@@ -1653,7 +1650,6 @@ const Ppt2PolishPage = () => {
                     >
                       {t('upload.config.buyLink')}
                     </a>
-                  </QRCodeTooltip>
                 </div>
               </div>
               
@@ -1863,7 +1859,7 @@ const Ppt2PolishPage = () => {
       <div className="space-y-8 mt-10">
         <div className="flex items-center justify-end">
             <a
-              href="https://wcny4qa9krto.feishu.cn/wiki/VXKiwYndwiWAVmkFU6kcqsTenWh"
+              href="https://github.com/huokesi-0709/FigureMind"
               target="_blank"
               rel="noopener noreferrer"
               className="group relative inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/50 border border-white/10 text-xs font-medium text-white overflow-hidden transition-all hover:border-white/30 hover:shadow-[0_0_15px_rgba(45,212,191,0.5)]"
@@ -2168,10 +2164,10 @@ const Ppt2PolishPage = () => {
               <div className="w-12 h-12 rounded-full bg-yellow-500/20 text-yellow-300 flex items-center justify-center mb-3">
                 <Star size={24} />
               </div>
-              <h4 className="text-white font-semibold mb-2">获取免费 API Key</h4>
+              <h4 className="text-white font-semibold mb-2">分享 FigureMind</h4>
               <p className="text-xs text-gray-400 mb-4 leading-relaxed">
                 点击下方平台图标复制推广文案<br/>
-                分享至朋友圈/小红书/推特，截图联系微信群管理员领 Key！
+                欢迎分享 FigureMind，并通过项目主页提交反馈。
               </p>
               
               {/* 分享按钮组 */}
@@ -2209,16 +2205,16 @@ const Ppt2PolishPage = () => {
               )}
 
               <div className="w-full space-y-2">
-                 <a href="https://github.com/OpenDCAI/Paper2Any" target="_blank" rel="noopener noreferrer" className="block w-full py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-teal-300 truncate transition-colors border border-white/5 text-center">
+                 <a href="https://github.com/huokesi-0709/FigureMind" target="_blank" rel="noopener noreferrer" className="block w-full py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-teal-300 truncate transition-colors border border-white/5 text-center">
                    ✨如果本项目对你有帮助，可以点个star嘛～
                  </a>
                  <div className="flex gap-2">
-                   <a href="https://github.com/OpenDCAI/Paper2Any" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-[10px] font-semibold transition-all hover:scale-105 shadow-lg">
+                   <a href="https://github.com/huokesi-0709/FigureMind" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-[10px] font-semibold transition-all hover:scale-105 shadow-lg">
                      <Github size={10} />
                      <span>Agent</span>
                      <span className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded-full text-[9px] flex items-center gap-0.5"><Star size={7} fill="currentColor" /> {stars.agent || 'Star'}</span>
                    </a>
-                   <a href="https://github.com/OpenDCAI/DataFlow" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-[10px] font-semibold transition-all hover:scale-105 shadow-lg">
+                   <a href="https://github.com/huokesi-0709/FigureMind" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-[10px] font-semibold transition-all hover:scale-105 shadow-lg">
                      <Github size={10} />
                      <span>Core</span>
                      <span className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded-full text-[9px] flex items-center gap-0.5"><Star size={7} fill="currentColor" /> {stars.dataflow || 'Star'}</span>
@@ -2234,14 +2230,14 @@ const Ppt2PolishPage = () => {
               <div className="w-12 h-12 rounded-full bg-green-500/20 text-green-300 flex items-center justify-center mb-3">
                 <MessageSquare size={24} />
               </div>
-              <h4 className="text-white font-semibold mb-2">加入交流群</h4>
+              <h4 className="text-white font-semibold mb-2">FigureMind</h4>
               <p className="text-xs text-gray-400 mb-4">
-                效果满意？遇到问题？<br/>欢迎扫码加入交流群反馈与讨论
+                科研生图智能体<br/>读懂研究，画出方法
               </p>
               <div className="w-32 h-32 bg-white p-1 rounded-lg mb-2">
-                <img src="/wechat.png" alt="交流群二维码" className="w-full h-full object-contain" />
+                <img src="/figuremind-favicon.png" alt="FigureMind" className="w-full h-full object-contain" />
               </div>
-              <p className="text-[10px] text-gray-500">扫码加入微信交流群</p>
+              <p className="text-[10px] text-gray-500">Scientific Figure Agent</p>
             </div>
           </div>
         </div>
@@ -2261,7 +2257,7 @@ const Ppt2PolishPage = () => {
           <div className="relative max-w-7xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-3 flex-wrap justify-center sm:justify-start">
               <a
-                href="https://github.com/OpenDCAI"
+                href="https://github.com/huokesi-0709"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 hover:bg-white/30 transition-colors"
@@ -2277,37 +2273,37 @@ const Ppt2PolishPage = () => {
 
             <div className="flex items-center gap-2 flex-wrap justify-center">
               <a
-                href="https://github.com/OpenDCAI/DataFlow"
+                href="https://github.com/huokesi-0709/FigureMind"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-xs font-semibold transition-all hover:scale-105 shadow-lg"
               >
                 <Github size={14} />
-                <span>DataFlow</span>
+                <span>FigureMind Core</span>
                 <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.dataflow || 'Star'}</span>
                 <span className="bg-purple-600 text-white px-2 py-0.5 rounded-full text-[10px]">HOT</span>
               </a>
 
               <a
-                href="https://github.com/OpenDCAI/Paper2Any"
+                href="https://github.com/huokesi-0709/FigureMind"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-xs font-semibold transition-all hover:scale-105 shadow-lg"
               >
                 <Github size={14} />
-                <span>Paper2Any</span>
+                <span>FigureMind</span>
                 <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.agent || 'Star'}</span>
                 <span className="bg-pink-600 text-white px-2 py-0.5 rounded-full text-[10px]">NEW</span>
               </a>
 
               <a
-                href="https://github.com/OpenDCAI/DataFlex"
+                href="https://github.com/huokesi-0709/FigureMind"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-xs font-semibold transition-all hover:scale-105 shadow-lg"
               >
                 <Github size={14} />
-                <span>DataFlex</span>
+                <span>FigureMind Lab</span>
                 <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.dataflex || 'Star'}</span>
                 <span className="bg-sky-600 text-white px-2 py-0.5 rounded-full text-[10px]">NEW</span>
               </a>

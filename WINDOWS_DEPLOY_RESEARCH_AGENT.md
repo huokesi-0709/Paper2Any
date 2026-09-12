@@ -61,7 +61,7 @@ notepad fastapi_app\.env
 ```dotenv
 BACKEND_API_KEY=请换成你自己的前后端共享密钥
 APP_BILLING_MODE=free
-PAPER2ANY_CONFIG_MODE=simple
+FIGUREMIND_CONFIG_MODE=simple
 
 SIMPLE_TEXT_API_URL=https://xuseny.online/v1
 SIMPLE_TEXT_API_KEY=你的LLM中转密钥
@@ -127,14 +127,14 @@ Set-Location ..
 
 ```powershell
 conda activate paper2figure-agent
-Set-Location E:\Projects\Paper2Any
+Set-Location E:\Projects\FigureMind
 python -m uvicorn fastapi_app.main:app --host 127.0.0.1 --port 8000
 ```
 
 窗口 2，启动前端：
 
 ```powershell
-Set-Location E:\Projects\Paper2Any\frontend-workflow
+Set-Location E:\Projects\FigureMind\frontend-workflow
 npm run dev -- --host 127.0.0.1
 ```
 
@@ -159,5 +159,5 @@ requirements 已精简，但后端入口和前端菜单目前仍包含旧功能�
 
 - 后端只挂载保留功能的 router；
 - 前端目录和首页只展示保留功能；
-- 解耦 `paper2any_service` 与 Paper2Video、通用 workflow adapter 的顶层导入；
+- 解耦 `figuremind_service` 与 Paper2Video、通用 workflow adapter 的顶层导入；
 - 将 workflow 注册从按文件顺序扫描改成按名称定向加载。

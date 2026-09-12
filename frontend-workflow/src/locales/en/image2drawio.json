@@ -50,7 +50,7 @@
   "cases": {
     "title": "Cases",
     "subtitle": "Convert sample images into editable DrawIO",
-    "feishu": "View Feishu Doc",
+    "project": "View Project Page",
     "items": {
       "case1Title": "Case 1",
       "case1Desc": "Complex diagram converted to editable DrawIO",

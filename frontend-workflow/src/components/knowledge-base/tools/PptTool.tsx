@@ -191,7 +191,7 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
                   onChange={e => {
                     const val = e.target.value;
                     setPptParams(prev => ({
-                      ...prev, 
+                      ...prev,
                       api_url: val,
                       gen_fig_model: val.includes('123.129.219.111') ? 'gemini-3-pro-image-preview' : prev.gen_fig_model
                     }));

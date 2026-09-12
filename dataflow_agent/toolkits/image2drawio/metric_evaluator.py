@@ -2,7 +2,7 @@
 metric_evaluator.py — Image2DrawIO quality evaluation module.
 
 Computes a content-coverage score and detects uncovered "bad regions"
-that need fallback rescue.  Works with Paper2Any's dict-based element
+that need fallback rescue.  Works with FigureMind's dict-based element
 format (kind/bbox_px/image_path …).
 
 Core idea:

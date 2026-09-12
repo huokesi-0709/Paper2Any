@@ -25,9 +25,9 @@ def _install_mock_api(page: Page, captured: dict[str, object]) -> None:
         "server_side_billing_enforced": True,
         "workflow_costs": {"image_playground": 2},
         "guest_daily_limit": 0,
-        "signup_bonus_points": 0,
-        "daily_grant_points": 5,
-        "daily_grant_balance_cap": 15,
+        "signup_bonus_points": 5,
+        "daily_grant_points": 0,
+        "daily_grant_balance_cap": 0,
         "referral_inviter_points": 5,
         "referral_invitee_points": 0,
         "points_purchase_url": "",
@@ -113,9 +113,9 @@ def _install_mock_api(page: Page, captured: dict[str, object]) -> None:
     runtime_config_json = json.dumps(runtime_config)
     page.add_init_script(
         f"""
-        window.localStorage.setItem('paper2any_e2e_bypass_auth', '1');
+        window.localStorage.setItem('figuremind_e2e_bypass_auth', '1');
         window.localStorage.setItem('i18nextLng', 'en');
-        window.localStorage.setItem('paper2any_runtime_config', {json.dumps(runtime_config_json)});
+        window.localStorage.setItem('figuremind_runtime_config', {json.dumps(runtime_config_json)});
         """
     )
 
@@ -140,10 +140,10 @@ def test_image_playground_page_flow_with_playwright() -> None:
         page.get_by_role("button", name="Generate (2 points)").click()
         page.wait_for_selector("text=Please sign in to continue.")
 
-        page.wait_for_function("() => Boolean(window.__PAPER2ANY_E2E__?.setMockUser)")
+        page.wait_for_function("() => Boolean(window.__FIGUREMIND_E2E__?.setMockUser)")
         page.evaluate(
             """
-            () => window.__PAPER2ANY_E2E__.setMockUser({
+            () => window.__FIGUREMIND_E2E__.setMockUser({
               id: 'e2e-user',
               email: 'e2e@example.com',
             })

@@ -8,6 +8,8 @@ from typing import Any, Dict, Optional
 from fastapi import Header, HTTPException
 from supabase import create_client, Client
 
+from fastapi_app.config.settings import settings
+
 
 # Supabase client singleton
 _supabase_client: Optional[Client] = None
@@ -52,9 +54,24 @@ class AuthUser:
         self.app_metadata = dict(app_metadata or {})
 
     @property
+    def is_admin(self) -> bool:
+        """Whether this verified Supabase identity is a configured administrator."""
+        if self.app_metadata.get("figuremind_role") == "admin":
+            return True
+        normalized_email = (self.email or "").strip().lower()
+        if not normalized_email:
+            return False
+        admin_emails = {
+            email.strip().lower()
+            for email in settings.ADMIN_EMAILS.split(",")
+            if email.strip()
+        }
+        return normalized_email in admin_emails
+
+    @property
     def is_billing_exempt(self) -> bool:
         """Whether an administrator has exempted this account from point billing."""
-        return self.app_metadata.get("billing_exempt") is True
+        return self.is_admin or self.app_metadata.get("billing_exempt") is True
     
     @property
     def identifier(self) -> str:

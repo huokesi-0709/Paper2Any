@@ -40,7 +40,7 @@ export function AppShell({
           {/* Footer */}
           <footer className="flex h-12 flex-shrink-0 items-center justify-center border-t border-slate-200/90 bg-white/80 backdrop-blur-xl">
             <div className="flex items-center gap-4 text-xs text-text-muted font-mono">
-              <span>© {new Date().getFullYear()} Paper2Any</span>
+              <span>© {new Date().getFullYear()} FigureMind</span>
               <span className="w-1 h-1 bg-border-medium rounded-full" />
               <span>{t('app.workspace.footerVersion')}</span>
               {!userApiConfigRequired && (

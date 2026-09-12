@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Settings2, ChevronUp, ChevronDown, Loader2, Download, Info, CheckCircle2, AlertCircle, ImageIcon, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import QRCodeTooltip from '../QRCodeTooltip';
 import ManagedApiNotice from '../ManagedApiNotice';
 import { GraphType, Language, StyleType, FigureComplex } from './types';
 import { GENERATION_STAGES, TECH_ROUTE_PALETTES, TECH_ROUTE_TEMPLATES } from './constants';
@@ -171,7 +170,6 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                       <option key={url} value={url}>{url}</option>
                     ))}
                   </select>
-                  <QRCodeTooltip>
                     <a
                       href={getPurchaseUrl(llmApiUrl)}
                       target="_blank"
@@ -180,7 +178,6 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                     >
                       {t('advanced.buyLink')}
                     </a>
-                  </QRCodeTooltip>
                 </div>
               </div>
 

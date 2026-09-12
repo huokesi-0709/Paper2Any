@@ -665,7 +665,7 @@ def create_paper2video_graph() -> GenericGraphBuilder:
             talking_video_save_dir,
             os.getenv(
                 "PAPER2VIDEO_TALKING_LOCAL_PYTHON",
-                os.getenv("ECHOMIMIC_PYTHON", os.getenv("PAPER2ANY_PYTHON", "python3")),
+                os.getenv("ECHOMIMIC_PYTHON", os.getenv("FIGUREMIND_PYTHON", "python3")),
             ),
             api_key=None,
         )
@@ -1018,23 +1018,24 @@ def create_paper2video_graph() -> GenericGraphBuilder:
 if __name__ == "__main__":
     import asyncio
     graph_builder = create_paper2video_graph().build()
-    
+
     dir_name = "ai"
+    demo_output_root = Path(__file__).resolve().parents[2] / "outputs" / dir_name
     p2v_state = Paper2VideoState(
         request=Paper2VideoRequest(
-            paper_pdf_path = f"/data/users/ligang/DataFlow-Agent/outputs/{dir_name}/ai.pdf",
-            ref_audio_path = f"/data/users/ligang/DataFlow-Agent/outputs/{dir_name}/ai.wav",
+            paper_pdf_path=str(demo_output_root / "ai.pdf"),
+            ref_audio_path=str(demo_output_root / "ai.wav"),
             ref_text = "",
-            ref_img_path = f"/data/users/ligang/DataFlow-Agent/outputs/{dir_name}/ai.png",
+            ref_img_path=str(demo_output_root / "ai.png"),
             chat_api_url="http://123.129.219.111:3000/v1",
             language = "en",
         ),
-        slide_timesteps_path=f"/data/users/ligang/DataFlow-Agent/outputs/{dir_name}/ai/audio/slide_timesteps.json",
-        ppt_path=f"/data/users/ligang/DataFlow-Agent/outputs/{dir_name}/ai.pdf",
-        subtitle_and_cursor_path=f"/data/users/ligang/DataFlow-Agent/outputs/{dir_name}/ai/subtitle_w_cursor.txt",
-        slide_img_dir=f"/data/users/ligang/DataFlow-Agent/outputs/{dir_name}/ai/slide_imgs",
-        speech_save_dir=f"/data/users/ligang/DataFlow-Agent/outputs/{dir_name}/ai/audio",
-        talking_video_save_dir=f"/data/users/ligang/DataFlow-Agent/outputs/{dir_name}/ai/talking_video",
-        cursor_save_path=f"/data/users/ligang/DataFlow-Agent/outputs/{dir_name}/ai/cursor.json",
+        slide_timesteps_path=str(demo_output_root / "audio" / "slide_timesteps.json"),
+        ppt_path=str(demo_output_root / "ai.pdf"),
+        subtitle_and_cursor_path=str(demo_output_root / "subtitle_w_cursor.txt"),
+        slide_img_dir=str(demo_output_root / "slide_imgs"),
+        speech_save_dir=str(demo_output_root / "audio"),
+        talking_video_save_dir=str(demo_output_root / "talking_video"),
+        cursor_save_path=str(demo_output_root / "cursor.json"),
     )
     out =  asyncio.run(graph_builder.ainvoke(p2v_state))

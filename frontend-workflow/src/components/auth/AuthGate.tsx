@@ -24,7 +24,7 @@ function isE2EAuthBypassed(): boolean {
     return false;
   }
   try {
-    return window.localStorage.getItem("paper2any_e2e_bypass_auth") === "1";
+    return window.localStorage.getItem("figuremind_e2e_bypass_auth") === "1";
   } catch {
     return false;
   }

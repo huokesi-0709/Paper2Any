@@ -7,7 +7,7 @@ FastAPI backend for DataFlow Agent.
 典型使用方式：
 
     # 从项目根目录启动（推荐）
-    cd /path/to/Paper2Any
+    cd /path/to/FigureMind
     uvicorn fastapi_app.main:app --reload --port 8051
 
 路由划分约定：

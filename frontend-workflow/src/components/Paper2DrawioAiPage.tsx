@@ -4,7 +4,7 @@ import BilingualHint from './BilingualHint';
 import Paper2DrawioPage from './paper2drawio';
 import CasesSection from './CasesSection';
 
-const FEISHU_DOC_URL = 'https://wcny4qa9krto.feishu.cn/wiki/VXKiwYndwiWAVmkFU6kcqsTenWh';
+const PROJECT_URL = 'https://github.com/huokesi-0709/FigureMind';
 
 const Paper2DrawioAiPage = () => {
   const { t } = useTranslation('paper2drawio');
@@ -37,8 +37,8 @@ const Paper2DrawioAiPage = () => {
         <CasesSection
           title={t('cases.title')}
           subtitle={t('cases.subtitle')}
-          feishuLabel={t('cases.feishu')}
-          feishuUrl={FEISHU_DOC_URL}
+          projectLabel={t('cases.project')}
+          projectUrl={PROJECT_URL}
           tone="sky"
           cases={[
             {

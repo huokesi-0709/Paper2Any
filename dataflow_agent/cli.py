@@ -20,7 +20,7 @@ def to_camel(s: str) -> str:
 # ---------- CLI ----------
 @click.group()
 def cli():
-    """DataFlow-Agent command line."""
+    """FigureMind command line."""
     pass
 
 

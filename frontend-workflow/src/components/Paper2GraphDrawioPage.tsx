@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import Paper2GraphPage from './paper2graph';
 import CasesSection from './CasesSection';
 
-const FEISHU_DOC_URL = 'https://wcny4qa9krto.feishu.cn/wiki/VXKiwYndwiWAVmkFU6kcqsTenWh';
+const PROJECT_URL = 'https://github.com/huokesi-0709/FigureMind';
 
 const Paper2GraphDrawioPage = () => {
   const { t } = useTranslation('paper2graph');
@@ -31,8 +31,8 @@ const Paper2GraphDrawioPage = () => {
         <CasesSection
           title={t('cases.title')}
           subtitle={t('cases.subtitle')}
-          feishuLabel={t('cases.feishu')}
-          feishuUrl={FEISHU_DOC_URL}
+          projectLabel={t('cases.project')}
+          projectUrl={PROJECT_URL}
           tone="emerald"
           cases={[
             {

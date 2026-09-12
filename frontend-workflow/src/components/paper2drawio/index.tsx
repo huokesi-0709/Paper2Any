@@ -15,7 +15,6 @@ import { getApiSettings, saveApiSettings } from '../../services/apiSettingsServi
 import { backendFetch } from '../../services/backendClient';
 import { verifyLlmConnection } from '../../services/llmService';
 import Banner from './Banner';
-import QRCodeTooltip from '../QRCodeTooltip';
 import ManagedApiNotice from '../ManagedApiNotice';
 import { useRuntimeBilling } from '../../hooks/useRuntimeBilling';
 import { appendManagedApiConfig, appendManagedModel } from '../../utils/runtimeBillingForm';
@@ -147,9 +146,9 @@ export default function Paper2DrawioPage({
     const fetchStars = async () => {
       try {
         const [res1, res2, res3] = await Promise.all([
-          fetch('https://api.github.com/repos/OpenDCAI/DataFlow'),
-          fetch('https://api.github.com/repos/OpenDCAI/Paper2Any'),
-          fetch('https://api.github.com/repos/OpenDCAI/DataFlex')
+          fetch('https://api.github.com/repos/huokesi-0709/FigureMind'),
+          fetch('https://api.github.com/repos/huokesi-0709/FigureMind'),
+          fetch('https://api.github.com/repos/huokesi-0709/FigureMind')
         ]);
         const data1 = await res1.json();
         const data2 = await res2.json();
@@ -878,7 +877,6 @@ export default function Paper2DrawioPage({
                   <>
                     <div className="flex items-center justify-between">
                       <label className="block text-xs text-slate-400">{t('apiUrl')}</label>
-                      <QRCodeTooltip>
                         <a
                           href={getPurchaseUrl(apiUrl)}
                           target="_blank"
@@ -887,7 +885,6 @@ export default function Paper2DrawioPage({
                         >
                           {t('buyLink')}
                         </a>
-                      </QRCodeTooltip>
                     </div>
                     {generationMode === 'paper2drawio' ? (
                       <select

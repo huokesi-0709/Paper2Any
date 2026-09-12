@@ -32,7 +32,7 @@ def make_token(prefix: str, seen: set[str]) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Generate Paper2Any points redeem codes.")
+    parser = argparse.ArgumentParser(description="Generate FigureMind points redeem codes.")
     parser.add_argument("--count", type=int, default=200, help="Number of tokens to generate per tier.")
     args = parser.parse_args()
 

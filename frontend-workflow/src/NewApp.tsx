@@ -1,5 +1,5 @@
 /**
- * NewApp — completely redesigned frontend for Paper2Any.
+ * NewApp — completely redesigned frontend for FigureMind.
  *
  * Clean sidebar + top-bar layout.
  * Routes:

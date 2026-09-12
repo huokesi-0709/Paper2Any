@@ -1,6 +1,6 @@
-# 🛠️ Paper2Any CLI 脚手架使用说明
+# 🛠️ FigureMind CLI 脚手架使用说明
 
-Paper2Any 内置了一套基于 Jinja2 模板的 CLI 代码生成工具（来自 DataFlow-Agent 框架），可以快速生成 **Agent / Workflow / Gradio 页面 / Prompt 模板 / State / Agent-as-Tool** 等标准化代码文件，极大提升开发效率。
+FigureMind 内置了一套基于 Jinja2 模板的 CLI 代码生成工具（来自 FigureMind 框架），可以快速生成 **Agent / Workflow / Gradio 页面 / Prompt 模板 / State / Agent-as-Tool** 等标准化代码文件，极大提升开发效率。
 
 > CLI 可执行入口通常为 `dfa`（或等价的 Python entrypoint），下文统一使用：
 >
@@ -382,4 +382,4 @@ dfa create --agent_name "my_data_processor"
 
 ---
 
-以上即为 Paper2Any / DataFlow-Agent CLI 脚手架的整理版说明，建议你在本项目中创建 Agent / Workflow / 页面时优先使用 CLI，以保持代码风格一致并提升开发效率。
+以上即为 FigureMind / FigureMind CLI 脚手架的整理版说明，建议你在本项目中创建 Agent / Workflow / 页面时优先使用 CLI，以保持代码风格一致并提升开发效率。

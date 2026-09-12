@@ -175,14 +175,13 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
   });
   const [copySuccess, setCopySuccess] = useState('');
 
-  const shareText = `发现一个超好用的AI工具 DataFlow-Agent！🚀
+  const shareText = `发现一个科研生图智能体 FigureMind！🚀
 支持论文转PPT、PDF转PPT、PPT美化等功能，科研打工人的福音！
 
-🔗 在线体验：https://dcai-paper2any.nas.cpolar.cn/
-⭐ GitHub Agent：https://github.com/OpenDCAI/Paper2Any
-🌟 GitHub Core：https://github.com/OpenDCAI/DataFlow
+🔗 在线体验：https://github.com/huokesi-0709/FigureMind
+⭐ GitHub Agent：https://github.com/huokesi-0709/FigureMind
 
-转发本文案+截图，联系微信群管理员即可获取免费Key！🎁
+项目持续迭代，欢迎关注与反馈。
 #AI工具 #PPT制作 #科研效率 #开源项目`;
 
   const getQuotaContext = () => ({
@@ -336,9 +335,9 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     const fetchStars = async () => {
       try {
         const [res1, res2, res3] = await Promise.all([
-          fetch('https://api.github.com/repos/OpenDCAI/DataFlow'),
-          fetch('https://api.github.com/repos/OpenDCAI/Paper2Any'),
-          fetch('https://api.github.com/repos/OpenDCAI/DataFlex')
+          fetch('https://api.github.com/repos/huokesi-0709/FigureMind'),
+          fetch('https://api.github.com/repos/huokesi-0709/FigureMind'),
+          fetch('https://api.github.com/repos/huokesi-0709/FigureMind')
         ]);
         const data1 = await res1.json();
         const data2 = await res2.json();
@@ -2797,7 +2796,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
 
     targetWindow.postMessage(
       {
-        source: 'paper2any-online-editor-init',
+        source: 'figuremind-online-editor-init',
         sessionId: onlyOfficeSessionId,
         payload: onlyOfficeConfig,
       },
@@ -2815,7 +2814,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
         return;
       }
       const data = event.data || {};
-      if (data.source !== 'paper2any-online-editor') {
+      if (data.source !== 'figuremind-online-editor') {
         return;
       }
       if (data.type === 'frameReady') {
@@ -4911,7 +4910,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     setError(null);
 
     try {
-      const editorSessionId = `paper2any-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      const editorSessionId = `figuremind-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
       const params = new URLSearchParams({
         path: htmlEditablePptxPath,
         browser_base_url: window.location.origin,

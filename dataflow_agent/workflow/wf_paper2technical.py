@@ -391,7 +391,7 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
         - 只在有参考图时被调用
         - 分析结果存入 state.temp_data["reference_understanding"]
         """
-        from dataflow_agent.agentroles.paper2any_agents.tech_route_reference_analyzer import (
+        from dataflow_agent.agentroles.figuremind_agents.tech_route_reference_analyzer import (
             create_tech_route_reference_analyzer,
         )
 

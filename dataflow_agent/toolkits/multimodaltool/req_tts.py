@@ -331,7 +331,6 @@ if __name__ == "__main__":
         try:
             path = await generate_speech_and_save_async(
                 "Hello this is a test",
-                # f"/data/users/ligang/Paper2Any/frontend-workflow/public/paper2video/cosyvoice/v3-plus/{voice_name}.wav",
                 "test.wav",
                 url, key, model, voice_name=voice_name,
             )

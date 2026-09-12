@@ -26,7 +26,7 @@ BaseAgent 提供了统一的执行模式、工具管理、消息构建和结果�
         def task_prompt_template_name(self) -> str:
             return "my_agent_task"
 
-作者: Zhou Liu
+维护者: linkinwise
 版本: 1.0.0
 """
 

@@ -1,6 +1,6 @@
-# Paper2Any ONLYOFFICE Editable PPTX
+# FigureMind ONLYOFFICE Editable PPTX
 
-Paper2Any 的 html2pptx 可编辑导出可以接入 ONLYOFFICE Document Server，生成 PPTX 后直接在线编辑。未配置 ONLYOFFICE 时，前端仍可下载可编辑 PPTX。
+FigureMind 的 html2pptx 可编辑导出可以接入 ONLYOFFICE Document Server，生成 PPTX 后直接在线编辑。未配置 ONLYOFFICE 时，前端仍可下载可编辑 PPTX。
 
 ## html2pptx Converter
 
@@ -26,9 +26,9 @@ ONLYOFFICE_JWT_SECRET=
 ```
 
 - `ONLYOFFICE_DOCUMENT_SERVER_URL`：浏览器加载 ONLYOFFICE 的入口。本地 Vite 开发建议使用 `/onlyoffice`，由 `frontend-workflow/vite.config.ts` 代理到 `http://localhost:8082`。
-- `ONLYOFFICE_THINKFLOW_PUBLIC_URL`：ONLYOFFICE 容器可访问的 Paper2Any 后端地址，用于保存回调。
+- `ONLYOFFICE_THINKFLOW_PUBLIC_URL`：ONLYOFFICE 容器可访问的 FigureMind 后端地址，用于保存回调。
 - `ONLYOFFICE_DOCUMENT_DOWNLOAD_BASE_URL`：ONLYOFFICE 容器回源下载 PPTX 的后端地址。本地 Docker 场景推荐 `http://host.docker.internal:8000`，不要配成浏览器里的 `localhost:3000`。
-- `ONLYOFFICE_SERVER_DOWNLOAD_URL_BASE`：Paper2Any 后端下载 ONLYOFFICE 保存结果时使用的 Document Server 地址。本地 Vite/SSH 转发场景推荐 `http://127.0.0.1:8082`，用于把回调 payload 里的 `http://localhost:13000/onlyoffice/cache/...` 重写为后端可访问的 `http://127.0.0.1:8082/cache/...`。
+- `ONLYOFFICE_SERVER_DOWNLOAD_URL_BASE`：FigureMind 后端下载 ONLYOFFICE 保存结果时使用的 Document Server 地址。本地 Vite/SSH 转发场景推荐 `http://127.0.0.1:8082`，用于把回调 payload 里的 `http://localhost:13000/onlyoffice/cache/...` 重写为后端可访问的 `http://127.0.0.1:8082/cache/...`。
 - `ONLYOFFICE_JWT_SECRET`：仅在 Document Server 开启 JWT 时填写，并保持与 Document Server 一致。本地调试默认留空，同时容器使用 `JWT_ENABLED=false`。
 
 URL 角色需要分清：
@@ -42,13 +42,13 @@ URL 角色需要分清：
 如果本机没有 `onlyoffice/documentserver:latest` 镜像，可以从已准备好的 tar 包导入：
 
 ```bash
-docker load -i /mnt/paper2any/dingcheng/onlyoffice-documentserver-latest.tar
+docker load -i /mnt/figuremind/dingcheng/onlyoffice-documentserver-latest.tar
 ```
 
 启动 Document Server：
 
 ```bash
-docker run -d --name paper2any-onlyoffice \
+docker run -d --name figuremind-onlyoffice \
   -p 8082:80 \
   --add-host=host.docker.internal:host-gateway \
   -e JWT_ENABLED=false \
@@ -59,27 +59,27 @@ docker run -d --name paper2any-onlyoffice \
 如果容器已存在，先停止并移除旧容器后再启动：
 
 ```bash
-docker stop paper2any-onlyoffice
-docker rm paper2any-onlyoffice
+docker stop figuremind-onlyoffice
+docker rm figuremind-onlyoffice
 ```
 
-Paper2Any 前端本地端口默认是 `3000`，`frontend-workflow/vite.config.ts` 已将 `/onlyoffice` 代理到 `http://localhost:8082`。为了让 ONLYOFFICE 编辑器内部的缓存资源也走前端同源代理，需要修改容器内 `local.json`：
+FigureMind 前端本地端口默认是 `3000`，`frontend-workflow/vite.config.ts` 已将 `/onlyoffice` 代理到 `http://localhost:8082`。为了让 ONLYOFFICE 编辑器内部的缓存资源也走前端同源代理，需要修改容器内 `local.json`：
 
 ```bash
-docker cp paper2any-onlyoffice:/etc/onlyoffice/documentserver/local.json /tmp/paper2any-onlyoffice-local.json
+docker cp figuremind-onlyoffice:/etc/onlyoffice/documentserver/local.json /tmp/figuremind-onlyoffice-local.json
 python - <<'PY'
 import json
 from pathlib import Path
 
-path = Path("/tmp/paper2any-onlyoffice-local.json")
+path = Path("/tmp/figuremind-onlyoffice-local.json")
 data = json.loads(path.read_text())
 storage = data.setdefault("storage", {})
 storage["externalHost"] = "http://localhost:3000/onlyoffice"
 storage["useDirectStorageUrls"] = False
 path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
 PY
-docker cp /tmp/paper2any-onlyoffice-local.json paper2any-onlyoffice:/etc/onlyoffice/documentserver/local.json
-docker exec paper2any-onlyoffice supervisorctl restart ds:docservice ds:converter
+docker cp /tmp/figuremind-onlyoffice-local.json figuremind-onlyoffice:/etc/onlyoffice/documentserver/local.json
+docker exec figuremind-onlyoffice supervisorctl restart ds:docservice ds:converter
 ```
 
 如果前端是通过 SSH 端口转发打开的，`externalHost` 要写浏览器实际访问的地址。例如本机访问 `http://localhost:13000`、远端 Vite 仍是 `3000` 时，应使用：
@@ -90,7 +90,7 @@ storage["externalHost"] = "http://localhost:13000/onlyoffice"
 
 不要把 `local.json` 以只读 bind mount 的方式挂进容器。Document Server 启动脚本会写这个文件；只读挂载会导致 `EBUSY`/`Read-only file system`，进而让 JWT 或缓存 URL 配置处在不可信状态。推荐按上面的流程：容器启动完成后 `docker cp` 配置进去，再重启 `ds:docservice ds:converter`。
 
-## Paper2Any Endpoints
+## FigureMind Endpoints
 
 在线编辑使用这些后端接口：
 
@@ -112,5 +112,5 @@ storage["externalHost"] = "http://localhost:13000/onlyoffice"
 ## Production Notes
 
 - 生产建议将 Document Server 放在同域 HTTPS 反向代理后，并开启 JWT。
-- 确保 Document Server 能访问 Paper2Any 后端的下载和回调接口。
+- 确保 Document Server 能访问 FigureMind 后端的下载和回调接口。
 - 不要提交本地 JWT secret、容器导出的 `local.json`、运行日志或临时 `.onlyoffice.tmp` 文件。

@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from dataflow_agent.agentroles.paper2any_agents.p2v_subtitle_and_cursor_agent import (
+from dataflow_agent.agentroles.figuremind_agents.p2v_subtitle_and_cursor_agent import (
     parse_subtitle_and_cursor_result,
 )
 from dataflow_agent.workflow.wf_paper2video import (

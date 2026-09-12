@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 def _configure_runtime_tempdir() -> None:
     project_root = Path(__file__).resolve().parent.parent
     runtime_tmp = Path(
-        os.getenv("PAPER2ANY_RUNTIME_TMPDIR", str(project_root / "outputs" / "system" / "tmp"))
+        os.getenv("FIGUREMIND_RUNTIME_TMPDIR", str(project_root / "outputs" / "system" / "tmp"))
     ).expanduser().resolve()
     runtime_tmp.mkdir(parents=True, exist_ok=True)
     for key in ("TMPDIR", "TEMP", "TMP"):
@@ -42,10 +42,10 @@ from fastapi.responses import Response
 import uvicorn
 
 # 默认路径；建议在线上通过 ECHOMIMIC_* 环境变量覆盖。
-DEFAULT_ECHOMIMIC_CWD = "/data/users/ligang/EchoMimic"
-DEFAULT_CONFIG = "/data/users/ligang/EchoMimic/configs/prompts/animation.yaml"
-DEFAULT_SCRIPT = "/data/users/ligang/EchoMimic/infer_audio2vid.py"
-DEFAULT_PYTHON = os.getenv("ECHOMIMIC_PYTHON", "/root/miniconda3/envs/echomimic/bin/python")
+DEFAULT_ECHOMIMIC_CWD = "/opt/echomimic"
+DEFAULT_CONFIG = f"{DEFAULT_ECHOMIMIC_CWD}/configs/prompts/animation.yaml"
+DEFAULT_SCRIPT = f"{DEFAULT_ECHOMIMIC_CWD}/infer_audio2vid.py"
+DEFAULT_PYTHON = os.getenv("ECHOMIMIC_PYTHON", sys.executable)
 INFER_TIMEOUT = int(os.getenv("ECHOMIMIC_INFER_TIMEOUT", "900"))
 
 app = FastAPI(title="EchoMimic Inference API")

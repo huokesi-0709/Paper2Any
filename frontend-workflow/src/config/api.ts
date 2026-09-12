@@ -17,17 +17,8 @@ export const API_URL_OPTIONS = (import.meta.env.VITE_LLM_API_URLS || 'https://ap
 /**
  * Get purchase link based on selected LLM API URL.
  */
-export function getPurchaseUrl(apiUrl: string): string {
-  if (apiUrl.includes('ai.comfly.chat')) {
-    return 'https://ai.comfly.chat/register?aff=HsQn96268';
-  }
-  if (apiUrl.includes('123.129.219.111')) {
-    return 'http://123.129.219.111:3000';
-  }
-  if (apiUrl.includes('apiyi')) {
-    return 'https://api.apiyi.com/register/?aff_code=TbrD';
-  }
-  return 'https://api.apiyi.com/register/?aff_code=TbrD';
+export function getPurchaseUrl(_apiUrl: string): string {
+  return (import.meta.env.VITE_POINTS_PURCHASE_URL || 'https://github.com/huokesi-0709/FigureMind').trim();
 }
 
 /**

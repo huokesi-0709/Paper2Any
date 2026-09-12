@@ -14,8 +14,8 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LOG_DIR="$ROOT_DIR/logs"
 STATE_ENV_FILE="${MODEL_SERVER_ENV_FILE:-$LOG_DIR/model_servers.env}"
 
-PAPER2ANY_PYTHON="${PAPER2ANY_PYTHON:-${APP_PYTHON:-$(command -v python3 || command -v python || true)}}"
-PAPER2ANY_ASSET_ROOT="${PAPER2ANY_ASSET_ROOT:-}"
+FIGUREMIND_PYTHON="${FIGUREMIND_PYTHON:-${APP_PYTHON:-$(command -v python3 || command -v python || true)}}"
+FIGUREMIND_ASSET_ROOT="${FIGUREMIND_ASSET_ROOT:-}"
 DEPLOY_TARGET="${DEPLOY_TARGET:-generic}"
 GPU_QUERY_TOOL="${GPU_QUERY_TOOL:-auto}"
 
@@ -102,8 +102,8 @@ trim() {
 }
 
 validate_python_runtime() {
-    [ -x "$PAPER2ANY_PYTHON" ] || return 1
-    "$PAPER2ANY_PYTHON" - <<'PY' >/dev/null 2>&1
+    [ -x "$FIGUREMIND_PYTHON" ] || return 1
+    "$FIGUREMIND_PYTHON" - <<'PY' >/dev/null 2>&1
 import cv2
 import fastapi
 import torch
@@ -131,7 +131,7 @@ wait_for_http() {
 }
 
 check_cuda_runtime() {
-    "$PAPER2ANY_PYTHON" - <<'PY'
+    "$FIGUREMIND_PYTHON" - <<'PY'
 import sys
 import torch
 
@@ -174,7 +174,7 @@ discover_available_gpus() {
         return 0
     fi
 
-    "$PAPER2ANY_PYTHON" - <<'PY'
+    "$FIGUREMIND_PYTHON" - <<'PY'
 import torch
 
 if not torch.cuda.is_available():
@@ -198,10 +198,10 @@ prepare_sam3_paths() {
     local legacy_sam3_bpe=""
     local legacy_sam3_home=""
 
-    if [ -n "$PAPER2ANY_ASSET_ROOT" ]; then
-        legacy_sam3_checkpoint="$PAPER2ANY_ASSET_ROOT/models/sam3/sam3.pt"
-        legacy_sam3_bpe="$PAPER2ANY_ASSET_ROOT/models/sam3/bpe_simple_vocab_16e6.txt.gz"
-        legacy_sam3_home="$PAPER2ANY_ASSET_ROOT/sam3_src"
+    if [ -n "$FIGUREMIND_ASSET_ROOT" ]; then
+        legacy_sam3_checkpoint="$FIGUREMIND_ASSET_ROOT/models/sam3/sam3.pt"
+        legacy_sam3_bpe="$FIGUREMIND_ASSET_ROOT/models/sam3/bpe_simple_vocab_16e6.txt.gz"
+        legacy_sam3_home="$FIGUREMIND_ASSET_ROOT/sam3_src"
     fi
 
     SAM3_CHECKPOINT_PATH="$(
@@ -313,7 +313,7 @@ launch_sam3_instance() {
             SAM3_HOME="$SAM3_HOME" \
             SAM3_CHECKPOINT_PATH="$SAM3_CHECKPOINT_PATH" \
             SAM3_BPE_PATH="$SAM3_BPE_PATH" \
-            "$PAPER2ANY_PYTHON" -m dataflow_agent.toolkits.model_servers.sam3_server \
+            "$FIGUREMIND_PYTHON" -m dataflow_agent.toolkits.model_servers.sam3_server \
                 --host "$SAM3_HOST" \
                 --port "$port" \
                 --checkpoint "$SAM3_CHECKPOINT_PATH" \
@@ -326,7 +326,7 @@ launch_sam3_instance() {
             SAM3_HOME="$SAM3_HOME" \
             SAM3_CHECKPOINT_PATH="$SAM3_CHECKPOINT_PATH" \
             SAM3_BPE_PATH="$SAM3_BPE_PATH" \
-            "$PAPER2ANY_PYTHON" -m dataflow_agent.toolkits.model_servers.sam3_server \
+            "$FIGUREMIND_PYTHON" -m dataflow_agent.toolkits.model_servers.sam3_server \
                 --host "$SAM3_HOST" \
                 --port "$port" \
                 --checkpoint "$SAM3_CHECKPOINT_PATH" \
@@ -353,11 +353,11 @@ echo "            |_|                                    |___/ "
 echo -e "${NC}"
 echo -e "  Target: ${BOLD}Unified Local Model Service${NC}"
 echo -e "  Log Dir: $LOG_DIR"
-echo -e "  Python:  $PAPER2ANY_PYTHON"
+echo -e "  Python:  $FIGUREMIND_PYTHON"
 echo "------------------------------------------------------------"
 
 if ! validate_python_runtime; then
-    log_error "Python runtime '$PAPER2ANY_PYTHON' is missing FastAPI/Torch/OpenCV runtime deps."
+    log_error "Python runtime '$FIGUREMIND_PYTHON' is missing FastAPI/Torch/OpenCV runtime deps."
     exit 1
 fi
 
@@ -415,7 +415,7 @@ if [ "$OCR_ENABLED" = "1" ]; then
     if command -v setsid >/dev/null 2>&1; then
         nohup setsid env \
             CUDA_VISIBLE_DEVICES="" \
-            "$PAPER2ANY_PYTHON" -m uvicorn dataflow_agent.toolkits.model_servers.ocr_server:app \
+            "$FIGUREMIND_PYTHON" -m uvicorn dataflow_agent.toolkits.model_servers.ocr_server:app \
             --host "$OCR_HOST" \
             --port "$OCR_PORT" \
             --workers "$OCR_WORKERS" \
@@ -423,7 +423,7 @@ if [ "$OCR_ENABLED" = "1" ]; then
     else
         nohup env \
             CUDA_VISIBLE_DEVICES="" \
-            "$PAPER2ANY_PYTHON" -m uvicorn dataflow_agent.toolkits.model_servers.ocr_server:app \
+            "$FIGUREMIND_PYTHON" -m uvicorn dataflow_agent.toolkits.model_servers.ocr_server:app \
             --host "$OCR_HOST" \
             --port "$OCR_PORT" \
             --workers "$OCR_WORKERS" \

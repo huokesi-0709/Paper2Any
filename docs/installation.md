@@ -70,8 +70,8 @@ sudo apt-get install -y \
 推荐：
 
 ```bash
-conda create -n paper2any python=3.11 -y
-conda activate paper2any
+conda create -n figuremind python=3.11 -y
+conda activate figuremind
 
 pip install --upgrade pip
 pip install -r requirements-paper.txt

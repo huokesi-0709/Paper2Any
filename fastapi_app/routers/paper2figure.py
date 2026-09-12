@@ -13,17 +13,17 @@ from fastapi_app.services.managed_api_service import resolve_model_name
 router = APIRouter(prefix="/paper2figure", tags=["paper2figure"])
 
 
-def get_service() -> "Paper2AnyService":
-    from fastapi_app.services.paper2any_service import Paper2AnyService
+def get_service() -> "FigureMindService":
+    from fastapi_app.services.figuremind_service import FigureMindService
 
-    return Paper2AnyService()
+    return FigureMindService()
 
 
 @router.get("/history")
 async def list_paper2figure_history_files(
     request: Request,
     email: str,
-    service: "Paper2AnyService" = Depends(get_service),
+    service: "FigureMindService" = Depends(get_service),
 ):
     """
     根据邮箱，列出该用户目录中的所有历史输出文件（pptx/png/svg）。
@@ -45,7 +45,7 @@ async def generate_paper2figure(
     language: str = Form("zh"),
     figure_complex: str = Form("easy"),
     style: str = Form("cartoon"),
-    service: "Paper2AnyService" = Depends(get_service),
+    service: "FigureMindService" = Depends(get_service),
 ):
     """
     Paper2Figure 文件下载接口。
@@ -98,7 +98,7 @@ async def generate_paper2figure_json(
     reference_image: Optional[UploadFile] = File(None),
     tech_route_edit_prompt: Optional[str] = Form(None),
     output_format: Optional[str] = Form(None),
-    service: "Paper2AnyService" = Depends(get_service),
+    service: "FigureMindService" = Depends(get_service),
 ):
     """
     Paper2Figure JSON 接口。

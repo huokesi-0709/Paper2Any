@@ -100,7 +100,7 @@ export const buildHtmlDeckArtifact = (
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Paper2Any HTML Deck</title>
+    <title>FigureMind HTML Deck</title>
     <style>${buildDeckShellCss(theme, options)}</style>
   </head>
   <body>

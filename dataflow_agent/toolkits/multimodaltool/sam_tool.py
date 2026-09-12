@@ -1929,7 +1929,7 @@ if __name__ == "__main__":
     - Run Felzenszwalb graph-based segmentation and save boundary visualization.
 
     All outputs are written to:
-        /DataFlow-Agent/outputs
+        /FigureMind/outputs
     """
     import os
     import cv2

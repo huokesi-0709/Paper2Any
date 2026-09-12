@@ -1,12 +1,12 @@
 # 开源部署与配置总指南
 
-这份文档面向从 GitHub clone 本项目后，准备在本地或自有机器上部署、调试、使用 `Paper2Any` 的开发者与使用者。
+这份文档面向从 GitHub clone 本项目后，准备在本地或自有机器上部署、调试、使用 `FigureMind` 的开发者与使用者。
 
 目标不是讲“理论上怎么部署”，而是把当前仓库里真实存在的启动链路、配置文件职责、环境边界、功能依赖和常见坑一次讲清楚。
 
 ## 1. 先读结论
 
-`Paper2Any` 不是“clone 后执行一个命令就能完整运行全部工作流”的单体项目。当前仓库至少涉及下面几层运行时：
+`FigureMind` 不是“clone 后执行一个命令就能完整运行全部工作流”的单体项目。当前仓库至少涉及下面几层运行时：
 
 | 层 | 运行时 | 主要目录 | 作用 |
 | --- | --- | --- | --- |
@@ -81,7 +81,7 @@ http://127.0.0.1:8000/health
 项目当前设计是：
 
 - 后端主进程优先使用 `APP_PYTHON`
-- 模型服务优先使用 `PAPER2ANY_PYTHON`
+- 模型服务优先使用 `FIGUREMIND_PYTHON`
 - 若未单独指定，模型服务可以回退到 `APP_PYTHON`
 - 个别 workflow 子能力还能进一步拆环境，例如：
   - `PAPER2VIDEO_CURSOR_LOCAL_PYTHON`
@@ -195,8 +195,8 @@ sudo apt-get install -y \
 ## 5. 克隆仓库
 
 ```bash
-git clone https://github.com/OpenDCAI/Paper2Any.git
-cd Paper2Any
+git clone https://github.com/huokesi-0709/FigureMind.git
+cd FigureMind
 ```
 
 ## 6. 安装运行环境
@@ -206,8 +206,8 @@ cd Paper2Any
 建议使用 `conda` 或者独立虚拟环境。推荐 Python 3.11。
 
 ```bash
-conda create -n paper2any python=3.11 -y
-conda activate paper2any
+conda create -n figuremind python=3.11 -y
+conda activate figuremind
 
 pip install --upgrade pip
 pip install -r requirements-paper.txt
@@ -492,17 +492,17 @@ FRONTEND_HOST=0.0.0.0
 FRONTEND_PORT=3000
 FRONTEND_NPM=/path/to/npm
 
-PAPER2ANY_PYTHON=/path/to/python
+FIGUREMIND_PYTHON=/path/to/python
 
 SAM3_ENABLED=1
 SAM3_GPU_MODE=auto
 SAM3_START_PORT=8021
 ```
 
-### 10.2 `APP_PYTHON` 和 `PAPER2ANY_PYTHON` 的区别
+### 10.2 `APP_PYTHON` 和 `FIGUREMIND_PYTHON` 的区别
 
 - `APP_PYTHON`：后端 `uvicorn` 主进程使用
-- `PAPER2ANY_PYTHON`：模型服务使用
+- `FIGUREMIND_PYTHON`：模型服务使用
 
 如果你不拆环境，两个都可以指向同一个 Python。
 
@@ -532,7 +532,7 @@ models/sam3-official/sam3/
 或者你提供一个 legacy 资产根目录给：
 
 ```bash
-PAPER2ANY_ASSET_ROOT=/your/asset/root
+FIGUREMIND_ASSET_ROOT=/your/asset/root
 ```
 
 然后由 `prepare_local_models.sh` 复制到仓库标准目录。

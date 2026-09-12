@@ -8,14 +8,14 @@ LOCAL_SAM3_DIR="$MODELS_DIR/sam3"
 LOCAL_SAM3_HOME="$MODELS_DIR/sam3-official/sam3"
 LOCAL_RMBG_DIR="$MODELS_DIR/RMBG-2.0"
 
-PAPER2ANY_PYTHON="${PAPER2ANY_PYTHON:-${APP_PYTHON:-$(command -v python3 || command -v python || true)}}"
-PAPER2ANY_ASSET_ROOT="${PAPER2ANY_ASSET_ROOT:-}"
+FIGUREMIND_PYTHON="${FIGUREMIND_PYTHON:-${APP_PYTHON:-$(command -v python3 || command -v python || true)}}"
+FIGUREMIND_ASSET_ROOT="${FIGUREMIND_ASSET_ROOT:-}"
 
 LEGACY_SAM3_DIR=""
 LEGACY_SAM3_HOME=""
-if [ -n "$PAPER2ANY_ASSET_ROOT" ]; then
-    LEGACY_SAM3_DIR="$PAPER2ANY_ASSET_ROOT/models/sam3"
-    LEGACY_SAM3_HOME="$PAPER2ANY_ASSET_ROOT/sam3_src"
+if [ -n "$FIGUREMIND_ASSET_ROOT" ]; then
+    LEGACY_SAM3_DIR="$FIGUREMIND_ASSET_ROOT/models/sam3"
+    LEGACY_SAM3_HOME="$FIGUREMIND_ASSET_ROOT/sam3_src"
 fi
 
 log_info() { echo "[INFO] $1"; }
@@ -72,13 +72,13 @@ download_rmbg_if_missing() {
         return 0
     fi
 
-    if [ -z "$PAPER2ANY_PYTHON" ]; then
+    if [ -z "$FIGUREMIND_PYTHON" ]; then
         log_warn "Cannot download RMBG-2.0 because no python runtime is configured."
         return 1
     fi
 
     log_info "Downloading RMBG-2.0 into $LOCAL_RMBG_DIR"
-    "$PAPER2ANY_PYTHON" - <<PY
+    "$FIGUREMIND_PYTHON" - <<PY
 from modelscope import snapshot_download
 snapshot_download(
     "AI-ModelScope/RMBG-2.0",

@@ -6,7 +6,7 @@
     "subtitle": "Agent-driven Research Creation Experience",
     "purchaseMore": "Redeem Points",
     "githubProject": "GitHub Open Source",
-    "exploreMore": "🚀 Explore more AI data processing tools",
+    "exploreMore": "🚀 Explore FigureMind scientific visual workflows",
     "quotaRemaining": "Remaining: {{remaining}}/{{limit}}",
     "managedApiNotice": {
       "title": "Managed model enabled",
@@ -70,7 +70,7 @@
     },
     "home": {
       "kicker": "Research Creation Console",
-      "title": "One entrance for every Paper2Any workflow",
+      "title": "One entrance for every FigureMind workflow",
       "description": "A one-stop AI workspace for research and presentations. Transform papers, PDFs, images, and slides into polished figures, editable decks, diagrams, videos, posters, and rebuttal drafts.",
       "primaryCta": "Start with Figures",
       "secondaryCta": "Image PPT",
@@ -81,7 +81,7 @@
       "modulesDescription": "Move from paper understanding to figures, slides, diagrams, video, and research writing without switching tools.",
       "imagePlaygroundTitle": "Image Model Playground",
       "imagePlaygroundDescription": "Batch-test research visual prompts with managed image models.",
-      "dashboardTitle": "Paper2Any workflow console",
+      "dashboardTitle": "FigureMind workflow console",
       "pipelineLabel": "Pipeline",
       "pipelineStep1Title": "Upload paper",
       "pipelineStep1Detail": "PDF / text / image",
@@ -100,7 +100,7 @@
       "outputLabel": "Research output",
       "outputDescription": "Convert dense papers into structured slides, diagrams, posters, videos, and rebuttal drafts from the same workspace.",
       "ctaTitle": "Ready to elevate your research workflow?",
-      "ctaDescription": "Start from a paper, a topic, a PDF, or an existing slide deck and route it into the right Paper2Any workspace.",
+      "ctaDescription": "Start from a paper, a topic, a PDF, or an existing slide deck and route it into the right FigureMind workspace.",
       "stats": {
         "workflows": "Workflows",
         "stages": "Core stages",
@@ -274,7 +274,7 @@
       },
       "home": {
         "badge": "Research creation workspace",
-        "title": "Paper2Any Workspace",
+        "title": "FigureMind Workspace",
         "subtitle": "Create research figures, AI visuals, mind maps, and manage outputs in one focused workspace.",
         "allFeatures": "All tools",
         "navigation": "Browse by workflow",
@@ -288,7 +288,7 @@
     },
     "footer": {
       "ready": "Ready",
-      "version": "Paper2Any v1.0.0"
+      "version": "FigureMind v1.0.0"
     }
   },
   "userMenu": {

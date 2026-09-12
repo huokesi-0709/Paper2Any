@@ -58,11 +58,11 @@ prepare_runtime_env() {
   local resolved_sam3_home=""
   local resolved_rmbg=""
 
-  if [ -n "${PAPER2ANY_ASSET_ROOT:-}" ]; then
-    legacy_sam3_checkpoint="$PAPER2ANY_ASSET_ROOT/models/sam3/sam3.pt"
-    legacy_sam3_bpe="$PAPER2ANY_ASSET_ROOT/models/sam3/bpe_simple_vocab_16e6.txt.gz"
-    legacy_sam3_home="$PAPER2ANY_ASSET_ROOT/sam3_src"
-    legacy_rmbg="$PAPER2ANY_ASSET_ROOT/models/RMBG-2.0"
+  if [ -n "${FIGUREMIND_ASSET_ROOT:-}" ]; then
+    legacy_sam3_checkpoint="$FIGUREMIND_ASSET_ROOT/models/sam3/sam3.pt"
+    legacy_sam3_bpe="$FIGUREMIND_ASSET_ROOT/models/sam3/bpe_simple_vocab_16e6.txt.gz"
+    legacy_sam3_home="$FIGUREMIND_ASSET_ROOT/sam3_src"
+    legacy_rmbg="$FIGUREMIND_ASSET_ROOT/models/RMBG-2.0"
   fi
 
   resolved_sam3_checkpoint="$(

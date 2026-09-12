@@ -97,39 +97,39 @@ const CompleteStep: React.FC<CompleteStepProps> = ({
       <div className="glass rounded-2xl p-6 mb-6 border border-white/10">
         <div className="flex flex-wrap gap-3 justify-center">
           <a
-            href="https://github.com/OpenDCAI/DataFlow"
+            href="https://github.com/huokesi-0709/FigureMind"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all"
           >
             <Github size={16} className="text-white" />
-            <span className="text-white text-sm font-medium">DataFlow</span>
+            <span className="text-white text-sm font-medium">FigureMind Core</span>
             <span className="bg-white/20 text-white px-2 py-0.5 rounded text-xs flex items-center gap-1">
               <Star size={10} fill="currentColor" /> {stars?.dataflow || 'Star'}
             </span>
           </a>
 
           <a
-            href="https://github.com/OpenDCAI/Paper2Any"
+            href="https://github.com/huokesi-0709/FigureMind"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all"
           >
             <Github size={16} className="text-white" />
-            <span className="text-white text-sm font-medium">Paper2Any</span>
+            <span className="text-white text-sm font-medium">FigureMind</span>
             <span className="bg-white/20 text-white px-2 py-0.5 rounded text-xs flex items-center gap-1">
               <Star size={10} fill="currentColor" /> {stars?.agent || 'Star'}
             </span>
           </a>
 
           <a
-            href="https://github.com/OpenDCAI/DataFlex"
+            href="https://github.com/huokesi-0709/FigureMind"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all"
           >
             <Github size={16} className="text-white" />
-            <span className="text-white text-sm font-medium">DataFlex</span>
+            <span className="text-white text-sm font-medium">FigureMind Lab</span>
             <span className="bg-white/20 text-white px-2 py-0.5 rounded text-xs flex items-center gap-1">
               <Star size={10} fill="currentColor" /> {stars?.dataflex || 'Star'}
             </span>

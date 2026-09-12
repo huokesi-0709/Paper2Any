@@ -32,7 +32,7 @@ from dataflow_agent.agentroles.cores.base_agent import BaseAgent
 from dataflow_agent.agentroles.cores.registry import register
 
 # 导入 DomFetcher（从 websearch_researcher 中复用）
-from dataflow_agent.agentroles.paper2any_agents.websearch_researcher import DomFetcher
+from dataflow_agent.agentroles.figuremind_agents.websearch_researcher import DomFetcher
 
 # OpenAI 依赖
 from openai import AsyncOpenAI
@@ -549,7 +549,6 @@ def create_websearch_initial_analyzer_agent(
     **kwargs,
 ) -> WebsearchInitialAnalyzerAgent:
     return WebsearchInitialAnalyzerAgent.create(tool_manager=tool_manager, **kwargs)
-
 
 
 

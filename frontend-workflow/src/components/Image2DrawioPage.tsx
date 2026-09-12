@@ -14,7 +14,6 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { API_URL_OPTIONS, DEFAULT_LLM_API_URL, getPurchaseUrl } from '../config/api';
-import QRCodeTooltip from './QRCodeTooltip';
 import CasesSection from './CasesSection';
 import ManagedApiNotice from './ManagedApiNotice';
 import {
@@ -37,7 +36,7 @@ const DRAWIO_ANIMATE_STEP_MS = 60;
 const DRAWIO_ANIMATE_MAX_CELLS = 240;
 const DRAWIO_ANIMATE_LARGE_BATCH = 5;
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
-const FEISHU_DOC_URL = 'https://wcny4qa9krto.feishu.cn/wiki/VXKiwYndwiWAVmkFU6kcqsTenWh';
+const PROJECT_URL = 'https://github.com/huokesi-0709/FigureMind';
 
 const Image2DrawioPage = () => {
   const { t } = useTranslation(['image2drawio', 'common']);
@@ -568,7 +567,6 @@ const Image2DrawioPage = () => {
                   <>
                     <div className="flex items-center justify-between">
                       <label className="block text-xs text-slate-400">{t('config.apiUrl')}</label>
-                      <QRCodeTooltip>
                         <a
                           href={getPurchaseUrl(apiUrl)}
                           target="_blank"
@@ -577,7 +575,6 @@ const Image2DrawioPage = () => {
                         >
                           {t('config.buyLink')}
                         </a>
-                      </QRCodeTooltip>
                     </div>
                     <select
                       value={apiUrl}
@@ -765,8 +762,8 @@ const Image2DrawioPage = () => {
         <CasesSection
           title={t('cases.title')}
           subtitle={t('cases.subtitle')}
-          feishuLabel={t('cases.feishu')}
-          feishuUrl={FEISHU_DOC_URL}
+          projectLabel={t('cases.project')}
+          projectUrl={PROJECT_URL}
           tone="amber"
           columns={1}
           cases={[

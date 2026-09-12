@@ -12,7 +12,7 @@ from dataflow_agent.state import Paper2FigureState
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.workflow.registry import register
 from dataflow_agent.agentroles import create_react_agent, create_simple_agent
-from dataflow_agent.agentroles.paper2any_agents.content_expander_agent import create_content_expander
+from dataflow_agent.agentroles.figuremind_agents.content_expander_agent import create_content_expander
 from dataflow_agent.logger import get_logger
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.utils_markdown_sections import (

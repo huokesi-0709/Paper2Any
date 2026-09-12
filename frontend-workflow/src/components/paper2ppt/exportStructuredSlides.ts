@@ -201,8 +201,8 @@ export const exportStructuredSlidesToPptx = async ({
   };
   const pres = new PptxGenCtor();
   pres.layout = 'LAYOUT_WIDE';
-  pres.author = 'Paper2Any';
-  pres.company = 'Paper2Any';
+  pres.author = 'FigureMind';
+  pres.company = 'FigureMind';
   pres.subject = 'Structured editable PPT';
   pres.title = fileName || 'paper2ppt_structured_editable';
 

@@ -198,7 +198,7 @@ async def run_image2ppt_workflow(args, input_path: Path, output_dir: Path) -> Pa
         use_ai_edit=args.use_ai_edit,
         input_type="FIGURE",
         input_content=str(input_path),
-        email="cli_image2ppt@paper2any.local",
+        email="cli_image2ppt@figuremind.local",
     )
 
     log.info("%s", "=" * 60)

@@ -10,7 +10,6 @@ import ReactMarkdown from 'react-markdown';
 import Timeline from './Timeline';
 import TodoList from './TodoList';
 import PaperList from './PaperList';
-import QRCodeTooltip from '../QRCodeTooltip';
 import ManagedApiNotice from '../ManagedApiNotice';
 import { useRuntimeBilling } from '../../hooks/useRuntimeBilling';
 
@@ -855,7 +854,6 @@ const Paper2RebuttalPage = () => {
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <label className="block text-xs text-gray-400">{t('paper2rebuttal:upload.apiUrl')}</label>
-                        <QRCodeTooltip>
                           <a
                             href={getPurchaseUrl(llmApiUrl)}
                             target="_blank"
@@ -864,7 +862,6 @@ const Paper2RebuttalPage = () => {
                           >
                             {t('paper2rebuttal:upload.buyLink')}
                           </a>
-                        </QRCodeTooltip>
                       </div>
                       {API_URL_OPTIONS.length > 1 ? (
                         <select
@@ -1608,21 +1605,21 @@ const Paper2RebuttalPage = () => {
           </div>
         )}
 
-        {/* Feishu Doc */}
+        {/* Project Page */}
         <div className="pt-4">
           <div className="glass-dark rounded-2xl px-6 py-4 border border-white/10 flex flex-col md:flex-row items-center justify-between gap-3">
             <div className="text-sm text-gray-300">
-              {t('paper2rebuttal:feishu.title')}
+              {t('paper2rebuttal:project.title')}
             </div>
             <a
-              href="https://wcny4qa9krto.feishu.cn/wiki/VXKiwYndwiWAVmkFU6kcqsTenWh"
+              href="https://github.com/huokesi-0709/FigureMind"
               target="_blank"
               rel="noopener noreferrer"
               className="group relative inline-flex items-center gap-2 px-4 py-2 rounded-full bg-black/50 border border-white/10 text-xs font-medium text-white overflow-hidden transition-all hover:border-white/30 hover:shadow-[0_0_15px_rgba(10,132,255,0.4)]"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-[#0A84FF]/20 via-[#5AC8FA]/20 to-[#AF52DE]/20 opacity-0 group-hover:opacity-100 transition-opacity" />
               <span className="bg-gradient-to-r from-[#7FD0FF] via-[#AF52DE] to-[#FF9F0A] bg-clip-text text-transparent">
-                {t('paper2rebuttal:feishu.link')}
+                {t('paper2rebuttal:project.link')}
               </span>
             </a>
           </div>

@@ -116,6 +116,7 @@ class BillingService:
         billing_mode: Optional[str] = None,
         user_id: Optional[str] = None,
         billing_exempt: bool = False,
+        is_admin: bool = False,
     ) -> Dict[str, Any]:
         return {
             "used": 0,
@@ -124,6 +125,7 @@ class BillingService:
             "is_authenticated": is_authenticated,
             "is_unlimited": True,
             "billing_exempt": billing_exempt,
+            "is_admin": is_admin,
             "billing_mode": billing_mode or get_runtime_billing_config()["billing_mode"],
             **({"user_id": user_id} if user_id else {}),
         }
@@ -261,7 +263,9 @@ class BillingService:
         self._invalidate_cached_quota(user_id)
 
     def _ensure_signup_bonus(self, user: AuthUser) -> None:
-        signup_bonus_points = int(self._billing_config().get("signup_bonus_points", 0))
+        if user.is_billing_exempt:
+            return
+        signup_bonus_points = int(self._billing_config().get("signup_bonus_points", 5))
         if signup_bonus_points <= 0:
             return
         event_key = f"signup_bonus_{user.id}"
@@ -290,8 +294,8 @@ class BillingService:
 
     def _grant_daily_points_if_needed(self, user: AuthUser) -> None:
         billing = self._billing_config()
-        daily_points = int(billing.get("daily_grant_points", 5))
-        balance_cap = int(billing.get("daily_grant_balance_cap", 15))
+        daily_points = int(billing.get("daily_grant_points", 0))
+        balance_cap = int(billing.get("daily_grant_balance_cap", 0))
         if daily_points <= 0 or balance_cap <= 0:
             return
 
@@ -325,6 +329,7 @@ class BillingService:
                 billing_mode=get_runtime_billing_config()["billing_mode"],
                 user_id=user.id,
                 billing_exempt=True,
+                is_admin=user.is_admin,
             )
 
         if not is_free_billing_mode():
@@ -398,6 +403,7 @@ class BillingService:
                     billing_mode=get_runtime_billing_config()["billing_mode"],
                     user_id=user.id,
                     billing_exempt=True,
+                    is_admin=user.is_admin,
                 )
                 self._set_cached_quota(user.id, quota)
                 return {
@@ -407,6 +413,7 @@ class BillingService:
                     "remaining": UNLIMITED_QUOTA,
                     "is_unlimited": True,
                     "billing_exempt": True,
+                    "is_admin": user.is_admin,
                     "billing_mode": quota["billing_mode"],
                 }
 
@@ -506,6 +513,7 @@ class BillingService:
 
         return {
             "billing_mode": get_runtime_billing_config()["billing_mode"],
+            "is_admin": user.is_admin,
             "profile": profile,
             "points": {
                 "balance": self._get_balance(user.id),

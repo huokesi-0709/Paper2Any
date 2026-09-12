@@ -10,7 +10,7 @@ cd "$PROJECT_ROOT"
 
 # 子进程必须用 echomimic 环境（含 diffusers 等），不能用 p2v
 export ECHOMIMIC_PYTHON="${ECHOMIMIC_PYTHON:-/root/miniconda3/envs/echomimic/bin/python}"
-export ECHOMIMIC_CWD="${ECHOMIMIC_CWD:-/data/users/ligang/EchoMimic}"
+export ECHOMIMIC_CWD="${ECHOMIMIC_CWD:-/opt/echomimic}"
 export ECHOMIMIC_INFER_TIMEOUT="${ECHOMIMIC_INFER_TIMEOUT:-900}"
 
 # (GPU_ID, PORT) 共 8 个

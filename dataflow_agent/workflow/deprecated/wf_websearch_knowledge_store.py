@@ -55,7 +55,7 @@ def create_websearch_knowledge_store_graph() -> GenericGraphBuilder:  # noqa: N8
         - 处理 Researcher 的产出并入库
         - 设定下一个执行任务 current_task
         """
-        from dataflow_agent.agentroles.paper2any_agents.websearch_planner import create_websearch_planner_agent
+        from dataflow_agent.agentroles.figuremind_agents.websearch_planner import create_websearch_planner_agent
         planner = create_websearch_planner_agent()
         await planner.run(state)
         return state
@@ -69,7 +69,7 @@ def create_websearch_knowledge_store_graph() -> GenericGraphBuilder:  # noqa: N8
         - 提取正文并保存 DOM
         - 产出初始研究路线 research_routes
         """
-        from dataflow_agent.agentroles.paper2any_agents.websearch_initial_analyzer import create_websearch_initial_analyzer_agent
+        from dataflow_agent.agentroles.figuremind_agents.websearch_initial_analyzer import create_websearch_initial_analyzer_agent
         analyzer = create_websearch_initial_analyzer_agent()
         await analyzer.run(state)
         return state
@@ -82,7 +82,7 @@ def create_websearch_knowledge_store_graph() -> GenericGraphBuilder:  # noqa: N8
         - 依据 current_task 进行联网深度搜索
         - 抓取新网页内容，保存 DOM
         """
-        from dataflow_agent.agentroles.paper2any_agents.websearch_researcher import create_websearch_researcher_agent
+        from dataflow_agent.agentroles.figuremind_agents.websearch_researcher import create_websearch_researcher_agent
         researcher = create_websearch_researcher_agent()
         await researcher.run(state)
         return state
@@ -95,7 +95,7 @@ def create_websearch_knowledge_store_graph() -> GenericGraphBuilder:  # noqa: N8
         - 读取 Raw Data Store 全量数据
         - 生成最终结构化知识总结 knowledge_base_summary
         """
-        from dataflow_agent.agentroles.paper2any_agents.websearch_curator import create_websearch_curator_agent
+        from dataflow_agent.agentroles.figuremind_agents.websearch_curator import create_websearch_curator_agent
         curator = create_websearch_curator_agent()
         await curator.run(state)
         return state

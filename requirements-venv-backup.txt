@@ -24,8 +24,8 @@ cssselect2==0.9.0
 cycler==0.12.1
 dashscope==1.25.14
 dataclasses-json==0.6.7
-# Editable install with no version control (dataflow-agent==0.1.0)
--e e:\projects\paper2any
+# Editable install with no version control (figuremind-agent==0.1.0)
+-e e:\projects\figuremind
 dateparser==1.4.2
 defusedxml==0.7.1
 deprecation==2.1.0

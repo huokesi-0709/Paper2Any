@@ -10,7 +10,7 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_ROOT_USER_ACTION=ignore \
-    PAPER2ANY_RUNTIME_TMPDIR=/app/outputs/system/tmp
+    FIGUREMIND_RUNTIME_TMPDIR=/app/outputs/system/tmp
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \

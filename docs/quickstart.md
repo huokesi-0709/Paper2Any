@@ -12,8 +12,8 @@
 ### 1. 克隆仓库
 
 ```bash
-git clone https://github.com/OpenDCAI/Paper2Any.git
-cd Paper2Any
+git clone https://github.com/huokesi-0709/FigureMind.git
+cd FigureMind
 ```
 
 ### 2. 准备后端 Python 环境
@@ -21,8 +21,8 @@ cd Paper2Any
 推荐 Python 3.11。
 
 ```bash
-conda create -n paper2any python=3.11 -y
-conda activate paper2any
+conda create -n figuremind python=3.11 -y
+conda activate figuremind
 
 pip install --upgrade pip
 pip install -r requirements-paper.txt
@@ -65,7 +65,7 @@ cp frontend-workflow/.env.example frontend-workflow/.env
 ```bash
 BACKEND_API_KEY=your-backend-api-key
 APP_BILLING_MODE=free
-PAPER2ANY_CONFIG_MODE=simple
+FIGUREMIND_CONFIG_MODE=simple
 SIMPLE_TEXT_API_URL=https://your-llm-gateway/v1
 SIMPLE_TEXT_API_KEY=your-llm-api-key
 ```

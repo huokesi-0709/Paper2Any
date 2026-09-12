@@ -3290,7 +3290,7 @@ Requirements:
                     "id": "footer",
                     "type": "text",
                     "role": "footer",
-                    "content": str(theme.get("footer_text") or "Paper2Any Frontend PPT"),
+                    "content": str(theme.get("footer_text") or "FigureMind Frontend PPT"),
                     "items": [],
                     "asset_key": "",
                     "layout": self._normalize_layout_hint(
@@ -3936,7 +3936,7 @@ If there are any meaningful problems, set passed=false and provide a concrete re
 
     def _build_fallback_theme(self, *, language: str, style: str) -> Dict[str, Any]:
         style_family = self._infer_style_family(style)
-        footer_text = "Paper2Any Frontend PPT"
+        footer_text = "FigureMind Frontend PPT"
         section_label_template = (
             "第 {page_num:02d}/{slide_count:02d} 页"
             if language.strip().lower().startswith("zh")
@@ -5070,7 +5070,7 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                 "key": "footer",
                 "label": "Footer",
                 "type": "text",
-                "value": str(theme.get("footer_text") or "Paper2Any Frontend PPT"),
+                "value": str(theme.get("footer_text") or "FigureMind Frontend PPT"),
                 "items": [],
             },
         ]

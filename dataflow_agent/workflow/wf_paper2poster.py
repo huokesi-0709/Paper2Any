@@ -3,7 +3,7 @@ Paper2Poster Workflow
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Converts academic papers to aesthetic conference posters using multi-agent LLMs.
 
-This workflow integrates PosterGen functionality into Paper2Any:
+This workflow integrates PosterGen functionality into FigureMind:
 1. Parser Agent - extracts and structures content from paper PDF
 2. Curator Agent - designs narrative-based storyboard
 3. Layout Agent - creates spatially balanced three-column layout

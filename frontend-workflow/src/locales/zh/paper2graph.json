@@ -166,7 +166,7 @@
   "examples": {
     "sectionTitle": "示例：从 Paper 到 PPTX",
     "sectionSubtitle": "下方示例展示从 PDF / 图片 / 文本 到可编辑 PPTX 的效果。",
-    "feishuLink": "常见问题与更多案例",
+    "projectLink": "常见问题与更多案例",
     "cards": {
       "paperPdfToFigureTitle": "论文 PDF → 符合论文主题的 科研绘图（PPT）",
       "paperPdfToFigureDesc": "上传英文论文 PDF，自动提炼研究背景、方法、实验设计和结论，生成结构清晰、符合学术风格的汇报 PPTX。",
@@ -187,7 +187,7 @@
   "cases": {
     "title": "模型架构图案例",
     "subtitle": "示例可直接转为 DrawIO 在线编辑",
-    "feishu": "查看飞书文档",
+    "project": "查看项目主页",
     "items": {
       "case1Title": "模型架构示例一",
       "case1Desc": "结构层级清晰，便于二次编辑",

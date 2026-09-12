@@ -3,10 +3,10 @@ requires = ["setuptools>=62", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "dataflow-agent"        # pip install dataflow-agent
+name = "figuremind-agent"
 version = "0.1.0"
-description = "LLM agent component for DataFlow."
-authors = [{ name = "Zhou Liu", email = "liuzhoul82@gmail.com" }]
+description = "Multimodal agent for scientific figure generation."
+authors = [{ name = "linkinwise" }]
 readme = "README.md"
 requires-python = ">=3.9"
 
@@ -60,7 +60,7 @@ include = ["dataflow_agent*"]
 exclude = ["tests*"]
 
 [project.scripts]
-dfa = "dataflow_agent.cli:cli"
+figuremind = "dataflow_agent.cli:cli"
 
 [tool.pytest.ini_options]
 norecursedirs = ["tests/manual"]

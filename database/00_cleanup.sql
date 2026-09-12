@@ -1,5 +1,5 @@
 -- ==============================================================================
--- Paper2Any Database Cleanup Script
+-- FigureMind Database Cleanup Script
 --
 -- This script removes all existing tables, functions, triggers, views,
 -- and storage policies to prepare for a fresh initialization.

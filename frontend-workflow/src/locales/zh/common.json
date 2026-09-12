@@ -6,7 +6,7 @@
     "subtitle": "Agent 驱动的科研创作新体验",
     "purchaseMore": "积分兑换",
     "githubProject": "GitHub开源项目",
-    "exploreMore": "🚀 探索更多 AI 数据处理工具",
+    "exploreMore": "🚀 探索 FigureMind 科研生图能力",
     "quotaRemaining": "剩余次数: {{remaining}}/{{limit}}",
     "managedApiNotice": {
       "title": "后端托管模型已开启",
@@ -70,7 +70,7 @@
     },
     "home": {
       "kicker": "Research Creation Console",
-      "title": "一个入口，串起 Paper2Any 的全部科研工作流",
+      "title": "一个入口，串起 FigureMind 的全部科研工作流",
       "description": "面向科研和汇报的一站式 AI 工作台。把论文、PDF、图片和幻灯片转成高质量科研图、可编辑 PPT、DrawIO 图、视频、海报和审稿回复初稿。",
       "primaryCta": "先看科研绘图",
       "secondaryCta": "图片版 PPT",
@@ -81,7 +81,7 @@
       "modulesDescription": "从论文理解到图表、PPT、结构图、视频和科研写作，一个工作台里完成流转。",
       "imagePlaygroundTitle": "生图模型体验",
       "imagePlaygroundDescription": "批量测试科研视觉 prompt，对比不同生图模型产出。",
-      "dashboardTitle": "Paper2Any 工作流控制台",
+      "dashboardTitle": "FigureMind 工作流控制台",
       "pipelineLabel": "流程",
       "pipelineStep1Title": "上传论文",
       "pipelineStep1Detail": "PDF / 文本 / 图片",
@@ -100,7 +100,7 @@
       "outputLabel": "科研产出",
       "outputDescription": "在同一个工作台里，把密集论文转成结构化 PPT、图表、海报、视频和审稿回复初稿。",
       "ctaTitle": "准备升级你的科研工作流？",
-      "ctaDescription": "从论文、主题、PDF 或已有 PPT 出发，把素材送进最合适的 Paper2Any 工作台。",
+      "ctaDescription": "从论文、主题、PDF 或已有 PPT 出发，把素材送进最合适的 FigureMind 工作台。",
       "stats": {
         "workflows": "工作流",
         "stages": "核心阶段",
@@ -274,7 +274,7 @@
       },
       "home": {
         "badge": "科研创作工作台",
-        "title": "Paper2Any 工作台",
+        "title": "FigureMind 工作台",
         "subtitle": "在一个清晰的工作区里完成科研绘图、AI 生图、思维导图与文件管理。",
         "allFeatures": "全部功能",
         "navigation": "按场景浏览",
@@ -288,7 +288,7 @@
     },
     "footer": {
       "ready": "就绪",
-      "version": "Paper2Any v1.0.0"
+      "version": "FigureMind v1.0.0"
     }
   },
   "userMenu": {

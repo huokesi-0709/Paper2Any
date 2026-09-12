@@ -389,7 +389,7 @@
 #     """
 #     根据 graph_type 选择不同 workflow，并拆分输出目录。
 
-#     入参 req 通常由 FastAPI 路由层（如 paper2any.generate_paper2figure）
+#     入参 req 通常由 FastAPI 路由层（如 figuremind.generate_paper2figure）
 #     根据前端 FormData 映射而来：
 #       - input_type: "PDF" / "TEXT" / "FIGURE"
 #       - input_content: 文件路径或纯文本

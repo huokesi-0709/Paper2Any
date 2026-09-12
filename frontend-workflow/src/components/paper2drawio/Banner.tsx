@@ -18,22 +18,22 @@ const Banner: React.FC<BannerProps> = ({ show, onClose, stars }) => {
 
   const projects = [
     {
-      name: 'DataFlow',
-      href: 'https://github.com/OpenDCAI/DataFlow',
+      name: 'FigureMind Core',
+      href: 'https://github.com/huokesi-0709/FigureMind',
       stars: stars.dataflow,
       tag: 'HOT',
       tagColor: 'text-neon-pink shadow-[0_0_10px_rgba(236,73,153,0.6)] bg-neon-pink/10',
     },
     {
-      name: 'Paper2Any',
-      href: 'https://github.com/OpenDCAI/Paper2Any',
+      name: 'FigureMind',
+      href: 'https://github.com/huokesi-0709/FigureMind',
       stars: stars.agent,
       tag: 'NEW',
       tagColor: 'text-neon-cyan shadow-[0_0_10px_rgba(34,211,238,0.6)] bg-neon-cyan/10',
     },
     {
-      name: 'DataFlex',
-      href: 'https://github.com/OpenDCAI/DataFlex',
+      name: 'FigureMind Lab',
+      href: 'https://github.com/huokesi-0709/FigureMind',
       stars: stars.dataflex,
       tag: 'NEW',
       tagColor: 'text-neon-purple shadow-[0_0_10px_rgba(167,139,250,0.6)] bg-neon-purple/10',
@@ -47,7 +47,7 @@ const Banner: React.FC<BannerProps> = ({ show, onClose, stars }) => {
       <div className="relative max-w-7xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-3 flex-wrap justify-center sm:justify-start">
           <a
-            href="https://github.com/OpenDCAI"
+            href="https://github.com/huokesi-0709"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 rounded-full border border-border-medium bg-surface-base/60 px-3 py-1 text-xs font-medium text-white hover:border-neon-cyan/40 transition-colors"

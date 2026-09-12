@@ -45,6 +45,7 @@ interface LedgerRecord {
 
 interface AccountProfileResponse {
   billing_mode: "paid" | "free";
+  is_admin?: boolean;
   profile: ProfileData;
   points: PointsData;
   referrals: ReferralRecord[];
@@ -96,6 +97,7 @@ export function AccountPage() {
   const showApiSettings = runtimeConfig.user_api_config_required;
   const pointsBalance = profileData?.points?.balance ?? 0;
   const isUnlimited = Boolean(profileData?.points?.is_unlimited);
+  const isAdmin = Boolean(profileData?.is_admin);
   const displayModeText = runtimeConfig.billing_mode === "free" ? "免费模式" : "付费模式";
   const purchaseUrl = runtimeConfig.points_purchase_url?.trim()
     || getPurchaseUrl(runtimeConfig.managed_api_url || DEFAULT_LLM_API_URL);
@@ -308,10 +310,12 @@ export function AccountPage() {
                   {isUnlimited || runtimeConfig.billing_mode !== "free" ? "∞" : `${pointsBalance}`}
                 </div>
                 <p className="text-sm text-slate-400">
-                  {isUnlimited
-                    ? "管理员 / 开发者账号不消耗平台点数。"
+                  {isAdmin
+                    ? "管理员账号拥有无限配额，使用功能不扣积分。"
+                    : isUnlimited
+                    ? "开发者免计费账号不消耗平台积分。"
                     : runtimeConfig.billing_mode === "free"
-                    ? `每日最多补 ${runtimeConfig.daily_grant_points} 点，余额上限 ${runtimeConfig.daily_grant_balance_cap} 点。`
+                    ? `新用户注册一次性获得 ${runtimeConfig.signup_bonus_points} 积分，功能按标注积分扣除。`
                     : "当前模式不扣平台点数，主要依赖用户自备 API。"}
                 </p>
               </div>

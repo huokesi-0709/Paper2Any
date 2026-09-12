@@ -555,7 +555,7 @@ def _candidate_html_urls(raw_work: Dict[str, Any]) -> List[str]:
 
 async def _fetch_first_html(urls: List[str]) -> tuple[str, str]:
     headers = {
-        "User-Agent": "Mozilla/5.0 (compatible; Paper2Any/1.0; +https://paper2any.ai)"
+        "User-Agent": "Mozilla/5.0 (compatible; FigureMind/1.0; +https://figuremind.ai)"
     }
     last_error = ""
     async with httpx.AsyncClient(timeout=httpx.Timeout(25.0), headers=headers, follow_redirects=True) as client:

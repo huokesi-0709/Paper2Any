@@ -27,7 +27,7 @@ const fallbackTheme: ResolvedFrontendDeckTheme = {
   themeName: 'paper2ppt_structured',
   visualMood: 'calm academic dark theme',
   styleFamily: 'modern',
-  footerText: 'Paper2Any Structured PPT',
+  footerText: 'FigureMind Structured PPT',
   sectionLabelTemplate: 'Slide {page_num:02d}/{slide_count:02d}',
   palette: {
     bg: '#0b1020',

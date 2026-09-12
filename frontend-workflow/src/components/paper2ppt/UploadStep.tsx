@@ -8,7 +8,6 @@ import {
   MonitorSmartphone,
   Info, X
 } from 'lucide-react';
-import QRCodeTooltip from '../QRCodeTooltip';
 import ManagedApiNotice from '../ManagedApiNotice';
 import DemoCard from './DemoCard';
 import { FrontendImageMode, PptGenerationMode, UploadMode, StyleMode, StylePreset } from './types';
@@ -511,7 +510,6 @@ const UploadStep: React.FC<UploadStepProps> = ({
                     <label className="block text-xs text-gray-400 flex items-center gap-1">
                       <Globe size={12} /> {t('upload.config.apiUrl')}
                     </label>
-                    <QRCodeTooltip>
                       <a
                         href={getPurchaseUrl(llmApiUrl)}
                         target="_blank"
@@ -520,7 +518,6 @@ const UploadStep: React.FC<UploadStepProps> = ({
                       >
                         {t('upload.config.buyLink')}
                       </a>
-                    </QRCodeTooltip>
                   </div>
                   <select 
                     value={llmApiUrl} 
@@ -963,7 +960,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
             <div className="flex items-center gap-3">
             <h3 className="text-sm font-medium text-gray-200">{t('upload.demo.title')}</h3>
             <a
-              href="https://wcny4qa9krto.feishu.cn/wiki/VXKiwYndwiWAVmkFU6kcqsTenWh"
+              href="https://github.com/huokesi-0709/FigureMind"
               target="_blank"
               rel="noopener noreferrer"
               className="group relative inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/50 border border-white/10 text-xs font-medium text-white overflow-hidden transition-all hover:border-white/30 hover:shadow-[0_0_15px_rgba(168,85,247,0.5)]"

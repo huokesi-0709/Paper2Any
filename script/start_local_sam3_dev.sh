@@ -15,12 +15,12 @@ SAM3_BPE_PATH="${SAM3_BPE_PATH:-$ROOT_DIR/models/sam3/bpe_simple_vocab_16e6.txt.
 SAM3_HOME="${SAM3_HOME:-$ROOT_DIR/models/sam3-official/sam3}"
 SAM3_SERVER_URLS="${SAM3_SERVER_URLS:-http://127.0.0.1:${SAM3_PORT}}"
 
-PAPER2ANY_PYTHON="${PAPER2ANY_PYTHON:-}"
-if [[ -z "$PAPER2ANY_PYTHON" ]]; then
+FIGUREMIND_PYTHON="${FIGUREMIND_PYTHON:-}"
+if [[ -z "$FIGUREMIND_PYTHON" ]]; then
   if command -v python3 >/dev/null 2>&1; then
-    PAPER2ANY_PYTHON="$(command -v python3)"
+    FIGUREMIND_PYTHON="$(command -v python3)"
   elif command -v python >/dev/null 2>&1; then
-    PAPER2ANY_PYTHON="$(command -v python)"
+    FIGUREMIND_PYTHON="$(command -v python)"
   else
     echo "[ERROR] python executable not found"
     exit 1
@@ -51,7 +51,7 @@ safe_kill_port() {
 
 echo "[INFO] Root: $ROOT_DIR"
 echo "[INFO] Logs: $LOG_DIR"
-echo "[INFO] Python: $PAPER2ANY_PYTHON"
+echo "[INFO] Python: $FIGUREMIND_PYTHON"
 echo "[INFO] SAM3 GPU: $SAM3_GPU, SAM3 port: $SAM3_PORT"
 echo "[INFO] Backend: $BACKEND_PORT, Frontend: $FRONTEND_PORT"
 
@@ -66,7 +66,7 @@ env CUDA_VISIBLE_DEVICES="$SAM3_GPU" \
     SAM3_HOME="$SAM3_HOME" \
     SAM3_CHECKPOINT_PATH="$SAM3_CHECKPOINT_PATH" \
     SAM3_BPE_PATH="$SAM3_BPE_PATH" \
-    nohup "$PAPER2ANY_PYTHON" -m dataflow_agent.toolkits.model_servers.sam3_server \
+    nohup "$FIGUREMIND_PYTHON" -m dataflow_agent.toolkits.model_servers.sam3_server \
       --host 0.0.0.0 \
       --port "$SAM3_PORT" \
       --checkpoint "$SAM3_CHECKPOINT_PATH" \
@@ -78,7 +78,7 @@ sleep 2
 
 echo "[STEP] Start backend..."
 env SAM3_SERVER_URLS="$SAM3_SERVER_URLS" \
-    nohup "$PAPER2ANY_PYTHON" -m uvicorn fastapi_app.main:app --host 0.0.0.0 --port "$BACKEND_PORT" \
+    nohup "$FIGUREMIND_PYTHON" -m uvicorn fastapi_app.main:app --host 0.0.0.0 --port "$BACKEND_PORT" \
       > "$LOG_DIR/local_backend.log" 2>&1 &
 
 sleep 2

@@ -205,7 +205,7 @@ async def run_pdf2ppt_workflow(args, input_path: Path, output_dir: Path) -> Pape
         page_count=args.page_count,
         input_type="PDF",
         input_content=str(input_path),
-        email="cli_pdf2ppt@paper2any.local",
+        email="cli_pdf2ppt@figuremind.local",
         credential_scope="pdf2ppt",
         use_ai_edit=args.use_ai_edit,
     )

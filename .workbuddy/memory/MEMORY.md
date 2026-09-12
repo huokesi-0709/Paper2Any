@@ -1,4 +1,4 @@
-# Paper2Any 项目记事
+# FigureMind 项目记事
 
 ## 前端设计系统（Neon Lab 霓虹科研实验室）
 

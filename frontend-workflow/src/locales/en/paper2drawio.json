@@ -65,7 +65,7 @@
   },
   "examples": {
     "sectionTitle": "Examples",
-    "feishuLink": "View Tutorial",
+    "projectLink": "View Tutorial",
     "sectionSubtitle": "Get started with examples",
     "cards": {
       "pdfToDiagramTitle": "PDF to Diagram",
@@ -77,7 +77,7 @@
   "cases": {
     "title": "Flow / Architecture Cases",
     "subtitle": "Examples are editable and exportable",
-    "feishu": "View Feishu Doc",
+    "project": "View Project Page",
     "items": {
       "case1Title": "Flowchart Example",
       "case1Desc": "Generate editable flowcharts from text or PDF",

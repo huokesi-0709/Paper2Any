@@ -26,7 +26,7 @@ const Banner: React.FC<BannerProps> = ({ show, onClose, stars }) => {
       <div className="relative max-w-7xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-3 flex-wrap justify-center sm:justify-start">
           <a
-            href="https://github.com/OpenDCAI"
+            href="https://github.com/huokesi-0709"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 hover:bg-white/30 transition-colors"
@@ -42,37 +42,37 @@ const Banner: React.FC<BannerProps> = ({ show, onClose, stars }) => {
 
         <div className="flex items-center gap-2 flex-wrap justify-center">
           <a
-            href="https://github.com/OpenDCAI/DataFlow"
+            href="https://github.com/huokesi-0709/FigureMind"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-xs font-semibold transition-all hover:scale-105 shadow-lg"
           >
             <Github size={14} />
-            <span>DataFlow</span>
+            <span>FigureMind Core</span>
             <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.dataflow || 'Star'}</span>
             <span className="bg-purple-600 text-white px-2 py-0.5 rounded-full text-[10px]">HOT</span>
           </a>
 
           <a
-            href="https://github.com/OpenDCAI/Paper2Any"
+            href="https://github.com/huokesi-0709/FigureMind"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-xs font-semibold transition-all hover:scale-105 shadow-lg"
           >
             <Github size={14} />
-            <span>Paper2Any</span>
+            <span>FigureMind</span>
             <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.agent || 'Star'}</span>
             <span className="bg-pink-600 text-white px-2 py-0.5 rounded-full text-[10px]">NEW</span>
           </a>
 
           <a
-            href="https://github.com/OpenDCAI/DataFlex"
+            href="https://github.com/huokesi-0709/FigureMind"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-xs font-semibold transition-all hover:scale-105 shadow-lg"
           >
             <Github size={14} />
-            <span>DataFlex</span>
+            <span>FigureMind Lab</span>
             <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.dataflex || 'Star'}</span>
             <span className="bg-sky-600 text-white px-2 py-0.5 rounded-full text-[10px]">NEW</span>
           </a>

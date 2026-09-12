@@ -17,7 +17,7 @@ except ImportError:
 def _configure_runtime_tempdir() -> None:
     project_root = Path(__file__).resolve().parent.parent
     runtime_tmp = Path(
-        os.getenv("PAPER2ANY_RUNTIME_TMPDIR", str(project_root / "outputs" / "system" / "tmp"))
+        os.getenv("FIGUREMIND_RUNTIME_TMPDIR", str(project_root / "outputs" / "system" / "tmp"))
     ).expanduser().resolve()
     runtime_tmp.mkdir(parents=True, exist_ok=True)
     for key in ("TMPDIR", "TEMP", "TMP"):
@@ -34,7 +34,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi_app.config import settings
 from fastapi_app.routers import account
 from fastapi_app.routers import paper2video
-from fastapi_app.routers import paper2any, paper2citation, paper2figure, paper2ppt, paper2poster
+from fastapi_app.routers import figuremind, paper2citation, paper2figure, paper2ppt, paper2poster
 from fastapi_app.routers import pdf2ppt, image2ppt, kb, kb_workflows, kb_embedding, files
 from fastapi_app.routers import image2drawio
 from fastapi_app.routers import image_playground
@@ -86,7 +86,7 @@ def create_app() -> FastAPI:
 
     # 路由挂载
     # Paper2Graph / System
-    app.include_router(paper2any.router, prefix="/api/v1", tags=["paper2any"])
+    app.include_router(figuremind.router, prefix="/api/v1", tags=["figuremind"])
     app.include_router(paper2figure.router, prefix="/api/v1", tags=["paper2figure"])
     app.include_router(account.router, prefix="/api/v1", tags=["account"])
     # Paper2PPT

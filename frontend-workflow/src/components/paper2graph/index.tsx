@@ -204,9 +204,9 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
     const fetchStars = async () => {
       try {
         const [res1, res2, res3] = await Promise.all([
-          fetch('https://api.github.com/repos/OpenDCAI/DataFlow'),
-          fetch('https://api.github.com/repos/OpenDCAI/Paper2Any'),
-          fetch('https://api.github.com/repos/OpenDCAI/DataFlex')
+          fetch('https://api.github.com/repos/huokesi-0709/FigureMind'),
+          fetch('https://api.github.com/repos/huokesi-0709/FigureMind'),
+          fetch('https://api.github.com/repos/huokesi-0709/FigureMind')
         ]);
         const data1 = await res1.json();
         const data2 = await res2.json();

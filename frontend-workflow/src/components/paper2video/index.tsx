@@ -120,9 +120,9 @@ const Paper2VideoPage = () => {
     const fetchStars = async () => {
       try {
         const [res1, res2, res3] = await Promise.all([
-          fetch('https://api.github.com/repos/OpenDCAI/DataFlow'),
-          fetch('https://api.github.com/repos/OpenDCAI/Paper2Any'),
-          fetch('https://api.github.com/repos/OpenDCAI/DataFlex'),
+          fetch('https://api.github.com/repos/huokesi-0709/FigureMind'),
+          fetch('https://api.github.com/repos/huokesi-0709/FigureMind'),
+          fetch('https://api.github.com/repos/huokesi-0709/FigureMind'),
         ]);
         const data1 = await res1.json();
         const data2 = await res2.json();
@@ -463,13 +463,13 @@ const Paper2VideoPage = () => {
                 <div className="rounded-lg overflow-hidden border border-white/10 bg-black/40">
                   <iframe
                     title="示例一 PDF"
-                    src={`${EXAMPLE_BASE}/dataflow.pdf#view=FitH`}
+                    src={`${EXAMPLE_BASE}/poetry.pdf#view=FitH`}
                     className="w-full h-[280px]"
                   />
                 </div>
                 <div className="rounded-lg overflow-hidden border border-white/10 bg-black/40">
                   <video
-                    src={`${EXAMPLE_BASE}/dataflow.mp4`}
+                    src={`${EXAMPLE_BASE}/poetry.mp4`}
                     controls
                     className="w-full max-h-[280px]"
                     preload="metadata"

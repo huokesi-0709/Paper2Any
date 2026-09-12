@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 
 import { DEFAULT_LLM_API_URL, getPurchaseUrl } from '../config/api';
 import { useRuntimeBilling } from '../hooks/useRuntimeBilling';
-import QRCodeTooltip from './QRCodeTooltip';
 
 export function PurchaseEntry() {
   const { t } = useTranslation('common');
@@ -22,7 +21,6 @@ export function PurchaseEntry() {
   }
 
   return (
-    <QRCodeTooltip>
       <a
         href={purchaseUrl}
         target="_blank"
@@ -34,6 +32,5 @@ export function PurchaseEntry() {
         <Coins size={16} className="text-blue-500 transition-transform duration-200 group-hover:scale-110" />
         <span className="hidden whitespace-nowrap sm:inline">{t('app.purchaseMore')}</span>
       </a>
-    </QRCodeTooltip>
   );
 }

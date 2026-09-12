@@ -19,7 +19,7 @@ export interface RuntimeConfig {
   points_redeem_enabled: boolean;
 }
 
-const STORAGE_KEY = 'paper2any_runtime_config';
+const STORAGE_KEY = 'figuremind_runtime_config';
 
 const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
   billing_mode: 'paid',
@@ -30,9 +30,9 @@ const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
   server_side_billing_enforced: false,
   workflow_costs: {},
   guest_daily_limit: 0,
-  signup_bonus_points: 0,
-  daily_grant_points: 5,
-  daily_grant_balance_cap: 15,
+  signup_bonus_points: 5,
+  daily_grant_points: 0,
+  daily_grant_balance_cap: 0,
   referral_inviter_points: 5,
   referral_invitee_points: 0,
   points_purchase_url: '',

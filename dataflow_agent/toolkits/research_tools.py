@@ -164,7 +164,7 @@ async def fetch_page_text(url: str, max_chars: int = 8000) -> str:
     if not url:
         return ""
     headers = {
-        "User-Agent": "Mozilla/5.0 (compatible; Paper2Any/1.0; +https://paper2any.ai)"
+        "User-Agent": "Mozilla/5.0 (compatible; FigureMind/1.0; +https://figuremind.ai)"
     }
     try:
         async with httpx.AsyncClient(timeout=20, headers=headers, follow_redirects=True) as client:

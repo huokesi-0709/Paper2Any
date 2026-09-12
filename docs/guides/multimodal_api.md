@@ -1,6 +1,6 @@
 # 多模态供应商与 API 开发指南
 
-DataFlow-Agent 采用灵活的策略模式来支持多种多模态 AI 供应商（如 OpenAI DALL-E, Google Gemini, APIYI 等）。本指南将介绍如何扩展系统以支持新的多模态 API。
+FigureMind 采用灵活的策略模式来支持多种多模态 AI 供应商（如 OpenAI DALL-E, Google Gemini, APIYI 等）。本指南将介绍如何扩展系统以支持新的多模态 API。
 
 ## 核心架构
 

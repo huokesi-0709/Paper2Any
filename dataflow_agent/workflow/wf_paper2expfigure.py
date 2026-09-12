@@ -37,8 +37,8 @@ from dataflow_agent.state import Paper2FigureState
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.workflow.registry import register
 from dataflow_agent.agentroles import create_simple_agent
-from dataflow_agent.agentroles.paper2any_agents.chart_type_recommender import create_chart_type_recommender
-from dataflow_agent.agentroles.paper2any_agents.chart_code_generator import create_chart_code_generator
+from dataflow_agent.agentroles.figuremind_agents.chart_type_recommender import create_chart_type_recommender
+from dataflow_agent.agentroles.figuremind_agents.chart_code_generator import create_chart_code_generator
 from dataflow_agent.toolkits.tool_manager import get_tool_manager
 from dataflow_agent.logger import get_logger
 from dataflow_agent.utils import (
@@ -243,7 +243,7 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         
         支持多表格：自动识别并分割文本中的多个表格，按 table_0, table_1... 命名
         """
-        from dataflow_agent.agentroles.paper2any_agents.table_text_renderer import (
+        from dataflow_agent.agentroles.figuremind_agents.table_text_renderer import (
             render_table_from_text,
             split_tables_from_text,
         )

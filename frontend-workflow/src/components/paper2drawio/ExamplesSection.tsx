@@ -55,13 +55,13 @@ const ExamplesSection = () => {
         <div className="flex items-center gap-3">
           <h3 className="text-sm font-display font-bold text-white">{t('examples.sectionTitle')}</h3>
           <a
-            href="https://wcny4qa9krto.feishu.cn/wiki/VXKiwYndwiWAVmkFU6kcqsTenWh"
+            href="https://github.com/huokesi-0709/FigureMind"
             target="_blank"
             rel="noopener noreferrer"
             className="neon-chip inline-flex items-center gap-2 text-xs font-medium"
           >
             <Sparkles size={12} className="text-neon-cyan animate-pulse" />
-            <span className="text-neon-cyan">{t('examples.feishuLink')}</span>
+            <span className="text-neon-cyan">{t('examples.projectLink')}</span>
             <ExternalLink size={10} className="text-neon-cyan/50" />
           </a>
         </div>

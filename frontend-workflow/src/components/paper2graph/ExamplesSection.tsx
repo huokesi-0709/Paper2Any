@@ -106,14 +106,14 @@ const ExamplesSection: React.FC<ExamplesSectionProps> = ({ visibleTypes }) => {
         <div className="flex items-center gap-3">
           <h3 className="section-header text-base">{t('examples.sectionTitle')}</h3>
           <a
-            href="https://wcny4qa9krto.feishu.cn/wiki/VXKiwYndwiWAVmkFU6kcqsTenWh"
+            href="https://github.com/huokesi-0709/FigureMind"
             target="_blank"
             rel="noopener noreferrer"
             className="neon-chip group"
           >
             <Sparkles size={12} className="text-neon-pink animate-pulse" />
             <span className="text-glow-cyan group-hover:text-glow-purple transition-all">
-              {t('examples.feishuLink')}
+              {t('examples.projectLink')}
             </span>
           </a>
         </div>

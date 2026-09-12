@@ -1,6 +1,6 @@
-# DataFlow Agent Frontend
+# FigureMind Frontend
 
-Paper2Any 系列工作流的 Web 前端，支持论文转图表、论文转 PPT、PDF 转 PPT、PPT 美化等功能。
+FigureMind 系列工作流的 Web 前端，支持论文转图表、论文转 PPT、PDF 转 PPT、PPT 美化等功能。
 
 ## 快速开始
 
@@ -13,7 +13,7 @@ npm run dev
 
 访问 http://localhost:3000
 
-## Paper2Any 功能
+## FigureMind 功能
 
 | 功能 | 描述 |
 |------|------|
@@ -46,7 +46,7 @@ npm run dev
 
 # 工作流编辑器
 
-基于 React + ReactFlow 的可视化工作流编辑器，用于配置和管理 DataFlow Agent 工作流。
+基于 React + ReactFlow 的可视化工作流编辑器，用于配置和管理 FigureMind 工作流。
 
 ## 编辑器功能
 

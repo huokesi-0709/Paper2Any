@@ -148,9 +148,9 @@
     "retrying": "⏳ 数据仍在写入，{{seconds}} 秒后重试 ({{current}}/{{max}})...",
     "partialProcessing": "⚠️ 部分问题可能仍在处理中，请稍后刷新查看最新数据"
   },
-  "feishu": {
-    "title": "使用指南与更多案例（飞书文档）",
-    "link": "查看飞书文档"
+  "project": {
+    "title": "使用指南与更多案例（项目主页）",
+    "link": "查看项目主页"
   },
   "history": {
     "title": "历史任务",

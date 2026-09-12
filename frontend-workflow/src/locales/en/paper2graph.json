@@ -166,7 +166,7 @@
   "examples": {
     "sectionTitle": "Examples: from Paper to PPTX",
     "sectionSubtitle": "The following examples show the效果from PDF / images / text to editable PPTX.",
-    "feishuLink": "More cases (Feishu doc)",
+    "projectLink": "More cases (Project doc)",
     "cards": {
       "paperPdfToFigureTitle": "Paper PDF → Scientific figures (PPT)",
       "paperPdfToFigureDesc": "Upload an English paper PDF, automatically extract background, methods, experiment design and conclusions, and generate a clear, academic-style PPTX.",
@@ -187,7 +187,7 @@
   "cases": {
     "title": "Model Architecture Cases",
     "subtitle": "Examples can be converted to DrawIO for online editing",
-    "feishu": "View Feishu Doc",
+    "project": "View Project Page",
     "items": {
       "case1Title": "Model Architecture Case 1",
       "case1Desc": "Clear hierarchy for easy refinement",

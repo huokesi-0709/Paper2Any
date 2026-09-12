@@ -137,14 +137,14 @@ def _build_request(
         api_key=api_key,
         image_api_url=image_api_url,
         image_api_key=image_api_key,
-        model=str(payload.get("model") or os.getenv("PORTAL_PAPER2ANY_MODEL") or settings.PAPER2PPT_DEFAULT_MODEL),
-        gen_fig_model=str(payload.get("gen_fig_model") or os.getenv("PORTAL_PAPER2ANY_IMAGE_MODEL") or settings.PAPER2PPT_DEFAULT_IMAGE_MODEL),
+        model=str(payload.get("model") or os.getenv("PORTAL_FIGUREMIND_MODEL") or settings.PAPER2PPT_DEFAULT_MODEL),
+        gen_fig_model=str(payload.get("gen_fig_model") or os.getenv("PORTAL_FIGUREMIND_IMAGE_MODEL") or settings.PAPER2PPT_DEFAULT_IMAGE_MODEL),
         input_type=input_type,
         input_content=input_content,
         aspect_ratio=str(payload.get("aspect_ratio") or "16:9"),
         style=str(payload.get("style") or "academic"),
         use_long_paper=bool(payload.get("use_long_paper", False)),
-        email="portal_paper2ppt@paper2any.local",
+        email="portal_paper2ppt@figuremind.local",
         page_count=int(payload.get("page_count") or 10),
         all_edited_down=bool(payload.get("all_edited_down", False)),
     )
@@ -204,7 +204,7 @@ def _export_frontend_pptx(result_path: Path, slides_json_path: str, theme_json_p
         "--output",
         str(output_path),
         "--asset-base-url",
-        os.getenv("PORTAL_PAPER2ANY_ASSET_BASE_URL", "http://127.0.0.1:8000"),
+        os.getenv("PORTAL_FIGUREMIND_ASSET_BASE_URL", "http://127.0.0.1:8000"),
     ]
     subprocess.run(
         export_cmd,
@@ -260,7 +260,7 @@ async def _generate_frontend_preview(payload: dict[str, Any], *, pagecontent: li
         chat_api_url=resolved_chat_api_url,
         api_key=resolved_api_key,
         credential_scope=credential_scope,
-        email="portal_paper2ppt@paper2any.local",
+        email="portal_paper2ppt@figuremind.local",
         model=resolve_model_name(
             str(payload.get("frontend_model") or payload.get("model") or ""),
             managed_default=settings.PAPER2PPT_CONTENT_MODEL,

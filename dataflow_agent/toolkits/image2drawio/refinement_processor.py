@@ -3,7 +3,7 @@ refinement_processor.py — Fallback rescue for uncovered regions.
 
 Takes bad regions from metric_evaluator, crops them from the original
 image, saves as PNG, and returns new element dicts compatible with
-the existing Paper2Any _render_xml_node format.
+the existing FigureMind _render_xml_node format.
 
 Strategy (conservative):
     - Crop the region from the original image

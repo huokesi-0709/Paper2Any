@@ -68,7 +68,7 @@ export function Sidebar({ className = '', onMobileMenuClick }: SidebarProps) {
         <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-neon-cyan to-neon-purple shadow-[0_8px_24px_rgba(79,124,255,0.2)]">
           <span className="font-display font-bold text-sm text-white">P2A</span>
         </div>
-        <span className="font-display font-bold text-lg text-text-primary">Paper2Any</span>
+        <span className="font-display font-bold text-lg text-text-primary">FigureMind</span>
       </div>
 
       {/* Mobile hamburger (only visible on small screens) */}

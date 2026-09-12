@@ -238,7 +238,7 @@ async def run_paper2ppt_workflow(args, input_content: str, input_type: str, outp
         input_content=input_content,
         aspect_ratio=args.aspect_ratio,
         use_long_paper=bool(args.use_long_paper),
-        email="cli_paper2ppt@paper2any.local",
+        email="cli_paper2ppt@figuremind.local",
         credential_scope="paper2ppt",
     )
 

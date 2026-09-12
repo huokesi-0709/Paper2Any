@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 
 /**
- * Simple client-side router for Paper2Any.
+ * Simple client-side router for FigureMind.
  * Supports SPA navigation via history.pushState + popstate.
  */
 

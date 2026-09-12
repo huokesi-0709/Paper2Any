@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataflow_agent.agentroles.paper2any_agents.p2v_refine_subtitle_and_cursor_agent import (
+from dataflow_agent.agentroles.figuremind_agents.p2v_refine_subtitle_and_cursor_agent import (
     parse_subtitle_and_cursor_result,
 )
 

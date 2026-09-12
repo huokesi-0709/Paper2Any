@@ -21,7 +21,7 @@ export function RegisterPage({ onSwitchToLogin, footer }: Props) {
   const [localError, setLocalError] = useState<string | null>(null);
 
   const [inviteCode, setInviteCode] = useState("");
-  const INVITE_CODE_STORAGE_KEY = "paper2any_invite_code";
+  const INVITE_CODE_STORAGE_KEY = "figuremind_invite_code";
   
   // 动态文字索引
   const [featureIndex, setFeatureIndex] = useState(0);
@@ -116,7 +116,7 @@ export function RegisterPage({ onSwitchToLogin, footer }: Props) {
         <div className="hidden lg:flex flex-col justify-center space-y-8 pr-8">
           <div>
             <h1 className="text-5xl font-display font-bold text-lab-primary mb-4 leading-tight">
-              加入 <span className="text-neon-pink">DataFlow</span>
+              加入 <span className="text-neon-pink">FigureMind</span>
             </h1>
             <p className="text-lab-secondary text-lg max-w-md">
               立即注册，开启 AI 驱动的科研创作新体验。
@@ -156,12 +156,12 @@ export function RegisterPage({ onSwitchToLogin, footer }: Props) {
         {/* 右侧：注册表单 */}
         <div className="bento-card scan-line p-8 md:p-10 w-full">
           <div className="lg:hidden mb-8 text-center">
-             <h2 className="text-3xl font-display font-bold text-lab-primary mb-2">Paper2Any</h2>
+             <h2 className="text-3xl font-display font-bold text-lab-primary mb-2">FigureMind</h2>
              <p className="text-lab-secondary text-sm">创建您的新账号</p>
           </div>
 
           <h2 className="text-2xl font-display font-bold text-lab-primary mb-2">创建账号 ✨</h2>
-          <p className="text-lab-secondary mb-8 text-sm">填写以下信息以完成注册</p>
+          <p className="text-lab-secondary mb-8 text-sm">填写以下信息以完成注册，新用户赠送 5 积分</p>
 
           {displayError && (
             <div className="status-error mb-6 flex items-start gap-3">

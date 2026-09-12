@@ -1,12 +1,12 @@
 services:
-  paper2any-backend:
+  figuremind-backend:
     network_mode: host
     ports: !reset []
 
-  paper2any-frontend:
+  figuremind-frontend:
     network_mode: host
     ports: !reset []
 
-  paper2any-sam3:
+  figuremind-sam3:
     network_mode: host
     ports: !reset []

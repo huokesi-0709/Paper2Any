@@ -51,7 +51,7 @@ Examples:
     parser.add_argument("--api-url", help="LLM API URL (default: from env / managed config)")
     parser.add_argument("--api-key", help="LLM API key (default: from env / managed config)")
     parser.add_argument("--credential-scope", default="paper2ppt", help="Managed credential scope")
-    parser.add_argument("--email", default="cli_frontend_test@paper2any.local", help="Logical user/email for result path")
+    parser.add_argument("--email", default="cli_frontend_test@figuremind.local", help="Logical user/email for result path")
     parser.add_argument("--outline-model", default=settings.PAPER2PPT_OUTLINE_MODEL, help="Outline model")
     parser.add_argument("--frontend-model", default=settings.PAPER2PPT_CONTENT_MODEL, help="Frontend editable model")
     parser.add_argument("--image-model", default=settings.PAPER2PPT_IMAGE_GEN_MODEL, help="Image model for include-images mode")

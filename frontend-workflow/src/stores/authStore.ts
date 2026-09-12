@@ -11,7 +11,7 @@ import { backendFetch } from "../services/backendClient";
 
 declare global {
   interface Window {
-    __PAPER2ANY_E2E__?: {
+    __FIGUREMIND_E2E__?: {
       setMockUser: (user: Partial<User> | null) => void;
       clearMockUser: () => void;
     };
@@ -54,7 +54,7 @@ interface AuthState {
   refreshQuota: () => Promise<void>;
 }
 
-const INVITE_CODE_STORAGE_KEY = "paper2any_invite_code";
+const INVITE_CODE_STORAGE_KEY = "figuremind_invite_code";
 
 function normalizePhoneE164China(input: string): string {
   const s = input.trim();
@@ -477,7 +477,7 @@ export function getAccessToken(): string | null {
 }
 
 if (import.meta.env.DEV && typeof window !== "undefined") {
-  window.__PAPER2ANY_E2E__ = {
+  window.__FIGUREMIND_E2E__ = {
     setMockUser: (user) => {
       useAuthStore.setState({
         user: user as User | null,

@@ -405,19 +405,19 @@ export default function MindMapPage() {
                 <p className="max-w-3xl text-base leading-7 text-lab-secondary md:text-lg">{t('hero.description')}</p>
               </div>
               {/* Pricing info */}
-              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/5 px-4 py-3 text-sm text-emerald-200/90">
-                <div className="text-sm font-medium text-emerald-100">{t('pricing.title')}</div>
-                <div className="mt-1 text-xs leading-6 text-emerald-100/80">{t('pricing.description')}</div>
-                <div className="mt-1 text-xs leading-6 text-emerald-100/70">
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-sm text-slate-700">
+                <div className="text-sm font-semibold text-emerald-900">{t('pricing.title')}</div>
+                <div className="mt-1 text-xs leading-6 text-slate-700">{t('pricing.description')}</div>
+                <div className="mt-1 text-xs font-medium leading-6 text-emerald-800">
                   {t('pricing.preview', { points: estimatedPoints })}
                 </div>
-                <div className="mt-2 grid gap-1 text-xs leading-5 text-emerald-100/65">
+                <div className="mt-2 grid gap-1 text-xs leading-5 text-slate-600">
                   <span>{t('pricing.tierSummary')}</span>
                   <span>{t('pricing.depthSummary')}</span>
                   <span>{t('pricing.previewNote', { points: estimatedPoints })}</span>
                 </div>
                 {chargeInfo ? (
-                  <div className="mt-3 rounded-2xl border border-emerald-400/15 bg-[#060914] px-3 py-2 text-xs leading-6 text-emerald-100/85">
+                  <div className="mt-3 rounded-2xl border border-emerald-800 bg-emerald-900 px-3 py-2 text-xs leading-6 text-emerald-50">
                     {t('pricing.actual', {
                       nodes: chargeInfo.nodeCount,
                       depth: chargeInfo.depth,
@@ -428,7 +428,7 @@ export default function MindMapPage() {
                 {runtimeConfig.points_purchase_url ? (
                   <>
                     {' '}
-                    <a href={runtimeConfig.points_purchase_url} target="_blank" rel="noreferrer" className="font-semibold text-white underline decoration-emerald-300/60 underline-offset-4">
+                    <a href={runtimeConfig.points_purchase_url} target="_blank" rel="noreferrer" className="font-semibold text-emerald-800 underline decoration-emerald-600/70 underline-offset-4 hover:text-emerald-950">
                       {runtimeConfig.points_purchase_url}
                     </a>
                   </>

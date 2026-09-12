@@ -445,7 +445,7 @@ def convert_image_to_svg(
     使用 vtracer 将光栅图像转换为 SVG 矢量图。
 
     本函数是对 ``vtracer.convert_image_to_svg_py`` 的轻量封装，
-    主要用于在 DataFlow-Agent 的工具体系中提供统一的位图→SVG 能力。
+    主要用于在 FigureMind 的工具体系中提供统一的位图→SVG 能力。
 
     参数
     ----
@@ -534,7 +534,7 @@ def local_tool_for_raster_to_svg(req: dict) -> str:
     """
     将位图图像转换为 SVG 矢量图的统一工具接口。
 
-    本工具基于 vtracer 封装，适合作为 DataFlow-Agent 中的本地工具被调用。
+    本工具基于 vtracer 封装，适合作为 FigureMind 中的本地工具被调用。
     入参为包含配置项的字典，返回生成的 SVG 文件路径字符串。
 
     必需字段
@@ -666,7 +666,7 @@ def render_svg_to_image(
     说明
     ----
     这是对 ``cairosvg.svg2*`` 系列函数的统一封装，用于在
-    DataFlow-Agent 中以统一的方式完成 SVG 渲染任务。
+    FigureMind 中以统一的方式完成 SVG 渲染任务。
     """
     from pathlib import Path
 

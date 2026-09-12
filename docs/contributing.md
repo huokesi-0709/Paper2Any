@@ -1,12 +1,12 @@
 # 贡献指南
 
-这页只讲当前仓库的真实贡献入口，不再沿用旧的 `DataFlow-Agent` / `gradio_app` 文档结构。
+这页只讲当前仓库的真实贡献入口，不再沿用旧的 `FigureMind` / `gradio_app` 文档结构。
 
 ## 1. 基本流程
 
 ```bash
-git clone https://github.com/OpenDCAI/Paper2Any.git
-cd Paper2Any
+git clone https://github.com/huokesi-0709/FigureMind.git
+cd FigureMind
 
 git checkout -b feature/your-feature
 ```
@@ -22,8 +22,8 @@ git checkout -b feature/your-feature
 ### 后端
 
 ```bash
-conda create -n paper2any python=3.11 -y
-conda activate paper2any
+conda create -n figuremind python=3.11 -y
+conda activate figuremind
 
 pip install --upgrade pip
 pip install -r requirements-paper.txt

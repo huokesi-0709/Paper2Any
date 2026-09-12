@@ -2,7 +2,7 @@
 set -eu
 
 LISTEN_PORT="${NGINX_LISTEN_PORT:-80}"
-BACKEND_URL="${BACKEND_UPSTREAM_URL:-http://paper2any-backend:8000}"
+BACKEND_URL="${BACKEND_UPSTREAM_URL:-http://figuremind-backend:8000}"
 
 sed \
   -e "s|__NGINX_LISTEN_PORT__|${LISTEN_PORT}|g" \

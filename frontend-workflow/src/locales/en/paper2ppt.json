@@ -85,7 +85,7 @@
     },
     "demo": {
       "title": "Example: From Paper to PPTX",
-      "more": "More cases: Feishu Doc",
+      "more": "More cases: Project Page",
       "desc": "Examples below show effects from PDF / Image / Text to editable PPTX.",
       "card1": {
         "title": "Paper PDF → Academic PPT",
@@ -150,9 +150,8 @@
     "pdf2pptText": "PDF2PPT Page",
     "new": "Process New Paper",
     "share": {
-      "title": "Get Free API Key",
-      "desc": "Click platform icon below to copy promotion text\nShare to WeChat Moments/RedNote/Twitter, screenshot and contact admin to get Key!",
-      "wechat": "WeChat",
+      "title": "Share FigureMind",
+      "desc": "Copy the project introduction and share FigureMind with other researchers.",
       "rednote": "RedNote",
       "twitter": "Twitter",
       "copy": "Copy",
@@ -160,9 +159,9 @@
       "star": "If this project helps you, please give us a star~"
     },
     "group": {
-      "title": "Join Community",
-      "desc": "Satisfied? Issues?\nScan code to join group for feedback and discussion",
-      "scan": "Scan to join WeChat group"
+      "title": "FigureMind",
+      "desc": "The AI agent that thinks in figures.",
+      "scan": "Scientific Figure Agent"
     }
   },
   "errors": {

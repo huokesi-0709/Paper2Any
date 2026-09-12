@@ -13,7 +13,7 @@ export interface ApiSettings {
   apiKey: string;
 }
 
-const STORAGE_KEY_PREFIX = "paper2any_api_settings_";
+const STORAGE_KEY_PREFIX = "figuremind_api_settings_";
 export const MANAGED_API_KEY_PLACEHOLDER = "__managed_by_backend__";
 
 /**

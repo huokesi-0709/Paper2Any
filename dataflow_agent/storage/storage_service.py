@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 storage_service.py  ── Enhanced FileStorage with sampling utilities
-Author  : [Zhou Liu]
+Maintainer: linkinwise
 License : MIT
 Created : 2024-07-02
 

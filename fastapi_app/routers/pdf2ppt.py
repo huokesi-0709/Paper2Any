@@ -78,7 +78,7 @@ async def generate_pdf2ppt(
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         filename=ppt_path.name,
         headers={
-            "X-Paper2Any-Page-Count": str(actual_page_count),
-            "Access-Control-Expose-Headers": "X-Paper2Any-Page-Count",
+            "X-FigureMind-Page-Count": str(actual_page_count),
+            "Access-Control-Expose-Headers": "X-FigureMind-Page-Count",
         },
     )

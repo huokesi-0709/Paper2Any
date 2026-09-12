@@ -117,10 +117,10 @@ const CompleteStep: React.FC<CompleteStepProps> = ({
           <div className="w-12 h-12 rounded-full bg-yellow-500/20 text-yellow-300 flex items-center justify-center mb-3">
             <Star size={24} />
           </div>
-          <h4 className="text-white font-semibold mb-2">获取免费 API Key</h4>
+          <h4 className="text-white font-semibold mb-2">分享 FigureMind</h4>
           <p className="text-xs text-gray-400 mb-4 leading-relaxed">
             点击下方平台图标复制推广文案<br/>
-            分享至朋友圈/小红书/推特，截图联系微信群管理员领 Key！
+            欢迎分享 FigureMind，并通过项目主页提交反馈。
           </p>
           
           {/* 分享按钮组 */}
@@ -158,16 +158,16 @@ const CompleteStep: React.FC<CompleteStepProps> = ({
           )}
 
           <div className="w-full space-y-2">
-             <a href="https://github.com/OpenDCAI/Paper2Any" target="_blank" rel="noopener noreferrer" className="block w-full py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-purple-300 truncate transition-colors border border-white/5 text-center">
+             <a href="https://github.com/huokesi-0709/FigureMind" target="_blank" rel="noopener noreferrer" className="block w-full py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-purple-300 truncate transition-colors border border-white/5 text-center">
                ✨如果本项目对你有帮助，可以点个star嘛～
              </a>
              <div className="flex gap-2">
-               <a href="https://github.com/OpenDCAI/Paper2Any" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-[10px] font-semibold transition-all hover:scale-105 shadow-lg">
+               <a href="https://github.com/huokesi-0709/FigureMind" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-[10px] font-semibold transition-all hover:scale-105 shadow-lg">
                  <Github size={10} />
                  <span>Agent</span>
                  <span className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded-full text-[9px] flex items-center gap-0.5"><Star size={7} fill="currentColor" /> {stars.agent || 'Star'}</span>
                </a>
-               <a href="https://github.com/OpenDCAI/DataFlow" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-[10px] font-semibold transition-all hover:scale-105 shadow-lg">
+               <a href="https://github.com/huokesi-0709/FigureMind" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-[10px] font-semibold transition-all hover:scale-105 shadow-lg">
                  <Github size={10} />
                  <span>Core</span>
                  <span className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded-full text-[9px] flex items-center gap-0.5"><Star size={7} fill="currentColor" /> {stars.dataflow || 'Star'}</span>
@@ -182,14 +182,14 @@ const CompleteStep: React.FC<CompleteStepProps> = ({
           <div className="w-12 h-12 rounded-full bg-green-500/20 text-green-300 flex items-center justify-center mb-3">
             <MessageSquare size={24} />
           </div>
-          <h4 className="text-white font-semibold mb-2">加入交流群</h4>
+          <h4 className="text-white font-semibold mb-2">FigureMind</h4>
           <p className="text-xs text-gray-400 mb-4">
-            效果满意？遇到问题？<br/>欢迎扫码加入交流群反馈与讨论
+            科研生图智能体<br/>读懂研究，画出方法
           </p>
           <div className="w-32 h-32 bg-white p-1 rounded-lg mb-2">
-            <img src="/wechat.png" alt="交流群二维码" className="w-full h-full object-contain" />
+            <img src="/figuremind-favicon.png" alt="FigureMind" className="w-full h-full object-contain" />
           </div>
-          <p className="text-[10px] text-gray-500">扫码加入微信交流群</p>
+          <p className="text-[10px] text-gray-500">Scientific Figure Agent</p>
         </div>
       </div>
     </div>

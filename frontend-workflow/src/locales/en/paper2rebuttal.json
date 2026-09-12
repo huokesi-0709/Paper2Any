@@ -148,9 +148,9 @@
     "retrying": "⏳ Data still being written, retrying in {{seconds}} seconds ({{current}}/{{max}})...",
     "partialProcessing": "⚠️ Some questions may still be processing, please refresh later to view latest data"
   },
-  "feishu": {
-    "title": "User Guide and More Examples (Feishu Doc)",
-    "link": "View Feishu Doc"
+  "project": {
+    "title": "User Guide and More Examples (Project Page)",
+    "link": "View Project Page"
   },
   "history": {
     "title": "History",

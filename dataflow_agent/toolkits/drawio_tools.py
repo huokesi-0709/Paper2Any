@@ -14,7 +14,7 @@ from typing import List, Dict, Any, Optional, Tuple, Iterable
 
 # draw.io XML 模板
 DRAWIO_WRAPPER_TEMPLATE = '''<?xml version="1.0" encoding="UTF-8"?>
-<mxfile host="app.diagrams.net" modified="{modified}" agent="Paper2Any" version="24.0.0">
+<mxfile host="app.diagrams.net" modified="{modified}" agent="FigureMind" version="24.0.0">
   <diagram name="Page-1" id="page1">
     <mxGraphModel dx="1434" dy="780" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="{page_width}" pageHeight="{page_height}" math="0" shadow="0">
       <root>

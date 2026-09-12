@@ -1,7 +1,7 @@
 """
 Playwright + Chromium 实战演示：联网检索研究 Agent 的最小可用版。
 作用：用无头 Chromium（带 stealth 反爬伪装）打开真实网页，
-     等待 JS 渲染后提取正文，保存到本地——这正是 Paper2Any 里
+     等待 JS 渲染后提取正文，保存到本地——这正是 FigureMind 里
      websearch_researcher 的核心能力。
 
 用法（在项目根目录、已激活 .venv 下）：

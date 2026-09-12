@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a new Paper2Any HTML-based editable PPTX export path that keeps the existing HTML generation flow, converts the generated HTML through `html2pptx/package`, uploads the PPTX to the backend outputs store, and opens that PPTX in ONLYOFFICE for online editing.
+**Goal:** Add a new FigureMind HTML-based editable PPTX export path that keeps the existing HTML generation flow, converts the generated HTML through `html2pptx/package`, uploads the PPTX to the backend outputs store, and opens that PPTX in ONLYOFFICE for online editing.
 
-**Architecture:** Paper2Any will keep producing its existing frontend HTML slide deck. We will add a new HTML deck artifact that is saved and listed as an output, then add a browser-side `dom-to-pptx` export helper that turns that HTML into a real PPTX blob. The blob will be uploaded through the existing `/api/v1/files/upload` path so the backend can serve it under `/outputs/...`, and new backend ONLYOFFICE endpoints on `files.py` will generate config, stream the document, and persist callback saves.
+**Architecture:** FigureMind will keep producing its existing frontend HTML slide deck. We will add a new HTML deck artifact that is saved and listed as an output, then add a browser-side `dom-to-pptx` export helper that turns that HTML into a real PPTX blob. The blob will be uploaded through the existing `/api/v1/files/upload` path so the backend can serve it under `/outputs/...`, and new backend ONLYOFFICE endpoints on `files.py` will generate config, stream the document, and persist callback saves.
 
-**Tech Stack:** FastAPI, existing Paper2Any React/Vite frontend, TypeScript, Python, ONLYOFFICE Document Server, `html2pptx/package` (`dom-to-pptx` browser bundle), existing backend file upload and output URL helpers.
+**Tech Stack:** FastAPI, existing FigureMind React/Vite frontend, TypeScript, Python, ONLYOFFICE Document Server, `html2pptx/package` (`dom-to-pptx` browser bundle), existing backend file upload and output URL helpers.
 
 ---
 
@@ -140,7 +140,7 @@ Add settings fields and environment examples for:
 Run: `pytest -q tests/test_files_onlyoffice.py`
 Expected: PASS.
 
-### Task 3: Hook Paper2Any frontend results into the new export and editor flow
+### Task 3: Hook FigureMind frontend results into the new export and editor flow
 
 **Files:**
 - Modify: `frontend-workflow/src/components/paper2ppt/index.tsx`

@@ -79,8 +79,8 @@ class OnlyOfficeFileService:
                 "lang": "zh-CN",
                 "callbackUrl": callback_url,
                 "user": {
-                    "id": "paper2any",
-                    "name": "Paper2Any",
+                    "id": "figuremind",
+                    "name": "FigureMind",
                 },
                 "customization": {
                     "forcesave": True,
@@ -224,7 +224,7 @@ class OnlyOfficeFileService:
     def _onlyoffice_document_key(self, path: Path, *, editor_session_id: str = "") -> str:
         stat = path.stat()
         raw = (
-            "paper2any-onlyoffice-v1:"
+            "figuremind-onlyoffice-v1:"
             f"{editor_session_id}:"
             f"{path.resolve()}:{stat.st_mtime_ns}:{stat.st_size}"
         )

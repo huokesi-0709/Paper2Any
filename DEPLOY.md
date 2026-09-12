@@ -1,4 +1,4 @@
-# Paper2Any Deployment
+# FigureMind Deployment
 
 ## 0. 运行前依赖边界
 
@@ -79,7 +79,7 @@
 补充：
 
 - `PAPER2VIDEO_CURSOR_LOCAL_PYTHON` / `PAPER2VIDEO_LOCAL_TTS_PYTHON` / `PAPER2VIDEO_TALKING_LOCAL_PYTHON` 这类“某个 workflow 的可选隔离子环境解释器”放在这里。
-- `APP_PYTHON` / `PAPER2ANY_PYTHON` 这类“整套服务如何启动”的解释器路径放在 `deploy/profiles/*.env`。
+- `APP_PYTHON` / `FIGUREMIND_PYTHON` 这类“整套服务如何启动”的解释器路径放在 `deploy/profiles/*.env`。
 
 ### `frontend-workflow/.env`
 
@@ -160,7 +160,7 @@
 
 ### 模型服务启动参数
 
-- `PAPER2ANY_PYTHON`
+- `FIGUREMIND_PYTHON`
   启动模型服务时使用的 Python。
 - `MODEL_SERVER_ENV_FILE`
   模型服务启动后写回运行时环境变量的文件，默认是 `logs/model_servers.env`。
@@ -267,7 +267,7 @@ cp deploy/profiles/muxi.env.example deploy/profiles/muxi.env
 例如：
 
 - `APP_PYTHON`
-- `PAPER2ANY_PYTHON`
+- `FIGUREMIND_PYTHON`
 - `FRONTEND_PORT`
 - `SAM3_GPUS`
 - `SAM3_MAX_INSTANCES`

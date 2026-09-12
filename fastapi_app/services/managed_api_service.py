@@ -8,7 +8,7 @@ from fastapi_app.config.pricing import get_points_purchase_url, get_pricing_conf
 from fastapi_app.config.settings import settings
 
 _SCOPE_TO_SETTING_NAMES: dict[str, tuple[str, str]] = {
-    "paper2any": ("PAPER2ANY_MANAGED_API_URL", "PAPER2ANY_MANAGED_API_KEY"),
+    "figuremind": ("FIGUREMIND_MANAGED_API_URL", "FIGUREMIND_MANAGED_API_KEY"),
     "paper2ppt": ("PAPER2PPT_MANAGED_API_URL", "PAPER2PPT_MANAGED_API_KEY"),
     "ppt2polish": ("PPT2POLISH_MANAGED_API_URL", "PPT2POLISH_MANAGED_API_KEY"),
     "pdf2ppt": ("PDF2PPT_MANAGED_API_URL", "PDF2PPT_MANAGED_API_KEY"),
@@ -261,9 +261,9 @@ def get_runtime_billing_config() -> dict:
         "server_side_billing_enforced": True,
         "workflow_costs": pricing.get("workflows", {}),
         "guest_daily_limit": int(billing.get("guest_daily_limit", 0)),
-        "signup_bonus_points": int(billing.get("signup_bonus_points", 0)),
-        "daily_grant_points": int(billing.get("daily_grant_points", 5)),
-        "daily_grant_balance_cap": int(billing.get("daily_grant_balance_cap", 15)),
+        "signup_bonus_points": int(billing.get("signup_bonus_points", 5)),
+        "daily_grant_points": int(billing.get("daily_grant_points", 0)),
+        "daily_grant_balance_cap": int(billing.get("daily_grant_balance_cap", 0)),
         "referral_inviter_points": int(billing.get("referral_inviter_points", 5)),
         "referral_invitee_points": int(billing.get("referral_invitee_points", 0)),
         "points_purchase_url": get_points_purchase_url(),

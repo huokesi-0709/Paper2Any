@@ -1,5 +1,5 @@
 /**
- * Types for the new Paper2Any UI.
+ * Types for the new FigureMind UI.
  */
 
 import type { LucideIcon } from 'lucide-react';

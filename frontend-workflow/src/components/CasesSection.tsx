@@ -12,8 +12,8 @@ interface CaseItem {
 interface CasesSectionProps {
   title: string;
   subtitle?: string;
-  feishuLabel: string;
-  feishuUrl: string;
+  projectLabel: string;
+  projectUrl: string;
   cases: CaseItem[];
   tone?: Tone;
   columns?: 1 | 2 | 3;
@@ -43,8 +43,8 @@ const toneStyles: Record<Tone, { border: string; glow: string; text: string; spa
 const CasesSection: React.FC<CasesSectionProps> = ({
   title,
   subtitle,
-  feishuLabel,
-  feishuUrl,
+  projectLabel,
+  projectUrl,
   cases,
   tone = 'sky',
   columns = 2,
@@ -63,13 +63,13 @@ const CasesSection: React.FC<CasesSectionProps> = ({
         <div className="flex items-center gap-3">
             <h3 className="text-sm font-display font-bold text-lab-primary">{title}</h3>
           <a
-            href={feishuUrl}
+            href={projectUrl}
             target="_blank"
             rel="noopener noreferrer"
             className={`group inline-flex items-center gap-2 rounded-full border border-border-medium bg-surface-base/40 px-3 py-1.5 text-xs font-medium text-white transition-all ${toneClass.border} ${toneClass.glow}`}
           >
             <Sparkles size={12} className={`animate-pulse ${toneClass.sparkle}`} />
-            <span className={toneClass.text}>{feishuLabel}</span>
+            <span className={toneClass.text}>{projectLabel}</span>
             <ExternalLink size={10} className="opacity-50" />
           </a>
         </div>

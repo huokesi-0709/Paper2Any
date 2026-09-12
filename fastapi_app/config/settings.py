@@ -41,7 +41,7 @@ class AppSettings(BaseSettings):
     MODEL_QWEN_VL_OCR: str = "qwen-vl-ocr-2025-11-20"
 
     # API Configuration
-    PAPER2ANY_CONFIG_MODE: str = "advanced"
+    FIGUREMIND_CONFIG_MODE: str = "advanced"
     SIMPLE_TEXT_API_URL: str = ""
     SIMPLE_TEXT_API_KEY: str = ""
     SIMPLE_IMAGE_API_URL: str = ""
@@ -59,10 +59,10 @@ class AppSettings(BaseSettings):
     DF_API_KEY: str = ""
     DF_IMAGE_API_URL: str = ""
     DF_IMAGE_API_KEY: str = ""
-    PAPER2ANY_MANAGED_API_URL: str = ""
-    PAPER2ANY_MANAGED_API_KEY: str = ""
-    PAPER2ANY_MANAGED_IMAGE_API_URL: str = ""
-    PAPER2ANY_MANAGED_IMAGE_API_KEY: str = ""
+    FIGUREMIND_MANAGED_API_URL: str = ""
+    FIGUREMIND_MANAGED_API_KEY: str = ""
+    FIGUREMIND_MANAGED_IMAGE_API_URL: str = ""
+    FIGUREMIND_MANAGED_IMAGE_API_KEY: str = ""
     PAPER2PPT_MANAGED_API_URL: str = ""
     PAPER2PPT_MANAGED_API_KEY: str = ""
     PAPER2PPT_MANAGED_IMAGE_API_URL: str = ""
@@ -133,6 +133,7 @@ class AppSettings(BaseSettings):
     SUPABASE_URL: str = ""
     SUPABASE_ANON_KEY: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""
+    ADMIN_EMAILS: str = "1533305864@qq.com"
     SUPABASE_POSTGREST_TIMEOUT_SECONDS: float = 8.0
     BILLING_QUOTA_CACHE_TTL_SECONDS: int = 10
     BILLING_QUOTA_STALE_TTL_SECONDS: int = 300
@@ -255,7 +256,7 @@ def _first_non_empty(*values: Optional[str]) -> str:
 
 
 def _apply_simple_mode(settings_obj: AppSettings) -> AppSettings:
-    mode = str(getattr(settings_obj, "PAPER2ANY_CONFIG_MODE", "") or "").strip().lower()
+    mode = str(getattr(settings_obj, "FIGUREMIND_CONFIG_MODE", "") or "").strip().lower()
     if mode != "simple":
         return settings_obj
 
@@ -309,7 +310,7 @@ def _apply_simple_mode(settings_obj: AppSettings) -> AppSettings:
     settings_obj.PAPER2DRAWIO_OCR_API_KEY = ocr_api_key or settings_obj.PAPER2DRAWIO_OCR_API_KEY
 
     for scope in (
-        "PAPER2ANY",
+        "FIGUREMIND",
         "PAPER2PPT",
         "PPT2POLISH",
         "PDF2PPT",
